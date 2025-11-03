@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 262 83% 58%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 262 83% 58%;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+  }
+
+  /* Tema Ocean */
+  .theme-ocean {
+    --primary: 199 89% 48%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 187 71% 60%;
+    --accent-foreground: 0 0% 100%;
+    --ring: 199 89% 48%;
+  }
+
+  .theme-ocean.dark {
+    --primary: 199 89% 48%;
+    --accent: 187 71% 60%;
+  }
+
+  /* Tema Sunset */
+  .theme-sunset {
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 330 81% 60%;
+    --accent-foreground: 0 0% 100%;
+    --ring: 24 95% 53%;
+  }
+
+  .theme-sunset.dark {
+    --primary: 24 95% 53%;
+    --accent: 330 81% 60%;
+  }
+
+  /* Tema Forest */
+  .theme-forest {
+    --primary: 142 76% 36%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 160 60% 45%;
+    --accent-foreground: 0 0% 100%;
+    --ring: 142 76% 36%;
+    --success: 142 76% 36%;
+  }
+
+  .theme-forest.dark {
+    --primary: 142 76% 36%;
+    --accent: 160 60% 45%;
+  }
+
+  /* Tema Purple */
+  .theme-purple {
+    --primary: 271 91% 65%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 280 79% 70%;
+    --accent-foreground: 0 0% 100%;
+    --ring: 271 91% 65%;
+  }
+
+  .theme-purple.dark {
+    --primary: 271 91% 65%;
+    --accent: 280 79% 70%;
+  }
+
+  /* Tema Rose */
+  .theme-rose {
+    --primary: 347 77% 50%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 350 89% 60%;
+    --accent-foreground: 0 0% 100%;
+    --ring: 347 77% 50%;
+  }
+
+  .theme-rose.dark {
+    --primary: 347 77% 50%;
+    --accent: 350 89% 60%;
+  }
+
+  /* Tema Black */
+  .theme-black {
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 100%;
+    --ring: 0 0% 0%;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+  }
+
+  .theme-black.dark {
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+    --accent: 0 0% 85%;
+    --accent-foreground: 0 0% 0%;
+    --ring: 0 0% 100%;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+  }
+
+  /* Tema Custom - As variáveis são definidas dinamicamente via JavaScript */
+  .theme-custom {
+    /* As propriedades --primary e --primary-foreground são definidas dinamicamente */
+    --accent: var(--primary);
+    --accent-foreground: var(--primary-foreground);
+    --ring: var(--primary);
+  }
+
+  .theme-custom.dark {
+    --accent: var(--primary);
+    --accent-foreground: var(--primary-foreground);
+    --ring: var(--primary);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Roboto", "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+@layer components {
+  /* Estilos para drag and drop do calendário */
+  .dragging {
+    opacity: 0.5;
+    transform: scale(0.95) rotate(2deg);
+    transition: all 0.2s ease-in-out;
+  }
+  
+  [draggable="true"] {
+    cursor: grab;
+  }
+  
+  [draggable="true"]:active {
+    cursor: grabbing;
+  }
+}

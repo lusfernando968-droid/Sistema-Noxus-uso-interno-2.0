@@ -1,0 +1,1 @@
+export const ENABLE_METAS = (import.meta.env.VITE_ENABLE_METAS ?? 'false') === 'true';

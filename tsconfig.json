@@ -12,5 +12,9 @@
     "allowJs": true,
     "noUnusedLocals": false,
     "strictNullChecks": false
-  }
+  },
+  "exclude": [
+    "Noxus-Dashboard-vers-o-1.0.1-/**",
+    "**/Noxus-Dashboard-vers-o-1.0.1-/**"
+  ]
 }

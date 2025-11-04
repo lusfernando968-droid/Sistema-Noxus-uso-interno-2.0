@@ -12,6 +12,7 @@ interface MiniLineChartProps {
   areaOpacity?: number; // 0..1
   interactive?: boolean; // tooltip simples
   formatValue?: (v: number) => string;
+  tooltipAtPoint?: boolean;
 }
 
 // Pequeno gráfico de linha responsivo usando SVG com viewBox fixo.

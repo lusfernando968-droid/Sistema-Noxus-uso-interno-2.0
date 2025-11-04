@@ -666,7 +666,7 @@ export default function Projetos() {
             className="rounded-lg"
             onClick={() => setViewMode("kanban")}
           >
-            <List className="w-4 h-4" />
+            <List className="w-4 h-4 rotate-90" />
           </Button>
         </div>
       </div>

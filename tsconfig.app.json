@@ -26,5 +26,9 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "Noxus-Dashboard-vers-o-1.0.1-/**",
+    "**/Noxus-Dashboard-vers-o-1.0.1-/**"
+  ]
 }

@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, Shuffle } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, Shuffle, ChevronRight, ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -82,6 +82,44 @@ const Clientes = () => {
     cidade: "",
     indicado_por: ""
   });
+  // Ref para container com scroll horizontal da tabela
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+
+  const updateArrowVisibility = () => {
+    const el = tableScrollRef.current;
+    if (!el) {
+      setShowLeftArrow(false);
+      setShowRightArrow(false);
+      return;
+    }
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 0) {
+      setShowLeftArrow(false);
+      setShowRightArrow(false);
+      return;
+    }
+    setShowLeftArrow(el.scrollLeft > 0);
+    setShowRightArrow(el.scrollLeft < maxScroll - 1);
+  };
+
+  useEffect(() => {
+    const el = tableScrollRef.current;
+    // Atualiza inicialmente (após layout)
+    const init = () => updateArrowVisibility();
+    const onScroll = () => updateArrowVisibility();
+    const onResize = () => updateArrowVisibility();
+    // Pequeno delay para garantir cálculo após renderização
+    const t = setTimeout(init, 120);
+    if (el) el.addEventListener('scroll', onScroll);
+    window.addEventListener('resize', onResize);
+    return () => {
+      clearTimeout(t);
+      if (el) el.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [clientes.length, viewMode]);
   type CidadeOption = { id?: string; nome: string; created_at?: string };
   const [availableCities, setAvailableCities] = useState<CidadeOption[]>([]);
   const [selectedCities, setSelectedCities] = useState<CidadeOption[]>([]);
@@ -1354,9 +1392,10 @@ const Clientes = () => {
                        <p>Nenhum cliente encontrado.</p>
                        <p className="text-sm mt-1">Clique em "Adicionar Cliente" para começar.</p>
                      </div>
-                   </Card> : <Card className="rounded-xl overflow-hidden">
-                     <div className="overflow-x-auto">
-                       <Table>
+                   </Card> : <Card className="rounded-xl overflow-hidden relative">
+                     <div className="overflow-x-auto" ref={tableScrollRef}>
+                       <div className="min-w-[1600px]">
+                         <Table>
                          <TableHeader>
                            <TableRow>
                              <TableHead className="min-w-[200px]">Nome</TableHead>
@@ -1466,11 +1505,42 @@ const Clientes = () => {
                                </TableRow>;
                   })}
                          </TableBody>
-                       </Table>
+                         </Table>
+                       </div>
                      </div>
+                     {/* Setas transparentes para navegação horizontal (overlay fixo) */}
                    </Card>}
                 </div>
         </TabsContent>
+        {/* Overlay de setas visível apenas na visualização de tabela */}
+        {viewMode === 'table' && (
+          <>
+            {showLeftArrow && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="fixed left-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
+                onClick={() => tableScrollRef.current?.scrollBy({ left: -480, behavior: 'smooth' })}
+                title="Rolar para a esquerda"
+                aria-label="Rolar para a esquerda"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+            )}
+            {showRightArrow && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="fixed right-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
+                onClick={() => tableScrollRef.current?.scrollBy({ left: 480, behavior: 'smooth' })}
+                title="Rolar para a direita"
+                aria-label="Rolar para a direita"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </Button>
+            )}
+          </>
+        )}
 
         {/* Visualização em Rede */}
         <TabsContent value="network" className="mt-6 animate-in fade-in-50 duration-300">

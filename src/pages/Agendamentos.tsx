@@ -9,11 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Plus, Edit, Trash2, Clock, User, MapPin, CheckCircle, AlertCircle, CalendarDays, List } from "lucide-react";
+import { Calendar, Plus, Edit, Trash2, Clock, User, MapPin, CheckCircle, AlertCircle, CalendarDays, List, Search } from "lucide-react";
 import { useToastWithSound } from "@/hooks/useToastWithSound";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { useAchievementNotifications } from "@/hooks/useAchievementNotifications";
 import { CalendarView } from "@/components/calendar/CalendarView";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComp } from "@/components/ui/calendar";
+import { format, parse } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Interfaces
 interface Agendamento {
@@ -35,9 +41,12 @@ export default function Agendamentos() {
   const { toast } = useToastWithSound();
   const { playSound } = useSoundEffects();
   const { checkAgendamentosMilestone } = useAchievementNotifications();
+  const { user } = useAuth();
 
   // Estados
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
+  const [clientes, setClientes] = useState<{ id: string; nome: string }[]>([]);
+  const [projetos, setProjetos] = useState<{ id: string; nome: string; valor_por_sessao?: number }[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAgendamento, setEditingAgendamento] = useState<Agendamento | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
@@ -68,6 +77,40 @@ export default function Agendamentos() {
     tatuador: "",
     local: "Estúdio Principal"
   });
+
+  // Buscar lista de clientes
+  useEffect(() => {
+    const fetchClientes = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("clientes")
+          .select("id, nome")
+          .order("nome");
+        if (error) throw error;
+        setClientes(data || []);
+      } catch (err) {
+        console.error("Erro ao buscar clientes:", err);
+      }
+    };
+    fetchClientes();
+  }, []);
+
+  // Buscar lista de projetos
+  useEffect(() => {
+    const fetchProjetos = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("projetos")
+          .select("id, nome, valor_por_sessao")
+          .order("nome");
+        if (error) throw error;
+        setProjetos(data || []);
+      } catch (err) {
+        console.error("Erro ao buscar projetos:", err);
+      }
+    };
+    fetchProjetos();
+  }, []);
 
   // Dados simulados iniciais
   useEffect(() => {
@@ -159,9 +202,86 @@ export default function Agendamentos() {
   const agendamentosConfirmados = agendamentos.filter(a => a.status === 'confirmado').length;
   const agendamentosConcluidos = agendamentos.filter(a => a.status === 'concluido').length;
 
+  // Lista de agendamentos apenas do dia atual
+  const agendamentosDoDia = agendamentos
+    .filter(a => a.data_agendamento === new Date().toISOString().split('T')[0])
+    .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
+
+  // Confirmar sessão realizada: atualiza status local e registra em tabelas relacionadas
+  const handleConfirmSessao = async (agendamento: Agendamento) => {
+    try {
+      playSound('success');
+
+      // Atualiza status local para concluído
+      setAgendamentos(prev => prev.map(a => a.id === agendamento.id ? { ...a, status: 'concluido' } : a));
+
+      // Se não estiver logado, apenas feedback visual
+      if (!user) {
+        toast({ title: 'Sessão confirmada localmente', description: 'Faça login para registrar nas tabelas.' });
+        return;
+      }
+
+      // Encontrar projeto pelo nome selecionado no agendamento (campo tatuador armazena o nome do projeto)
+      const projeto = projetos.find(p => p.nome === agendamento.tatuador);
+
+      // Registrar sessão do projeto, se conseguirmos resolver o projeto
+      if (projeto?.id) {
+        // Descobrir próximo número de sessão
+        const { data: sessoesExistentes, error: countError } = await supabase
+          .from('projeto_sessoes')
+          .select('id')
+          .eq('projeto_id', projeto.id);
+
+        if (countError) throw countError;
+
+        const numeroSessao = (sessoesExistentes?.length || 0) + 1;
+
+        const { error: sessaoError } = await supabase
+          .from('projeto_sessoes')
+          .insert({
+            projeto_id: projeto.id,
+            agendamento_id: null,
+            numero_sessao: numeroSessao,
+            data_sessao: agendamento.data_agendamento,
+            valor_sessao: agendamento.valor_estimado || null,
+            status_pagamento: 'pendente',
+            metodo_pagamento: null,
+            observacoes_tecnicas: agendamento.observacoes || null,
+          });
+
+        if (sessaoError) throw sessaoError;
+      }
+
+      // Registrar transação (receita) referente à sessão
+      if (agendamento.valor_estimado && agendamento.valor_estimado > 0) {
+        const { error: transacaoError } = await supabase
+          .from('transacoes')
+          .insert({
+            user_id: user.id,
+            tipo: 'RECEITA',
+            categoria: 'Serviços',
+            valor: agendamento.valor_estimado,
+            data_vencimento: agendamento.data_agendamento,
+            descricao: `Sessão realizada: ${agendamento.servico}`,
+            agendamento_id: null,
+          });
+
+        if (transacaoError) throw transacaoError;
+      }
+
+      toast({ title: 'Sessão confirmada!', description: 'Registro salvo nas tabelas relacionadas.' });
+    } catch (err) {
+      console.error('Erro ao confirmar sessão:', err);
+      toast({ title: 'Erro ao confirmar sessão', description: 'Tente novamente mais tarde.' });
+    }
+  };
+
   // Handlers
   const handleSubmit = () => {
     playSound('click');
+    // Preserva a posição de rolagem do container principal
+    const scrollContainer = document.querySelector('main.flex-1') as HTMLElement | null;
+    const prevScrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
     
     if (editingAgendamento) {
       // Editando agendamento existente
@@ -199,6 +319,15 @@ export default function Agendamentos() {
       valor_estimado: 0,
       tatuador: "",
       local: "Estúdio Principal"
+    });
+
+    // Restaura a rolagem após o re-render
+    requestAnimationFrame(() => {
+      if (scrollContainer) {
+        scrollContainer.scrollTop = prevScrollTop;
+      } else {
+        window.scrollTo(0, prevScrollTop);
+      }
     });
   };
 
@@ -251,6 +380,19 @@ export default function Agendamentos() {
   const handleDateClick = (date: string) => {
     setFormData(prev => ({ ...prev, data_agendamento: date }));
     setIsDialogOpen(true);
+  };
+
+  // Helpers de moeda BRL para o campo Valor Estimado
+  const formatCurrencyBR = (value: number) => {
+    if (!isFinite(value)) return "";
+    return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  };
+
+  const handleValorEstimadoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "");
+    const cents = parseInt(digitsOnly || "0", 10);
+    const value = cents / 100;
+    setFormData(prev => ({ ...prev, valor_estimado: value }));
   };
 
   return (
@@ -320,75 +462,220 @@ export default function Agendamentos() {
           </Card>
         </div>
 
-        {/* Filtros e Busca */}
+        {/* Agendamentos de Hoje */}
         <Card className="rounded-2xl">
-          <CardContent className="p-6">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <Input
-                  placeholder="Buscar por cliente, serviço ou tatuador..."
-                  value={busca}
-                  onChange={(e) => setBusca(e.target.value)}
-                  className="rounded-xl"
-                />
-              </div>
-              <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-                <SelectTrigger className="w-full md:w-48 rounded-xl">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos Status</SelectItem>
-                  <SelectItem value="agendado">Agendado</SelectItem>
-                  <SelectItem value="confirmado">Confirmado</SelectItem>
-                  <SelectItem value="em_andamento">Em Andamento</SelectItem>
-                  <SelectItem value="concluido">Concluído</SelectItem>
-                  <SelectItem value="cancelado">Cancelado</SelectItem>
-                </SelectContent>
-              </Select>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button onClick={() => playSound('click')} className="rounded-xl">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Novo Agendamento
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>{editingAgendamento ? "Editar Agendamento" : "Novo Agendamento"}</DialogTitle>
-                  </DialogHeader>
+          <CardHeader>
+            <CardTitle>Agendamentos de Hoje</CardTitle>
+            <CardDescription>Mostra apenas os compromissos do dia atual</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {agendamentosDoDia.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhum agendamento para hoje.</p>
+            ) : (
+              agendamentosDoDia.map((a) => (
+                <div key={a.id} className="flex items-center justify-between rounded-xl border bg-card p-3">
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium">
+                        {a.cliente_nome} — {a.servico}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {a.hora_inicio} - {a.hora_fim} • {format(parse(a.data_agendamento, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy', { locale: ptBR })}
+                      </div>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className={getStatusColor(a.status)}>
+                    {getStatusLabel(a.status)}
+                  </Badge>
+                  {a.status !== 'concluido' && a.status !== 'cancelado' && (
+                    <Button size="sm" className="ml-3 rounded-xl" onClick={() => handleConfirmSessao(a)}>
+                      Confirmar Sessão
+                    </Button>
+                  )}
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Visualizações de Agendamentos (TabsList acima dos filtros) */}
+
+        {/* Visualizações de Agendamentos */}
+        <Tabs defaultValue="calendar" className="space-y-6">
+          <div className="flex justify-center mb-4">
+            <TabsList className="inline-flex w-auto rounded-2xl bg-gradient-to-r from-muted/30 to-muted/10 p-1.5 backdrop-blur-sm border border-border/20 shadow-lg">
+              <TabsTrigger value="calendar" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">
+                <CalendarDays className="w-5 h-5 transition-colors" />
+                <span className="font-medium text-sm hidden sm:inline">Visualização em Calendário</span>
+              </TabsTrigger>
+              <TabsTrigger value="list" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">
+                <List className="w-5 h-5 transition-colors" />
+                <span className="font-medium text-sm hidden sm:inline">Visualização em Lista</span>
+              </TabsTrigger>
+          </TabsList>
+          </div>
+
+          {/* Filtros e Busca */}
+          <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por cliente, serviço ou projeto..."
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      className="pl-10 rounded-lg border-muted/50 bg-background/50 backdrop-blur-sm h-9"
+                    />
+                  </div>
+
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="rounded-lg h-9">Filtros</Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[360px] rounded-xl p-4">
+                      <div className="space-y-3">
+                        <div className="space-y-2">
+                          <Label>Status</Label>
+                          <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+                            <SelectTrigger className="rounded-xl">
+                              <SelectValue placeholder="Todos" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              <SelectItem value="todos">Todos Status</SelectItem>
+                              <SelectItem value="agendado">Agendado</SelectItem>
+                              <SelectItem value="confirmado">Confirmado</SelectItem>
+                              <SelectItem value="em_andamento">Em Andamento</SelectItem>
+                              <SelectItem value="concluido">Concluído</SelectItem>
+                              <SelectItem value="cancelado">Cancelado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                          <Button variant="ghost" className="rounded-xl" onClick={() => setFiltroStatus('todos')}>Limpar</Button>
+                          <Button className="rounded-xl">Aplicar</Button>
+                        </div>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button onClick={() => playSound('click')} className="rounded-lg gap-2 h-9 px-3">
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Novo Agendamento</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent 
+                    className="max-w-2xl"
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    onCloseAutoFocus={(e) => e.preventDefault()}
+                  >
+                    <DialogHeader>
+                      <DialogTitle>{editingAgendamento ? "Editar Agendamento" : "Novo Agendamento"}</DialogTitle>
+                    </DialogHeader>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Cliente</Label>
-                      <Input
-                        value={formData.cliente_nome}
-                        onChange={(e) => setFormData(prev => ({ ...prev, cliente_nome: e.target.value }))}
-                        className="rounded-xl"
-                      />
+                      <Select
+                        value={formData.cliente_id}
+                        onValueChange={(value) => {
+                          const c = clientes.find((cl) => cl.id === value);
+                          setFormData(prev => ({
+                            ...prev,
+                            cliente_id: value,
+                            cliente_nome: c?.nome || ""
+                          }))
+                        }}
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder="Selecione um cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clientes.map((cliente) => (
+                            <SelectItem key={cliente.id} value={cliente.id}>
+                              {cliente.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label>Serviço</Label>
-                      <Input
+                      <Select
                         value={formData.servico}
-                        onChange={(e) => setFormData(prev => ({ ...prev, servico: e.target.value }))}
-                        className="rounded-xl"
-                      />
+                        onValueChange={(value) => setFormData(prev => ({ ...prev, servico: value }))}
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder="Selecione o serviço" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Continuação">Continuação</SelectItem>
+                          <SelectItem value="Retoque">Retoque</SelectItem>
+                          <SelectItem value="Orçamento">Orçamento</SelectItem>
+                          <SelectItem value="Início de projeto">Início de projeto</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label>Data</Label>
-                      <Input
-                        type="date"
-                        value={formData.data_agendamento}
-                        onChange={(e) => setFormData(prev => ({ ...prev, data_agendamento: e.target.value }))}
-                        className="rounded-xl"
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="h-9 w-full justify-start text-left font-normal rounded-xl"
+                          >
+                            <Calendar className="mr-2 h-4 w-4" />
+                            {formData.data_agendamento
+                              ? format(
+                                  parse(formData.data_agendamento, "yyyy-MM-dd", new Date()),
+                                  "dd/MM/yyyy",
+                                  { locale: ptBR }
+                                )
+                              : "dd/mm/aaaa"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CalendarComp
+                            mode="single"
+                            selected={formData.data_agendamento ? parse(formData.data_agendamento, "yyyy-MM-dd", new Date()) : undefined}
+                            onSelect={(date) => {
+                              if (date) {
+                                setFormData(prev => ({ ...prev, data_agendamento: format(date, "yyyy-MM-dd") }));
+                              }
+                            }}
+                            locale={ptBR}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div>
-                      <Label>Tatuador</Label>
-                      <Input
+                      <Label>Projeto</Label>
+                      <Select
                         value={formData.tatuador}
-                        onChange={(e) => setFormData(prev => ({ ...prev, tatuador: e.target.value }))}
-                        className="rounded-xl"
-                      />
+                        onValueChange={(value) => {
+                          const p = projetos.find((pr) => pr.nome === value) || projetos.find((pr) => pr.id === value);
+                          setFormData(prev => ({
+                            ...prev,
+                            tatuador: p?.nome || value,
+                            // Preenche o valor estimado com o valor por sessão do projeto, se existir
+                            valor_estimado: typeof p?.valor_por_sessao === 'number' ? (p!.valor_por_sessao as number) : prev.valor_estimado
+                          }))
+                        }}
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder="Selecione o projeto" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {projetos.map((projeto) => (
+                            <SelectItem key={projeto.id} value={projeto.nome}>
+                              {projeto.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div>
                       <Label>Hora Início</Label>
@@ -411,10 +698,11 @@ export default function Agendamentos() {
                     <div>
                       <Label>Valor Estimado</Label>
                       <Input
-                        type="number"
-                        step="0.01"
-                        value={formData.valor_estimado}
-                        onChange={(e) => setFormData(prev => ({ ...prev, valor_estimado: parseFloat(e.target.value) || 0 }))}
+                        type="text"
+                        inputMode="numeric"
+                        value={formatCurrencyBR(formData.valor_estimado)}
+                        onChange={handleValorEstimadoChange}
+                        placeholder="R$ 0,00"
                         className="rounded-xl"
                       />
                     </div>
@@ -456,23 +744,8 @@ export default function Agendamentos() {
                     </Button>
                   </div>
                 </DialogContent>
-              </Dialog>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Visualizações de Agendamentos */}
-        <Tabs defaultValue="calendar" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 rounded-2xl">
-            <TabsTrigger value="calendar" className="rounded-xl flex items-center gap-2">
-              <CalendarDays className="w-4 h-4" />
-              Visualização em Calendário
-            </TabsTrigger>
-            <TabsTrigger value="list" className="rounded-xl flex items-center gap-2">
-              <List className="w-4 h-4" />
-              Visualização em Lista
-            </TabsTrigger>
-          </TabsList>
+                </Dialog>
+              </div>
 
           {/* Aba do Calendário */}
           <TabsContent value="calendar" className="space-y-6">
@@ -494,7 +767,7 @@ export default function Agendamentos() {
                       <TableHead>Cliente</TableHead>
                       <TableHead>Data/Hora</TableHead>
                       <TableHead>Serviço</TableHead>
-                      <TableHead>Tatuador</TableHead>
+                      <TableHead>Projeto</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Ações</TableHead>
@@ -511,7 +784,7 @@ export default function Agendamentos() {
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{new Date(agendamento.data_agendamento).toLocaleDateString()}</p>
+                            <p className="font-medium">{format(parse(agendamento.data_agendamento, 'yyyy-MM-dd', new Date()), 'dd/MM/yyyy', { locale: ptBR })}</p>
                             <p className="text-sm text-muted-foreground">
                               {agendamento.hora_inicio} - {agendamento.hora_fim}
                             </p>
@@ -536,7 +809,7 @@ export default function Agendamentos() {
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell>R$ {agendamento.valor_estimado.toFixed(2)}</TableCell>
+                        <TableCell>{formatCurrencyBR(agendamento.valor_estimado)}</TableCell>
                         <TableCell>
                           <div className="flex gap-2">
                             <Button
@@ -555,6 +828,15 @@ export default function Agendamentos() {
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
+                            {agendamento.status !== 'concluido' && agendamento.status !== 'cancelado' && (
+                              <Button
+                                variant="default"
+                                onClick={() => handleConfirmSessao(agendamento)}
+                                className="rounded-xl"
+                              >
+                                Confirmar Sessão
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

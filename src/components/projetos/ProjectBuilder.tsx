@@ -9,7 +9,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Upload, Link as LinkIcon, FileText, Trash2, ExternalLink, Download } from "lucide-react";
+import { Upload, Link as LinkIcon, FileText, Trash2, ExternalLink, Download, Calendar as CalendarIcon } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar as CalendarComp } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface ProjectBuilderProps {
   open: boolean;
@@ -53,6 +57,8 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [categoria, setCategoria] = useState<string>("");
+  const [dataInicioOpen, setDataInicioOpen] = useState(false);
+  const [dataFimOpen, setDataFimOpen] = useState(false);
 
   // Referências e anexos
   const [referencias, setReferencias] = useState<Referencia[]>([]);
@@ -62,6 +68,27 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
   const [novaRefTitulo, setNovaRefTitulo] = useState("");
   const [novaRefUrl, setNovaRefUrl] = useState("");
   const [novaRefDescricao, setNovaRefDescricao] = useState("");
+
+  // Helpers de moeda BRL
+  const formatCurrencyBR = (value: string) => {
+    if (value === "") return "";
+    const num = Number(value);
+    if (!isFinite(num)) return "";
+    return num.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  };
+
+  const handleCurrencyChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "");
+    if (!digitsOnly) {
+      setter("");
+      return;
+    }
+    const cents = parseInt(digitsOnly, 10);
+    const value = (cents / 100).toFixed(2);
+    setter(value);
+  };
 
   useEffect(() => {
     if (open && projetoId) {
@@ -366,6 +393,7 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-background">
+        <form onSubmit={(e) => { e.preventDefault(); handleSaveProjeto(); }}>
         <DialogHeader>
           <DialogTitle>
             {projetoId ? "Editar Projeto" : "Criar Novo Projeto"}
@@ -444,40 +472,95 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="dataInicio" className="text-sm">Data de Início</Label>
-                <Input
-                  id="dataInicio"
-                  type="date"
-                  value={dataInicio}
-                  onChange={(e) => setDataInicio(e.target.value)}
-                  className="h-9"
-                />
+                <Popover open={dataInicioOpen} onOpenChange={setDataInicioOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dataInicio
+                        ? format(new Date(dataInicio), "dd/MM/yyyy", { locale: ptBR })
+                        : "dd/mm/aaaa"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComp
+                      mode="single"
+                      selected={dataInicio ? new Date(dataInicio) : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          setDataInicio(format(date, "yyyy-MM-dd"));
+                          setDataInicioOpen(false);
+                        }
+                      }}
+                      locale={ptBR}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-1">
                 <Label htmlFor="dataFim" className="text-sm">Data de Fim (Prevista)</Label>
-                <Input
-                  id="dataFim"
-                  type="date"
-                  value={dataFim}
-                  onChange={(e) => setDataFim(e.target.value)}
-                  className="h-9"
-                />
+                <Popover open={dataFimOpen} onOpenChange={setDataFimOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 w-full justify-start text-left font-normal"
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {dataFim
+                        ? format(new Date(dataFim), "dd/MM/yyyy", { locale: ptBR })
+                        : "dd/mm/aaaa"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComp
+                      mode="single"
+                      selected={dataFim ? new Date(dataFim) : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          setDataFim(format(date, "yyyy-MM-dd"));
+                          setDataFimOpen(false);
+                        }
+                      }}
+                      locale={ptBR}
+                      disabled={(date) => (dataInicio ? date < new Date(dataInicio) : false)}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-3">
+              {/* 1º: Valor/Sessão */}
+              <div className="space-y-1">
+                <Label htmlFor="valorPorSessao" className="text-sm">Valor/Sessão (R$)</Label>
+                <Input
+                  id="valorPorSessao"
+                  type="text"
+                  inputMode="numeric"
+                  value={formatCurrencyBR(valorPorSessao)}
+                  onChange={handleCurrencyChange(setValorPorSessao)}
+                  placeholder="R$ 0,00"
+                  className="h-9"
+                />
+              </div>
+              {/* 2º: Valor Total */}
               <div className="space-y-1">
                 <Label htmlFor="valorTotal" className="text-sm">Valor Total (R$)</Label>
                 <Input
                   id="valorTotal"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={valorTotal}
-                  onChange={(e) => setValorTotal(e.target.value)}
-                  placeholder="0,00"
+                  type="text"
+                  inputMode="numeric"
+                  value={formatCurrencyBR(valorTotal)}
+                  onChange={handleCurrencyChange(setValorTotal)}
+                  placeholder="R$ 0,00"
                   className="h-9"
                 />
               </div>
+              {/* 3º: Quantidade de Sessões */}
               <div className="space-y-1">
                 <Label htmlFor="quantidadeSessoes" className="text-sm">Qtd. Sessões</Label>
                 <Input
@@ -487,19 +570,6 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
                   value={quantidadeSessoes}
                   onChange={(e) => setQuantidadeSessoes(e.target.value)}
                   placeholder="Ex: 5"
-                  className="h-9"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="valorPorSessao" className="text-sm">Valor/Sessão (R$)</Label>
-                <Input
-                  id="valorPorSessao"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={valorPorSessao}
-                  onChange={(e) => setValorPorSessao(e.target.value)}
-                  placeholder="0,00"
                   className="h-9"
                 />
               </div>
@@ -687,11 +757,12 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={handleSaveProjeto} disabled={loading}>
+          <Button type="submit" disabled={loading}>
             {loading ? "Salvando..." : projetoId ? "Salvar" : "Criar Projeto"}
           </Button>
         </div>
+        </form>
       </DialogContent>
-    </Dialog>
+      </Dialog>
   );
 }

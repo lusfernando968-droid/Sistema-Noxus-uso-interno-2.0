@@ -265,7 +265,7 @@ export function CalendarView({
                     transition-all duration-200 ease-in-out
                     ${!isCurrentMonthDay ? 'bg-muted/20 text-muted-foreground' : 'hover:bg-muted/50'}
                     ${isTodayDate ? 'bg-blue-50 dark:bg-blue-950/50 border-blue-200 dark:border-blue-800' : ''}
-                    ${isDragOver ? 'bg-green-100 dark:bg-green-950/50 border-green-300 dark:border-green-700 border-2' : ''}
+                    ${isDragOver ? '' : ''}
                   `}
                   onClick={() => handleDateClick(date)}
                   onDragOver={(e) => handleDragOver(e, dateString)}
@@ -329,14 +329,7 @@ export function CalendarView({
                     )}
                   </div>
 
-                  {/* Indicador de drop zone */}
-                  {isDragOver && draggedAppointment && (
-                    <div className="absolute inset-0 border-2 border-dashed border-green-400 dark:border-green-600 bg-green-50/50 dark:bg-green-950/50 rounded-lg flex items-center justify-center">
-                      <span className="text-green-600 dark:text-green-400 font-medium text-sm">
-                        Solte aqui
-                      </span>
-                    </div>
-                  )}
+                  {/* Removido indicador de zona de drop para alinhar com o comportamento do Kanban de Projetos */}
                 </div>
               );
             })}

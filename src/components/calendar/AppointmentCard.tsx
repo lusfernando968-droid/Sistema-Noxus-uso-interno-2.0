@@ -122,11 +122,11 @@ export function AppointmentCard({
             <div className={`w-2 h-2 rounded-full ${statusColors.bg}`} />
           </div>
           
-          <div className="text-xs font-medium text-gray-900 truncate">
+          <div className="text-xs font-medium text-foreground truncate">
             {appointment.cliente_nome}
           </div>
           
-          <div className="text-xs text-gray-600 truncate">
+          <div className="text-xs text-muted-foreground truncate">
             {appointment.servico}
           </div>
         </div>
@@ -155,7 +155,7 @@ export function AppointmentCard({
             {getStatusLabel(appointment.status)}
           </Badge>
           
-          <div className="flex items-center gap-1 text-sm text-gray-600">
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
             <Clock className="w-4 h-4" />
             <span>{formatTime(appointment.hora_inicio)} - {formatTime(appointment.hora_fim)}</span>
           </div>
@@ -164,26 +164,26 @@ export function AppointmentCard({
         {/* Informações principais */}
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <User className="w-4 h-4 text-gray-500" />
-            <span className="font-medium text-gray-900">{appointment.cliente_nome}</span>
+            <User className="w-4 h-4 text-muted-foreground" />
+            <span className="font-medium text-foreground">{appointment.cliente_nome}</span>
           </div>
           
           <div className="flex items-center gap-2">
-            <Scissors className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-700">{appointment.servico}</span>
+            <Scissors className="w-4 h-4 text-muted-foreground" />
+            <span className="text-foreground">{appointment.servico}</span>
           </div>
           
           <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-gray-500" />
-            <span className="text-gray-600 text-sm">{appointment.local}</span>
+            <MapPin className="w-4 h-4 text-muted-foreground" />
+            <span className="text-muted-foreground text-sm">{appointment.local}</span>
           </div>
         </div>
 
         {/* Informações adicionais */}
-        <div className="mt-3 pt-3 border-t border-gray-200">
+        <div className="mt-3 pt-3 border-t border-border">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">Tatuador: {appointment.tatuador}</span>
-            <span className="font-medium text-gray-900">
+            <span className="text-muted-foreground">Tatuador: {appointment.tatuador}</span>
+            <span className="font-medium text-foreground">
               R$ {appointment.valor_estimado.toLocaleString('pt-BR')}
             </span>
           </div>
@@ -191,7 +191,7 @@ export function AppointmentCard({
 
         {/* Observações (se houver) */}
         {appointment.observacoes && (
-          <div className="mt-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
+          <div className="mt-2 text-xs text-muted-foreground bg-muted p-2 rounded">
             {appointment.observacoes}
           </div>
         )}

@@ -4,11 +4,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Calendar, DollarSign, User, Clock, FileText, Image, CheckCircle, MessageSquare, Star } from "lucide-react";
 import { useToastWithSound } from "@/hooks/useToastWithSound";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { supabase } from "@/integrations/supabase/client";
 import { FeedbackManager } from "@/components/projetos/FeedbackManager";
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu";
 
 // Interfaces
 interface Projeto {
@@ -37,6 +43,17 @@ interface Sessao {
   feedback_cliente?: string;
   observacoes_tecnicas?: string;
   avaliacao?: number;
+  agendamento_id?: string | null;
+  numero_sessao?: number;
+}
+
+interface AgendamentoProjeto {
+  id: string;
+  titulo: string;
+  data: string;
+  hora: string;
+  status: 'agendado' | 'confirmado' | 'em_andamento' | 'concluido' | 'cancelado';
+  descricao?: string;
 }
 
 export default function ProjetoDetalhes() {
@@ -47,7 +64,126 @@ export default function ProjetoDetalhes() {
 
   const [projeto, setProjeto] = useState<Projeto | null>(null);
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
+  const [agendamentos, setAgendamentos] = useState<AgendamentoProjeto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAgendamentosDialogOpen, setIsAgendamentosDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [agendamentoToCancel, setAgendamentoToCancel] = useState<AgendamentoProjeto | null>(null);
+  const [editingAgendamento, setEditingAgendamento] = useState<AgendamentoProjeto | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState<{ titulo: string; descricao: string; data: string; hora: string; status: AgendamentoProjeto['status']}>({
+    titulo: '',
+    descricao: '',
+    data: '',
+    hora: '',
+    status: 'agendado'
+  });
+
+  // Edição de sessão
+  const [editingSessao, setEditingSessao] = useState<Sessao | null>(null);
+  const [editSessaoDialogOpen, setEditSessaoDialogOpen] = useState(false);
+  const [editSessaoForm, setEditSessaoForm] = useState<{ data: string; valor: number; descricao: string; status: Sessao['status'] }>({
+    data: '',
+    valor: 0,
+    descricao: '',
+    status: 'agendada'
+  });
+
+  const abrirEdicaoSessao = (s: Sessao) => {
+    setEditingSessao(s);
+    setEditSessaoForm({
+      data: s.data || '',
+      valor: s.valor || 0,
+      descricao: s.descricao || '',
+      status: s.status || 'agendada'
+    });
+    setEditSessaoDialogOpen(true);
+  };
+
+  const mapSessaoStatusToPagamento = (status: Sessao['status']) => {
+    switch (status) {
+      case 'concluida':
+        return 'pago';
+      case 'cancelada':
+        return 'cancelado';
+      default:
+        return 'pendente';
+    }
+  };
+
+  // Normaliza a descrição para ajustar rótulos antigos como "Local:" para o novo texto
+  const formatDescricao = (d?: string) => {
+    if (!d) return '';
+    return d.replace(/^Local:\s*/i, 'Estúdio: ');
+  };
+
+  // Usa a observação/descrição do agendamento vinculado, se existir
+  const getSessaoDescricao = (s: Sessao) => {
+    const ag = agendamentos.find(a => a.id === (s.agendamento_id || ''));
+    const texto = ag?.descricao || s.descricao || '';
+    return formatDescricao(texto);
+  };
+
+  const salvarEdicaoSessao = async () => {
+    if (!editingSessao) return;
+    try {
+      const { error } = await supabase
+        .from('projeto_sessoes')
+        .update({
+          data_sessao: editSessaoForm.data,
+          valor_sessao: editSessaoForm.valor,
+          observacoes_tecnicas: editSessaoForm.descricao,
+          status_pagamento: mapSessaoStatusToPagamento(editSessaoForm.status),
+        })
+        .eq('id', editingSessao.id);
+      if (error) throw error;
+
+      setSessoes(prev => prev.map(s => s.id === editingSessao.id ? {
+        ...s,
+        data: editSessaoForm.data,
+        valor: editSessaoForm.valor,
+        descricao: editSessaoForm.descricao,
+        status: editSessaoForm.status,
+      } : s));
+
+      setEditSessaoDialogOpen(false);
+      setEditingSessao(null);
+      toast({ title: 'Sessão atualizada', description: 'As alterações foram salvas.' });
+    } catch (err) {
+      console.error('Erro ao salvar edição da sessão:', err);
+      toast({ title: 'Erro ao salvar sessão', description: String(err), variant: 'destructive' });
+    }
+  };
+
+  // Exclusão de sessão
+  const [deleteSessaoDialogOpen, setDeleteSessaoDialogOpen] = useState(false);
+  const [sessaoToDelete, setSessaoToDelete] = useState<Sessao | null>(null);
+
+  const solicitarExclusaoSessao = (s: Sessao) => {
+    setSessaoToDelete(s);
+    setDeleteSessaoDialogOpen(true);
+  };
+
+  const excluirSessao = async () => {
+    if (!sessaoToDelete) return;
+    try {
+      const { error } = await supabase
+        .from('projeto_sessoes')
+        .delete()
+        .eq('id', sessaoToDelete.id);
+      if (error) throw error;
+
+      setSessoes(prev => prev.filter(s => s.id !== sessaoToDelete.id));
+      setDeleteSessaoDialogOpen(false);
+      setSessaoToDelete(null);
+      toast({ title: 'Sessão excluída', description: 'O histórico foi removido.' });
+    } catch (err) {
+      console.error('Erro ao excluir sessão:', err);
+      toast({ title: 'Erro ao excluir', description: String(err), variant: 'destructive' });
+    }
+  };
+
+  const isUUID = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
 
   const loadSessoes = async () => {
     if (!id) return;
@@ -70,11 +206,141 @@ export default function ProjetoDetalhes() {
         status: sessao.status_pagamento === 'pago' ? 'concluida' : 'agendada',
         feedback_cliente: sessao.feedback_cliente,
         observacoes_tecnicas: sessao.observacoes_tecnicas,
-        avaliacao: sessao.avaliacao
+        avaliacao: sessao.avaliacao,
+        agendamento_id: sessao.agendamento_id || null,
+        numero_sessao: sessao.numero_sessao
       }));
       setSessoes(sessoesFormatadas);
     } catch (error) {
       console.error('Erro ao carregar sessões:', error);
+    }
+  };
+
+  const loadAgendamentos = async () => {
+    if (!id) return;
+
+    try {
+      const { data: agendamentosData, error } = await supabase
+        .from('agendamentos')
+        .select('*')
+        .eq('projeto_id', id)
+        .order('data', { ascending: true })
+        .order('hora', { ascending: true });
+
+      if (error) throw error;
+
+      const agsFormatados: AgendamentoProjeto[] = (agendamentosData || []).map((a: any) => ({
+        id: a.id,
+        titulo: a.titulo || 'Agendamento',
+        data: a.data,
+        hora: typeof a.hora === 'string' ? a.hora.slice(0,5) : '',
+        status: a.status || 'agendado',
+        descricao: a.descricao || '',
+      }));
+
+      setAgendamentos(agsFormatados);
+    } catch (error) {
+      console.error('Erro ao carregar agendamentos:', error);
+    }
+  };
+
+  const confirmarSessao = async (a: AgendamentoProjeto) => {
+    try {
+      // Descobrir próximo número de sessão do projeto
+      const { data: sessoesExistentes, error: countError } = await supabase
+        .from('projeto_sessoes')
+        .select('id')
+        .eq('projeto_id', id);
+      if (countError) throw countError;
+      const numeroSessao = (sessoesExistentes?.length || 0) + 1;
+
+      const { error: sessaoError } = await supabase
+        .from('projeto_sessoes')
+        .insert({
+          projeto_id: id,
+          agendamento_id: isUUID(a.id) ? a.id : null,
+          numero_sessao: numeroSessao,
+          data_sessao: a.data,
+          valor_sessao: null,
+          status_pagamento: 'pendente',
+          metodo_pagamento: null,
+          observacoes_tecnicas: a.descricao || null,
+        });
+      if (sessaoError) throw sessaoError;
+
+      // Atualizar status do agendamento para concluído
+      if (isUUID(a.id)) {
+        const { error: updErr } = await supabase
+          .from('agendamentos')
+          .update({ status: 'concluido' })
+          .eq('id', a.id);
+        if (updErr) throw updErr;
+      }
+
+      // Reflete localmente
+      setAgendamentos(prev => prev.map(item => item.id === a.id ? { ...item, status: 'concluido' } : item));
+    } catch (error) {
+      console.error('Erro ao confirmar sessão:', error);
+    }
+  };
+
+  const cancelarAgendamento = async (agendamentoId: string) => {
+    try {
+      if (isUUID(agendamentoId)) {
+        const { error: updErr } = await supabase
+          .from('agendamentos')
+          .update({ status: 'cancelado' })
+          .eq('id', agendamentoId);
+        if (updErr) throw updErr;
+      }
+      setAgendamentos(prev => prev.map(a => a.id === agendamentoId ? { ...a, status: 'cancelado' } : a));
+      toast({ title: 'Agendamento cancelado', description: 'O status foi atualizado para cancelado.' });
+    } catch (error) {
+      console.error('Erro ao cancelar agendamento:', error);
+      toast({ title: 'Erro ao cancelar', description: String(error), variant: 'destructive' });
+    }
+  };
+
+  const abrirEdicao = (a: AgendamentoProjeto) => {
+    setEditingAgendamento(a);
+    setEditForm({
+      titulo: a.titulo || '',
+      descricao: a.descricao || '',
+      data: a.data || '',
+      hora: a.hora || '',
+      status: a.status || 'agendado'
+    });
+    setEditDialogOpen(true);
+  };
+
+  const salvarEdicao = async () => {
+    if (!editingAgendamento) return;
+    try {
+      if (isUUID(editingAgendamento.id)) {
+        const { error: updErr } = await supabase
+          .from('agendamentos')
+          .update({
+            titulo: editForm.titulo,
+            descricao: editForm.descricao,
+            data: editForm.data,
+            hora: editForm.hora,
+            status: editForm.status,
+          })
+          .eq('id', editingAgendamento.id);
+        if (updErr) throw updErr;
+      }
+      setAgendamentos(prev => prev.map(a => a.id === editingAgendamento.id ? {
+        ...a,
+        titulo: editForm.titulo,
+        descricao: editForm.descricao,
+        data: editForm.data,
+        hora: editForm.hora,
+        status: editForm.status,
+      } : a));
+      setEditDialogOpen(false);
+      setEditingAgendamento(null);
+    } catch (error) {
+      console.error('Erro ao salvar edição do agendamento:', error);
     }
   };
 
@@ -147,6 +413,8 @@ export default function ProjetoDetalhes() {
         
         // Carregar sessões
         await loadSessoes();
+        // Carregar agendamentos do projeto
+        await loadAgendamentos();
 
       } catch (error) {
         console.error('Erro ao carregar projeto:', error);
@@ -390,38 +658,167 @@ export default function ProjetoDetalhes() {
           {/* Aba Sessões */}
           <TabsContent value="sessoes" className="space-y-6">
             <Card className="rounded-2xl">
-              <CardHeader>
-                <CardTitle>Histórico de Sessões</CardTitle>
-                <CardDescription>
-                  {sessoesCompletas} de {totalSessoes} sessões concluídas
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {sessoes.map((sessao, index) => (
-                    <div key={sessao.id} className="flex items-center gap-4 p-4 border rounded-xl">
-                      <div className="flex-shrink-0">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                          <span className="text-sm font-medium">{index + 1}</span>
+          <CardHeader>
+            <CardTitle>Histórico de Sessões</CardTitle>
+            <CardDescription>
+              {sessoesCompletas} de {totalSessoes} sessões concluídas
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {sessoes.map((sessao, index) => (
+                  <ContextMenu key={sessao.id}>
+                    <ContextMenuTrigger asChild>
+                      <div className="flex items-start justify-between gap-4 p-4 border rounded-xl">
+                        <div className="flex items-start gap-4 flex-1">
+                          <div className="flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="text-sm font-medium">{sessao.numero_sessao ?? (index + 1)}</span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Calendar className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">{new Date(sessao.data).toLocaleDateString()}</span>
+                              <Badge variant="outline" className={`rounded-xl ${getSessaoStatusColor(sessao.status)}`}>
+                                {sessao.status}
+                              </Badge>
+                            </div>
+                            <p className="font-medium">{getSessaoDescricao(sessao)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {sessao.duracao} min • R$ {sessao.valor.toFixed(2)}
+                            </p>
+                            {/* ID do agendamento ocultado conforme preferência do usuário */}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" className="rounded-xl" onClick={() => abrirEdicaoSessao(sessao)}>
+                            Editar
+                          </Button>
+                          <Button size="sm" variant="destructive" className="rounded-xl" onClick={() => solicitarExclusaoSessao(sessao)}>
+                            Excluir
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-medium">{sessao.descricao}</p>
-                          <Badge variant="outline" className={`rounded-xl ${getSessaoStatusColor(sessao.status)}`}>
-                            {sessao.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(sessao.data).toLocaleDateString()} • {sessao.duracao} min • R$ {sessao.valor.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    </ContextMenuTrigger>
+                    <ContextMenuContent>
+                      <ContextMenuItem onClick={() => abrirEdicaoSessao(sessao)}>Editar</ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem className="text-destructive" onClick={() => solicitarExclusaoSessao(sessao)}>Excluir</ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
           </TabsContent>
+          
+
+          {/* Dialog de edição de agendamento */}
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogContent className="max-w-lg rounded-2xl">
+              <DialogHeader>
+                <DialogTitle>Editar Agendamento</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label>Título</Label>
+                  <Input value={editForm.titulo} onChange={(e) => setEditForm(prev => ({ ...prev, titulo: e.target.value }))} className="rounded-xl" />
+                </div>
+                <div>
+                  <Label>Descrição</Label>
+                  <Textarea value={editForm.descricao} onChange={(e) => setEditForm(prev => ({ ...prev, descricao: e.target.value }))} className="rounded-xl" rows={3} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Data</Label>
+                    <Input type="date" value={editForm.data} onChange={(e) => setEditForm(prev => ({ ...prev, data: e.target.value }))} className="rounded-xl" />
+                  </div>
+                  <div>
+                    <Label>Hora</Label>
+                    <Input type="time" value={editForm.hora} onChange={(e) => setEditForm(prev => ({ ...prev, hora: e.target.value }))} className="rounded-xl" />
+                  </div>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={editForm.status} onValueChange={(v) => setEditForm(prev => ({ ...prev, status: v as AgendamentoProjeto['status'] }))}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Selecione um status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="agendado">Agendado</SelectItem>
+                      <SelectItem value="confirmado">Confirmado</SelectItem>
+                      <SelectItem value="em_andamento">Em andamento</SelectItem>
+                      <SelectItem value="concluido">Concluído</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" className="rounded-xl" onClick={() => { setEditDialogOpen(false); setEditingAgendamento(null); }}>Cancelar</Button>
+                  <Button className="rounded-xl" onClick={salvarEdicao}>Salvar</Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Dialog de edição de sessão */}
+          <Dialog open={editSessaoDialogOpen} onOpenChange={setEditSessaoDialogOpen}>
+            <DialogContent className="max-w-lg rounded-2xl">
+              <DialogHeader>
+                <DialogTitle>Editar Sessão</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Data</Label>
+                    <Input type="date" value={editSessaoForm.data} onChange={(e) => setEditSessaoForm(prev => ({ ...prev, data: e.target.value }))} className="rounded-xl" />
+                  </div>
+                  <div>
+                    <Label>Valor</Label>
+                    <Input type="number" step="0.01" value={editSessaoForm.valor} onChange={(e) => setEditSessaoForm(prev => ({ ...prev, valor: Number(e.target.value) }))} className="rounded-xl" />
+                  </div>
+                </div>
+                <div>
+                  <Label>Descrição</Label>
+                  <Textarea value={editSessaoForm.descricao} onChange={(e) => setEditSessaoForm(prev => ({ ...prev, descricao: e.target.value }))} className="rounded-xl" rows={3} />
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <Select value={editSessaoForm.status} onValueChange={(v) => setEditSessaoForm(prev => ({ ...prev, status: v as Sessao['status'] }))}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Selecione um status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="agendada">Agendada</SelectItem>
+                      <SelectItem value="concluida">Concluída</SelectItem>
+                      <SelectItem value="cancelada">Cancelada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" className="rounded-xl" onClick={() => { setEditSessaoDialogOpen(false); setEditingSessao(null); }}>Cancelar</Button>
+                  <Button className="rounded-xl" onClick={salvarEdicaoSessao}>Salvar</Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Confirmação de exclusão de sessão */}
+          <AlertDialog open={deleteSessaoDialogOpen} onOpenChange={setDeleteSessaoDialogOpen}>
+            <AlertDialogContent className="rounded-2xl">
+              <AlertDialogHeader>
+                <AlertDialogTitle>Excluir sessão?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta ação removerá definitivamente o registro da sessão do histórico.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+                <AlertDialogAction className="rounded-xl" onClick={excluirSessao}>Excluir</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Aba Feedbacks */}
           <TabsContent value="feedbacks" className="space-y-6">

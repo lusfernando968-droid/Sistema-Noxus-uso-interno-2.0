@@ -83,9 +83,27 @@ export function useTouchGestures(options: UseTouchGesturesOptions = {}) {
     }
   }, []);
 
+  // Utilitário: não bloquear eventos em campos de formulário
+  const isEditableTarget = useCallback((target: EventTarget | null) => {
+    const el = target as HTMLElement | null;
+    if (!el) return false;
+    const tag = el.tagName?.toLowerCase();
+    const role = el.getAttribute?.('role');
+    return (
+      tag === 'input' ||
+      tag === 'textarea' ||
+      tag === 'select' ||
+      el.isContentEditable ||
+      role === 'textbox'
+    );
+  }, []);
+
   // Handler para início do toque
   const handleTouchStart = useCallback((event: TouchEvent) => {
-    event.preventDefault();
+    // Não bloquear interação em elementos editáveis
+    if (!isEditableTarget(event.target)) {
+      event.preventDefault();
+    }
     
     const touches = Array.from(event.touches).map(touchToPoint);
     touchPoints.current = touches;
@@ -121,7 +139,10 @@ export function useTouchGestures(options: UseTouchGesturesOptions = {}) {
 
   // Handler para movimento do toque
   const handleTouchMove = useCallback((event: TouchEvent) => {
-    event.preventDefault();
+    // Não bloquear rolagem/seleção em campos editáveis
+    if (!isEditableTarget(event.target)) {
+      event.preventDefault();
+    }
     
     const touches = Array.from(event.touches).map(touchToPoint);
     
@@ -161,7 +182,10 @@ export function useTouchGestures(options: UseTouchGesturesOptions = {}) {
 
   // Handler para fim do toque
   const handleTouchEnd = useCallback((event: TouchEvent) => {
-    event.preventDefault();
+    // Permitir que o tap/click finalize foco em inputs
+    if (!isEditableTarget(event.target)) {
+      event.preventDefault();
+    }
     
     clearLongPressTimer();
     

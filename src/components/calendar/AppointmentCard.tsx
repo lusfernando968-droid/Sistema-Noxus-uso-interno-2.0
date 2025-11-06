@@ -173,10 +173,7 @@ export function AppointmentCard({
             <span className="text-foreground">{appointment.servico}</span>
           </div>
           
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-muted-foreground" />
-            <span className="text-muted-foreground text-sm">{appointment.local}</span>
-          </div>
+          {/* Removido campo de Local, não utilizado no app */}
         </div>
 
         {/* Informações adicionais */}

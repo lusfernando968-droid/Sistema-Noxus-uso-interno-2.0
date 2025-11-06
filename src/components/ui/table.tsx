@@ -4,7 +4,9 @@ import { cn } from "@/lib/utils";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+    // Remover overflow interno para evitar barras de rolagem duplicadas.
+    // O container pai deve controlar o overflow horizontal quando necessário.
+    <div className="relative w-full">
       <table ref={ref} className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   ),

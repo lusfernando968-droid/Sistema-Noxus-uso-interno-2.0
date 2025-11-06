@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Plus, Edit, Trash2, Clock, User, MapPin, CheckCircle, AlertCircle, CalendarDays, List, Search } from "lucide-react";
+import { Calendar, Plus, Edit, Trash2, Clock, User, MapPin, CheckCircle, AlertCircle, CalendarDays, List, Search, Star } from "lucide-react";
 import { useToastWithSound } from "@/hooks/useToastWithSound";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { useAchievementNotifications } from "@/hooks/useAchievementNotifications";
@@ -38,6 +39,7 @@ interface Agendamento {
 }
 
 export default function Agendamentos() {
+  const navigate = useNavigate();
   const { toast } = useToastWithSound();
   const { playSound } = useSoundEffects();
   const { checkAgendamentosMilestone } = useAchievementNotifications();
@@ -46,11 +48,33 @@ export default function Agendamentos() {
   // Estados
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [clientes, setClientes] = useState<{ id: string; nome: string }[]>([]);
-  const [projetos, setProjetos] = useState<{ id: string; nome: string; valor_por_sessao?: number }[]>([]);
+  const [projetos, setProjetos] = useState<{ id: string; titulo: string; valor_por_sessao?: number; cliente_id: string }[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAgendamento, setEditingAgendamento] = useState<Agendamento | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const [busca, setBusca] = useState('');
+
+  // Confirmação com feedback (Agendamentos de Hoje)
+  const [isFeedbackPromptOpen, setIsFeedbackPromptOpen] = useState(false);
+  const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false);
+  const [agendamentoParaConfirmar, setAgendamentoParaConfirmar] = useState<Agendamento | null>(null);
+  const [feedbackCliente, setFeedbackCliente] = useState('');
+  const [avaliacao, setAvaliacao] = useState<number>(5);
+  const [observacoesTecnicas, setObservacoesTecnicas] = useState<string>('');
+
+  const initialFormData = {
+    cliente_nome: "",
+    cliente_id: "",
+    data_agendamento: "",
+    hora_inicio: "",
+    hora_fim: "",
+    servico: "",
+    status: "agendado" as const,
+    observacoes: "",
+    valor_estimado: 0,
+    tatuador: "",
+    local: "Estúdio Principal"
+  };
 
   const [formData, setFormData] = useState<{
     cliente_nome: string;
@@ -64,19 +88,7 @@ export default function Agendamentos() {
     valor_estimado: number;
     tatuador: string;
     local: string;
-  }>({
-    cliente_nome: "",
-    cliente_id: "",
-    data_agendamento: "",
-    hora_inicio: "",
-    hora_fim: "",
-    servico: "",
-    status: "agendado",
-    observacoes: "",
-    valor_estimado: 0,
-    tatuador: "",
-    local: "Estúdio Principal"
-  });
+  }>(initialFormData);
 
   // Buscar lista de clientes
   useEffect(() => {
@@ -101,8 +113,8 @@ export default function Agendamentos() {
       try {
         const { data, error } = await supabase
           .from("projetos")
-          .select("id, nome, valor_por_sessao")
-          .order("nome");
+          .select("id, titulo, valor_por_sessao, cliente_id")
+          .order("titulo");
         if (error) throw error;
         setProjetos(data || []);
       } catch (err) {
@@ -112,8 +124,9 @@ export default function Agendamentos() {
     fetchProjetos();
   }, []);
 
-  // Dados simulados iniciais
+  // Dados simulados iniciais (apenas quando NÃO há usuário logado)
   useEffect(() => {
+    if (user) return; // Evita demo quando logado
     const agendamentosIniciais: Agendamento[] = [
       {
         id: "1",
@@ -147,9 +160,11 @@ export default function Agendamentos() {
 
     setAgendamentos(agendamentosIniciais);
     checkAgendamentosMilestone(agendamentosIniciais.length);
-  }, [checkAgendamentosMilestone]);
+  }, [user, checkAgendamentosMilestone]);
 
   // Funções auxiliares
+  const isUUID = (s: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'agendado': return 'bg-primary/10 text-primary border-primary/20';
@@ -207,8 +222,81 @@ export default function Agendamentos() {
     .filter(a => a.data_agendamento === new Date().toISOString().split('T')[0])
     .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
 
+  // ===== Helpers elegantes para horário =====
+  const DEFAULT_SESSION_MINUTES = 120; // 2h padrão
+
+  const normalizeTime = (time: string) => {
+    // Garante formato HH:mm, removendo segundos se vierem
+    if (!time) return "";
+    return time.slice(0, 5);
+  };
+
+  const toMinutes = (time: string) => {
+    const [h, m] = normalizeTime(time).split(":").map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return NaN;
+    return h * 60 + m;
+  };
+
+  const fromMinutes = (mins: number) => {
+    const clamped = Math.max(0, Math.min(23 * 60 + 59, mins));
+    const h = Math.floor(clamped / 60);
+    const m = clamped % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  };
+
+  const addMinutes = (time: string, add: number) => {
+    const base = toMinutes(time);
+    if (Number.isNaN(base)) return normalizeTime(time);
+    return fromMinutes(base + add);
+  };
+
+  const handleTimeChange = (field: 'hora_inicio' | 'hora_fim', value: string) => {
+    const valueNorm = normalizeTime(value);
+
+    setFormData(prev => {
+      const next = { ...prev, [field]: valueNorm } as typeof prev;
+
+      return next;
+    });
+  };
+
+  // Digitação manual com máscara HH:mm
+  const formatTimeInput = (raw: string) => {
+    const digits = raw.replace(/[^0-9]/g, "");
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}:${digits.slice(2, 4)}`.slice(0, 5);
+  };
+
+  const clampTime = (time: string) => {
+    const [hStr = "", mStr = ""] = normalizeTime(time).split(":");
+    let h = parseInt(hStr || "0", 10);
+    let m = parseInt(mStr || "0", 10);
+    if (Number.isNaN(h)) h = 0;
+    if (Number.isNaN(m)) m = 0;
+    h = Math.max(0, Math.min(23, h));
+    m = Math.max(0, Math.min(59, m));
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  };
+
+  const handleTimeInput = (field: 'hora_inicio' | 'hora_fim', raw: string) => {
+    const masked = formatTimeInput(raw);
+    handleTimeChange(field, masked);
+  };
+
+  const handleTimeBlur = (field: 'hora_inicio' | 'hora_fim') => {
+    setFormData(prev => {
+      const clamped = clampTime(prev[field]);
+      return { ...prev, [field]: clamped } as typeof prev;
+    });
+  };
+
   // Confirmar sessão realizada: atualiza status local e registra em tabelas relacionadas
-  const handleConfirmSessao = async (agendamento: Agendamento) => {
+  const handleConfirmSessao = async (
+    agendamento: Agendamento,
+    feedback?: string,
+    observacoes?: string,
+    avaliacaoValor?: number
+  ) => {
     try {
       playSound('success');
 
@@ -221,52 +309,119 @@ export default function Agendamentos() {
         return;
       }
 
-      // Encontrar projeto pelo nome selecionado no agendamento (campo tatuador armazena o nome do projeto)
-      const projeto = projetos.find(p => p.nome === agendamento.tatuador);
+      // Encontrar projeto pelo título selecionado no agendamento (campo tatuador armazena o título do projeto)
+      const projeto = projetos.find(p => p.titulo === agendamento.tatuador);
 
-      // Registrar sessão do projeto, se conseguirmos resolver o projeto
+      // Registrar/atualizar sessão do projeto, se conseguirmos resolver o projeto
       if (projeto?.id) {
-        // Descobrir próximo número de sessão
-        const { data: sessoesExistentes, error: countError } = await supabase
-          .from('projeto_sessoes')
-          .select('id')
-          .eq('projeto_id', projeto.id);
+        // Verificar se já existe sessão vinculada a este agendamento
+        const agendamentoUUID = isUUID(agendamento.id) ? agendamento.id : null;
+        let existingSessaoId: string | null = null;
 
-        if (countError) throw countError;
+        if (agendamentoUUID) {
+          const { data: sessaoDoAgendamento, error: sessaoLookupError } = await supabase
+            .from('projeto_sessoes')
+            .select('id')
+            .eq('projeto_id', projeto.id)
+            .eq('agendamento_id', agendamentoUUID)
+            .limit(1)
+            .maybeSingle();
 
-        const numeroSessao = (sessoesExistentes?.length || 0) + 1;
+          if (sessaoLookupError && sessaoLookupError.code !== 'PGRST116') throw sessaoLookupError;
+          existingSessaoId = sessaoDoAgendamento?.id || null;
+        }
 
-        const { error: sessaoError } = await supabase
-          .from('projeto_sessoes')
-          .insert({
-            projeto_id: projeto.id,
-            agendamento_id: null,
-            numero_sessao: numeroSessao,
-            data_sessao: agendamento.data_agendamento,
-            valor_sessao: agendamento.valor_estimado || null,
-            status_pagamento: 'pendente',
-            metodo_pagamento: null,
-            observacoes_tecnicas: agendamento.observacoes || null,
-          });
+        if (existingSessaoId) {
+          // Atualiza feedback (e campos úteis) na sessão existente
+          const { error: updateError } = await supabase
+            .from('projeto_sessoes')
+            .update({
+              feedback_cliente: feedback || null,
+              observacoes_tecnicas: observacoes ?? null,
+              valor_sessao: agendamento.valor_estimado || null,
+              data_sessao: agendamento.data_agendamento,
+              avaliacao: avaliacaoValor ?? null,
+            })
+            .eq('id', existingSessaoId);
 
-        if (sessaoError) throw sessaoError;
+          if (updateError) throw updateError;
+        } else {
+          // Descobrir próximo número de sessão e inserir nova
+          const { data: sessoesExistentes, error: countError } = await supabase
+            .from('projeto_sessoes')
+            .select('id')
+            .eq('projeto_id', projeto.id);
+
+          if (countError) throw countError;
+
+          const numeroSessao = (sessoesExistentes?.length || 0) + 1;
+
+          const { error: sessaoError } = await supabase
+            .from('projeto_sessoes')
+            .insert({
+              projeto_id: projeto.id,
+              agendamento_id: agendamentoUUID,
+              numero_sessao: numeroSessao,
+              data_sessao: agendamento.data_agendamento,
+              valor_sessao: agendamento.valor_estimado || null,
+              status_pagamento: 'pendente',
+              metodo_pagamento: null,
+              observacoes_tecnicas: observacoes ?? null,
+              feedback_cliente: feedback || null,
+              avaliacao: avaliacaoValor ?? null,
+            });
+
+          if (sessaoError) throw sessaoError;
+        }
       }
 
-      // Registrar transação (receita) referente à sessão
+      // Registrar/atualizar transação (receita) referente à sessão
+      // Evita duplicidade: se já existir uma transação vinculada ao agendamento, apenas atualiza a descrição
       if (agendamento.valor_estimado && agendamento.valor_estimado > 0) {
-        const { error: transacaoError } = await supabase
-          .from('transacoes')
-          .insert({
-            user_id: user.id,
-            tipo: 'RECEITA',
-            categoria: 'Serviços',
-            valor: agendamento.valor_estimado,
-            data_vencimento: agendamento.data_agendamento,
-            descricao: `Sessão realizada: ${agendamento.servico}`,
-            agendamento_id: null,
-          });
+        const agendamentoUUID = isUUID(agendamento.id) ? agendamento.id : null;
 
-        if (transacaoError) throw transacaoError;
+        if (agendamentoUUID) {
+          const { data: existingTransacao, error: lookupError } = await supabase
+            .from('transacoes')
+            .select('id')
+            .eq('agendamento_id', agendamentoUUID)
+            .limit(1)
+            .maybeSingle();
+
+          // Ignora erro de "no rows returned" (PGRST116)
+          if (lookupError && lookupError.code !== 'PGRST116') throw lookupError;
+
+          if (existingTransacao?.id) {
+            const { error: updateErro } = await supabase
+              .from('transacoes')
+              .update({
+                descricao: `Sessão realizada: ${agendamento.servico}`,
+              })
+              .eq('id', existingTransacao.id);
+            if (updateErro) throw updateErro;
+          } else {
+            const { error: transacaoError } = await supabase
+              .from('transacoes')
+              .insert({
+                user_id: user.id,
+                tipo: 'RECEITA',
+                categoria: 'Serviços',
+                valor: agendamento.valor_estimado,
+                data_vencimento: agendamento.data_agendamento,
+                descricao: `Sessão realizada: ${agendamento.servico}`,
+                agendamento_id: agendamentoUUID,
+              });
+            if (transacaoError) throw transacaoError;
+          }
+        }
+      }
+
+      // Atualiza status no banco, quando o agendamento já existir lá
+      if (isUUID(agendamento.id)) {
+        await supabase
+          .from('agendamentos')
+          .update({ status: 'concluido' })
+          .eq('id', agendamento.id);
       }
 
       toast({ title: 'Sessão confirmada!', description: 'Registro salvo nas tabelas relacionadas.' });
@@ -276,8 +431,51 @@ export default function Agendamentos() {
     }
   };
 
+  // Fluxo de feedback (Agendamentos de Hoje)
+  const openFeedbackPrompt = (ag: Agendamento) => {
+    setAgendamentoParaConfirmar(ag);
+    setIsFeedbackPromptOpen(true);
+  };
+
+  const confirmWithoutFeedback = async () => {
+    if (!agendamentoParaConfirmar) return;
+    setIsFeedbackPromptOpen(false);
+    await handleConfirmSessao(agendamentoParaConfirmar);
+    setAgendamentoParaConfirmar(null);
+    setFeedbackCliente('');
+  };
+
+  const confirmWithFeedback = () => {
+    setIsFeedbackPromptOpen(false);
+    setIsFeedbackDialogOpen(true);
+  };
+
+  const submitFeedbackAndConfirm = async () => {
+    if (!agendamentoParaConfirmar) return;
+    // Se não estiver logado, manter o diálogo aberto e avisar
+    if (!user) {
+      toast({
+        title: 'Faça login para salvar o feedback',
+        description: 'Sem login, os textos não serão persistidos no banco.',
+      });
+      return; // mantém o diálogo aberto para o usuário não perder o texto
+    }
+    const texto = feedbackCliente.trim();
+    await handleConfirmSessao(
+      agendamentoParaConfirmar,
+      texto || undefined,
+      observacoesTecnicas.trim() || undefined,
+      avaliacao || undefined
+    );
+    setIsFeedbackDialogOpen(false);
+    setAgendamentoParaConfirmar(null);
+    setFeedbackCliente('');
+    setObservacoesTecnicas('');
+    setAvaliacao(5);
+  };
+
   // Handlers
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     playSound('click');
     // Preserva a posição de rolagem do container principal
     const scrollContainer = document.querySelector('main.flex-1') as HTMLElement | null;
@@ -293,33 +491,103 @@ export default function Agendamentos() {
       toast({ title: "Agendamento atualizado com sucesso!" });
     } else {
       // Criando novo agendamento
-      const novoAgendamento: Agendamento = {
-        id: Date.now().toString(),
-        ...formData
-      };
-      setAgendamentos(prev => {
-        const novosAgendamentos = [...prev, novoAgendamento];
-        checkAgendamentosMilestone(novosAgendamentos.length);
-        return novosAgendamentos;
-      });
-      toast({ title: "Agendamento criado com sucesso!" });
+      // Se estiver logado, persistir no Supabase respeitando RLS e relações
+      if (user) {
+        try {
+          // Resolver projeto selecionado (campo tatuador guarda o título do projeto)
+          const projeto = projetos.find(p => p.titulo === formData.tatuador);
+          if (!projeto?.id) {
+            toast({ title: 'Selecione um projeto', description: 'É necessário escolher um projeto para salvar.' });
+            return;
+          }
+
+          const { data: inserted, error } = await supabase
+            .from('agendamentos')
+            .insert({
+              user_id: user.id,
+              projeto_id: projeto.id,
+              titulo: formData.servico || `${formData.cliente_nome}`,
+              // Local não é utilizado; salvamos apenas observações
+              descricao: formData.observacoes,
+              data: formData.data_agendamento,
+              hora: formData.hora_inicio,
+              status: formData.status,
+            })
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          // Criar transação vinculada ao agendamento, se houver valor
+          if (formData.valor_estimado && formData.valor_estimado > 0) {
+            await supabase
+              .from('transacoes')
+              .insert({
+                user_id: user.id,
+                tipo: 'RECEITA',
+                categoria: 'Serviços',
+                valor: formData.valor_estimado,
+                data_vencimento: formData.data_agendamento,
+                descricao: `Sessão: ${formData.servico}`,
+                agendamento_id: inserted.id,
+              });
+          }
+
+          // Reflete na UI com o ID real do banco
+          const novoAgendamento: Agendamento = {
+            id: inserted.id,
+            cliente_nome: formData.cliente_nome,
+            cliente_id: formData.cliente_id,
+            data_agendamento: formData.data_agendamento,
+            hora_inicio: formData.hora_inicio,
+            hora_fim: formData.hora_fim || (formData.hora_inicio ? addMinutes(formData.hora_inicio, DEFAULT_SESSION_MINUTES) : ''),
+            servico: formData.servico,
+            status: formData.status,
+            observacoes: formData.observacoes,
+            valor_estimado: formData.valor_estimado,
+            tatuador: formData.tatuador,
+            // Local não é utilizado no app
+            local: ''
+          };
+
+          setAgendamentos(prev => {
+            const novosAgendamentos = [...prev, novoAgendamento];
+            checkAgendamentosMilestone(novosAgendamentos.length);
+            return novosAgendamentos;
+          });
+          toast({ title: "Agendamento criado e salvo com sucesso!" });
+        } catch (err) {
+          console.error('Erro ao salvar agendamento:', err);
+          toast({ title: 'Erro ao salvar agendamento', description: 'Verifique o login e tente novamente.' });
+          // fallback: cria localmente
+          const novoAgendamento: Agendamento = {
+            id: Date.now().toString(),
+            ...formData
+          };
+          setAgendamentos(prev => {
+            const novosAgendamentos = [...prev, novoAgendamento];
+            checkAgendamentosMilestone(novosAgendamentos.length);
+            return novosAgendamentos;
+          });
+        }
+      } else {
+        // Sem login: cria localmente
+        const novoAgendamento: Agendamento = {
+          id: Date.now().toString(),
+          ...formData
+        };
+        setAgendamentos(prev => {
+          const novosAgendamentos = [...prev, novoAgendamento];
+          checkAgendamentosMilestone(novosAgendamentos.length);
+          return novosAgendamentos;
+        });
+        toast({ title: "Agendamento criado localmente" });
+      }
     }
 
     setIsDialogOpen(false);
     setEditingAgendamento(null);
-    setFormData({
-      cliente_nome: "",
-      cliente_id: "",
-      data_agendamento: "",
-      hora_inicio: "",
-      hora_fim: "",
-      servico: "",
-      status: "agendado",
-      observacoes: "",
-      valor_estimado: 0,
-      tatuador: "",
-      local: "Estúdio Principal"
-    });
+    setFormData(initialFormData);
 
     // Restaura a rolagem após o re-render
     requestAnimationFrame(() => {
@@ -350,27 +618,82 @@ export default function Agendamentos() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     playSound('click');
+    // Atualiza UI imediatamente
     setAgendamentos(prev => prev.filter(a => a.id !== id));
-    toast({ title: "Agendamento removido com sucesso!" });
+
+    // Persiste no banco quando houver ID real
+    try {
+      if (user && isUUID(id)) {
+        const { error } = await supabase.from('agendamentos').delete().eq('id', id);
+        if (error) throw error;
+
+        // Remover registros relacionados (opcional) se existirem vínculos por agendamento_id
+        await supabase.from('projeto_sessoes').delete().eq('agendamento_id', id);
+        await supabase.from('transacoes').delete().eq('agendamento_id', id);
+      }
+
+      toast({ title: "Agendamento removido com sucesso!" });
+    } catch (err) {
+      console.error('Erro ao excluir agendamento no banco:', err);
+      toast({ title: "Erro ao excluir no banco", description: "Tente novamente mais tarde." });
+    }
   };
 
-  const handleStatusChange = (id: string, novoStatus: string) => {
+  const handleStatusChange = async (id: string, novoStatus: Agendamento['status']) => {
     playSound('click');
+    const prevStatus = agendamentos.find(a => a.id === id)?.status;
     setAgendamentos(prev => prev.map(a => 
-      a.id === id ? { ...a, status: novoStatus as any } : a
+      a.id === id ? { ...a, status: novoStatus } : a
     ));
-    toast({ title: `Status alterado para ${getStatusLabel(novoStatus)}` });
+
+    try {
+      if (user && isUUID(id)) {
+        const { error } = await supabase
+          .from('agendamentos')
+          .update({ status: novoStatus })
+          .eq('id', id);
+        if (error) throw error;
+      }
+      toast({ title: `Status alterado para ${getStatusLabel(novoStatus)}` });
+    } catch (err) {
+      console.error('Erro ao atualizar status no banco:', err);
+      if (prevStatus) {
+        setAgendamentos(prev => prev.map(a => 
+          a.id === id ? { ...a, status: prevStatus } : a
+        ));
+      }
+      toast({ title: 'Falha ao atualizar status', description: 'Tente novamente mais tarde.', variant: 'destructive' });
+    }
   };
 
   // Funções do calendário
-  const handleAppointmentMove = (appointmentId: string, newDate: string) => {
+  const handleAppointmentMove = async (appointmentId: string, newDate: string) => {
     playSound('success');
+    const previous = agendamentos.find(a => a.id === appointmentId)?.data_agendamento;
     setAgendamentos(prev => prev.map(a => 
       a.id === appointmentId ? { ...a, data_agendamento: newDate } : a
     ));
-    toast({ title: "Agendamento movido com sucesso!" });
+
+    try {
+      if (user && isUUID(appointmentId)) {
+        const { error } = await supabase
+          .from('agendamentos')
+          .update({ data: newDate })
+          .eq('id', appointmentId);
+        if (error) throw error;
+      }
+      toast({ title: "Agendamento movido com sucesso!" });
+    } catch (err) {
+      console.error('Erro ao mover agendamento no banco:', err);
+      if (previous) {
+        setAgendamentos(prev => prev.map(a => 
+          a.id === appointmentId ? { ...a, data_agendamento: previous } : a
+        ));
+      }
+      toast({ title: "Falha ao mover agendamento", description: "Tente novamente mais tarde.", variant: 'destructive' });
+    }
   };
 
   const handleAppointmentClick = (appointment: Agendamento) => {
@@ -378,7 +701,11 @@ export default function Agendamentos() {
   };
 
   const handleDateClick = (date: string) => {
-    setFormData(prev => ({ ...prev, data_agendamento: date }));
+    setFormData(prev => {
+      const defaultStart = prev.hora_inicio && prev.hora_inicio.trim() !== '' ? prev.hora_inicio : '09:00';
+      const defaultEnd = prev.hora_fim && prev.hora_fim.trim() !== '' ? prev.hora_fim : addMinutes(defaultStart, DEFAULT_SESSION_MINUTES);
+      return { ...prev, data_agendamento: date, hora_inicio: defaultStart, hora_fim: defaultEnd };
+    });
     setIsDialogOpen(true);
   };
 
@@ -394,6 +721,49 @@ export default function Agendamentos() {
     const value = cents / 100;
     setFormData(prev => ({ ...prev, valor_estimado: value }));
   };
+
+  // Carregar agendamentos do Supabase e mapear para a UI quando logado
+  useEffect(() => {
+    const fetchDbAgendamentos = async () => {
+      try {
+        if (!user) return;
+        if (projetos.length === 0 || clientes.length === 0) return;
+        const { data, error } = await supabase
+          .from('agendamentos')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+
+        const mapped = (data || []).map((row: any) => {
+          const proj = projetos.find(p => p.id === row.projeto_id);
+          const clienteId = proj?.cliente_id || '';
+          const clienteNome = clientes.find(c => c.id === clienteId)?.nome || '';
+          const horaInicio = typeof row.hora === 'string' ? row.hora.slice(0,5) : '';
+          return {
+            id: row.id,
+            cliente_nome: clienteNome,
+            cliente_id: clienteId,
+            data_agendamento: row.data,
+            hora_inicio: horaInicio,
+            hora_fim: horaInicio ? addMinutes(horaInicio, DEFAULT_SESSION_MINUTES) : '',
+            servico: row.titulo,
+            status: row.status || 'agendado',
+            observacoes: row.descricao || '',
+            valor_estimado: 0,
+            tatuador: proj?.titulo || '',
+            // Local não é utilizado no app
+            local: ''
+          } as Agendamento;
+        });
+
+        // Quando logado, usamos apenas os agendamentos do banco
+        setAgendamentos(mapped);
+      } catch (err) {
+        console.error('Erro ao carregar agendamentos do banco:', err);
+      }
+    };
+    fetchDbAgendamentos();
+  }, [user, projetos, clientes]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -462,6 +832,72 @@ export default function Agendamentos() {
           </Card>
         </div>
 
+        {/* Diálogo: Pergunta se quer registrar feedback */}
+        <Dialog open={isFeedbackPromptOpen} onOpenChange={setIsFeedbackPromptOpen}>
+          <DialogContent className="rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Confirmar sessão</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">Deseja registrar o feedback da sessão?</p>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" className="rounded-xl" onClick={confirmWithoutFeedback}>Não, apenas confirmar</Button>
+              <Button className="rounded-xl" onClick={confirmWithFeedback}>Sim, registrar feedback</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Diálogo: Campo para inserir feedback */}
+        <Dialog open={isFeedbackDialogOpen} onOpenChange={setIsFeedbackDialogOpen}>
+          <DialogContent className="rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Registrar feedback da sessão</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label>Avaliação</Label>
+              <div className="flex items-center gap-2">
+                {[1,2,3,4,5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setAvaliacao(n)}
+                    className="p-1"
+                    aria-label={`Avaliar ${n} estrela${n>1 ? 's' : ''}`}
+                  >
+                    <Star className={`w-5 h-5 ${n <= avaliacao ? 'text-yellow-400' : 'text-muted-foreground'}`} />
+                  </button>
+                ))}
+                <span className="text-sm text-muted-foreground">{avaliacao} estrelas</span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Feedback do cliente</Label>
+              <Textarea
+                value={feedbackCliente}
+                onChange={(e) => setFeedbackCliente(e.target.value)}
+                rows={4}
+                className="rounded-xl"
+                placeholder="Como foi a experiência do cliente? Observações, satisfação, etc."
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Observações Técnicas</Label>
+              <Textarea
+                value={observacoesTecnicas}
+                onChange={(e) => setObservacoesTecnicas(e.target.value)}
+                rows={3}
+                className="rounded-xl"
+                placeholder="Procedimentos, materiais, etapas realizadas, notas internas..."
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button variant="outline" className="rounded-xl" onClick={() => { setIsFeedbackDialogOpen(false); setFeedbackCliente(''); setObservacoesTecnicas(''); setAvaliacao(5); }}>Cancelar</Button>
+              <Button className="rounded-xl" onClick={submitFeedbackAndConfirm}>Salvar e confirmar</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Agendamentos de Hoje */}
         <Card className="rounded-2xl">
           <CardHeader>
@@ -489,7 +925,7 @@ export default function Agendamentos() {
                     {getStatusLabel(a.status)}
                   </Badge>
                   {a.status !== 'concluido' && a.status !== 'cancelado' && (
-                    <Button size="sm" className="ml-3 rounded-xl" onClick={() => handleConfirmSessao(a)}>
+                    <Button size="sm" className="ml-3 rounded-xl" onClick={() => openFeedbackPrompt(a)}>
                       Confirmar Sessão
                     </Button>
                   )}
@@ -560,7 +996,13 @@ export default function Agendamentos() {
                   </Popover>
                 </div>
 
-                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                  setIsDialogOpen(open);
+                  if (!open) {
+                    setEditingAgendamento(null);
+                    setFormData(initialFormData);
+                  }
+                }}>
                   <DialogTrigger asChild>
                     <Button onClick={() => playSound('click')} className="rounded-lg gap-2 h-9 px-3">
                       <Plus className="w-4 h-4" />
@@ -569,8 +1011,6 @@ export default function Agendamentos() {
                   </DialogTrigger>
                   <DialogContent 
                     className="max-w-2xl"
-                    onOpenAutoFocus={(e) => e.preventDefault()}
-                    onCloseAutoFocus={(e) => e.preventDefault()}
                   >
                     <DialogHeader>
                       <DialogTitle>{editingAgendamento ? "Editar Agendamento" : "Novo Agendamento"}</DialogTitle>
@@ -585,7 +1025,9 @@ export default function Agendamentos() {
                           setFormData(prev => ({
                             ...prev,
                             cliente_id: value,
-                            cliente_nome: c?.nome || ""
+                            cliente_nome: c?.nome || "",
+                            tatuador: "",
+                            valor_estimado: 0
                           }))
                         }}
                       >
@@ -611,10 +1053,10 @@ export default function Agendamentos() {
                           <SelectValue placeholder="Selecione o serviço" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="Início de projeto">Início de projeto</SelectItem>
                           <SelectItem value="Continuação">Continuação</SelectItem>
                           <SelectItem value="Retoque">Retoque</SelectItem>
                           <SelectItem value="Orçamento">Orçamento</SelectItem>
-                          <SelectItem value="Início de projeto">Início de projeto</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -656,33 +1098,50 @@ export default function Agendamentos() {
                       <Select
                         value={formData.tatuador}
                         onValueChange={(value) => {
-                          const p = projetos.find((pr) => pr.nome === value) || projetos.find((pr) => pr.id === value);
+                          const p = projetos.find((pr) => pr.titulo === value) || projetos.find((pr) => pr.id === value);
                           setFormData(prev => ({
                             ...prev,
-                            tatuador: p?.nome || value,
+                            tatuador: p?.titulo || value,
                             // Preenche o valor estimado com o valor por sessão do projeto, se existir
                             valor_estimado: typeof p?.valor_por_sessao === 'number' ? (p!.valor_por_sessao as number) : prev.valor_estimado
                           }))
                         }}
                       >
-                        <SelectTrigger className="rounded-xl">
-                          <SelectValue placeholder="Selecione o projeto" />
+                        <SelectTrigger className="rounded-xl" disabled={!formData.cliente_id}>
+                          <SelectValue placeholder={formData.cliente_id ? "Selecione o projeto" : "Selecione primeiro um cliente"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {projetos.map((projeto) => (
-                            <SelectItem key={projeto.id} value={projeto.nome}>
-                              {projeto.nome}
-                            </SelectItem>
-                          ))}
+                          {projetos
+                            .filter((projeto) => projeto.cliente_id === formData.cliente_id)
+                            .map((projeto) => (
+                              <SelectItem key={projeto.id} value={projeto.titulo}>
+                                {projeto.titulo}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
+                      {formData.cliente_id && projetos.filter((p) => p.cliente_id === formData.cliente_id).length === 0 && (
+                        <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
+                          <span>Nenhum projeto para este cliente.</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="rounded-xl px-2"
+                            onClick={() => navigate(`/projetos?cliente=${formData.cliente_id}`)}
+                          >
+                            Criar projeto
+                          </Button>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <Label>Hora Início</Label>
                       <Input
                         type="time"
+                        step="60"
                         value={formData.hora_inicio}
-                        onChange={(e) => setFormData(prev => ({ ...prev, hora_inicio: e.target.value }))}
+                        onChange={(e) => handleTimeChange('hora_inicio', e.target.value)}
+                        onBlur={() => handleTimeBlur('hora_inicio')}
                         className="rounded-xl"
                       />
                     </div>
@@ -690,8 +1149,10 @@ export default function Agendamentos() {
                       <Label>Hora Fim</Label>
                       <Input
                         type="time"
+                        step="60"
                         value={formData.hora_fim}
-                        onChange={(e) => setFormData(prev => ({ ...prev, hora_fim: e.target.value }))}
+                        onChange={(e) => handleTimeChange('hora_fim', e.target.value)}
+                        onBlur={() => handleTimeBlur('hora_fim')}
                         className="rounded-xl"
                       />
                     </div>
@@ -721,12 +1182,12 @@ export default function Agendamentos() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2">
+                    <div className="col-span-2 relative z-50">
                       <Label>Observações</Label>
                       <Textarea
                         value={formData.observacoes}
                         onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
-                        className="rounded-xl"
+                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                         rows={3}
                       />
                     </div>
@@ -736,6 +1197,7 @@ export default function Agendamentos() {
                       playSound('click');
                       setIsDialogOpen(false);
                       setEditingAgendamento(null);
+                      setFormData(initialFormData);
                     }} className="rounded-xl">
                       Cancelar
                     </Button>
@@ -754,6 +1216,7 @@ export default function Agendamentos() {
               onAppointmentMove={handleAppointmentMove}
               onAppointmentClick={handleAppointmentClick}
               onDateClick={handleDateClick}
+              onAppointmentDelete={handleDelete}
             />
           </TabsContent>
 
@@ -793,7 +1256,7 @@ export default function Agendamentos() {
                         <TableCell>{agendamento.servico}</TableCell>
                         <TableCell>{agendamento.tatuador}</TableCell>
                         <TableCell>
-                          <Select value={agendamento.status} onValueChange={(value) => handleStatusChange(agendamento.id, value)}>
+                          <Select value={agendamento.status} onValueChange={(value) => handleStatusChange(agendamento.id, value as Agendamento['status'])}>
                             <SelectTrigger className="w-32 rounded-xl">
                               <div className="flex items-center gap-2">
                                 {getStatusIcon(agendamento.status)}

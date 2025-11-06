@@ -15,6 +15,12 @@ import { Calendar as CalendarComp } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
+// Helper: parse a date-only string (yyyy-MM-dd) in local timezone
+function parseDateOnly(dateStr: string) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
 interface ProjectBuilderProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -480,14 +486,14 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {dataInicio
-                        ? format(new Date(dataInicio), "dd/MM/yyyy", { locale: ptBR })
+                        ? format(parseDateOnly(dataInicio), "dd/MM/yyyy", { locale: ptBR })
                         : "dd/mm/aaaa"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <CalendarComp
                       mode="single"
-                      selected={dataInicio ? new Date(dataInicio) : undefined}
+                      selected={dataInicio ? parseDateOnly(dataInicio) : undefined}
                       onSelect={(date) => {
                         if (date) {
                           setDataInicio(format(date, "yyyy-MM-dd"));
@@ -510,14 +516,14 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {dataFim
-                        ? format(new Date(dataFim), "dd/MM/yyyy", { locale: ptBR })
+                        ? format(parseDateOnly(dataFim), "dd/MM/yyyy", { locale: ptBR })
                         : "dd/mm/aaaa"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <CalendarComp
                       mode="single"
-                      selected={dataFim ? new Date(dataFim) : undefined}
+                      selected={dataFim ? parseDateOnly(dataFim) : undefined}
                       onSelect={(date) => {
                         if (date) {
                           setDataFim(format(date, "yyyy-MM-dd"));
@@ -525,7 +531,7 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
                         }
                       }}
                       locale={ptBR}
-                      disabled={(date) => (dataInicio ? date < new Date(dataInicio) : false)}
+                      disabled={(date) => (dataInicio ? date < parseDateOnly(dataInicio) : false)}
                       initialFocus
                     />
                   </PopoverContent>

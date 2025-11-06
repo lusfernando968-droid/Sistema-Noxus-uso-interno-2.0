@@ -16,7 +16,13 @@ import { ENABLE_METAS } from "@/lib/config";
 
 const Index = () => {
   const [dateRange, setDateRange] = useState<DateRange>("30d");
-  const { projetos, clientes, transacoes, agendamentos, isLoading } = useDashboardData(dateRange);
+  const { 
+    projetos, prevProjetos,
+    clientes, prevClientes,
+    transacoes, prevTransacoes,
+    agendamentos, prevAgendamentos,
+    isLoading 
+  } = useDashboardData(dateRange);
   
   // Estados para gerenciar metas
   const [metaFormOpen, setMetaFormOpen] = useState(false);
@@ -83,10 +89,10 @@ const Index = () => {
             <TabsTrigger value="overview" className="rounded-xl">Visão Geral</TabsTrigger>
             <TabsTrigger value="insights" className="rounded-xl">Insights</TabsTrigger>
             {ENABLE_METAS && (<TabsTrigger value="metas" className="rounded-xl">Metas</TabsTrigger>)}
-            <TabsTrigger value="projects" className="rounded-xl">Projetos</TabsTrigger>
-            <TabsTrigger value="finance" className="rounded-xl">Financeiro</TabsTrigger>
             <TabsTrigger value="clients" className="rounded-xl">Clientes</TabsTrigger>
+            <TabsTrigger value="projects" className="rounded-xl">Projetos</TabsTrigger>
             <TabsTrigger value="schedules" className="rounded-xl">Agendamentos</TabsTrigger>
+            <TabsTrigger value="finance" className="rounded-xl">Financeiro</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -95,6 +101,10 @@ const Index = () => {
               clientes={clientes}
               transacoes={transacoes}
               agendamentos={agendamentos}
+              prevProjetos={prevProjetos}
+              prevClientes={prevClientes}
+              prevTransacoes={prevTransacoes}
+              prevAgendamentos={prevAgendamentos}
               onOpenMetasTab={handleOpenMetasTab}
               onCreateMeta={handleCreateMeta}
             />

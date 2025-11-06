@@ -118,7 +118,12 @@ export default function Auth() {
                         <FormControl>
                           <Input
                             placeholder="seu@email.com"
-                            type="email"
+                            // Usar text + inputMode=email evita bugs de teclado em mobile
+                            type="text"
+                            inputMode="email"
+                            autoCorrect="off"
+                            autoCapitalize="none"
+                            autoComplete="email"
                             className="rounded-xl"
                             {...field}
                           />
@@ -225,7 +230,12 @@ export default function Auth() {
                         <FormControl>
                           <Input
                             placeholder="seu@email.com"
-                            type="email"
+                            // Usar text + inputMode=email evita bugs de teclado em mobile
+                            type="text"
+                            inputMode="email"
+                            autoCorrect="off"
+                            autoCapitalize="none"
+                            autoComplete="email"
                             className="rounded-xl"
                             {...field}
                           />

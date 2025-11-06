@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { AppointmentCard } from "./AppointmentCard";
 import { useSoundEffects } from "@/hooks/useSoundEffects";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 
 interface Agendamento {
   id: string;
@@ -25,13 +26,15 @@ interface CalendarViewProps {
   onAppointmentMove?: (appointmentId: string, newDate: string) => void;
   onAppointmentClick?: (appointment: Agendamento) => void;
   onDateClick?: (date: string) => void;
+  onAppointmentDelete?: (appointmentId: string) => void;
 }
 
 export function CalendarView({ 
   appointments, 
   onAppointmentMove, 
   onAppointmentClick, 
-  onDateClick 
+  onDateClick,
+  onAppointmentDelete,
 }: CalendarViewProps) {
   const { playSound } = useSoundEffects();
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -303,22 +306,32 @@ export function CalendarView({
                   {/* Agendamentos do dia */}
                   <div className="space-y-1">
                     {dayAppointments.slice(0, 3).map((appointment) => (
-                      <div
-                        key={appointment.id}
-                        data-appointment-id={appointment.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, appointment.id)}
-                        onDragEnd={handleDragEnd}
-                        className="transition-transform duration-200 hover:scale-105"
-                      >
-                        <AppointmentCard
-                          appointment={appointment}
-                          onClick={() => onAppointmentClick?.(appointment)}
-                          compact
-                          draggable
-                          isDragging={draggedAppointment === appointment.id}
-                        />
-                      </div>
+                      <ContextMenu key={appointment.id}>
+                        <ContextMenuTrigger asChild>
+                          <div
+                            data-appointment-id={appointment.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, appointment.id)}
+                            onDragEnd={handleDragEnd}
+                            // Impede que o clique no card acione o clique do dia
+                            onClick={(e) => e.stopPropagation()}
+                            className="transition-transform duration-200 hover:scale-105"
+                          >
+                            <AppointmentCard
+                              appointment={appointment}
+                              onClick={() => onAppointmentClick?.(appointment)}
+                              compact
+                              draggable
+                              isDragging={draggedAppointment === appointment.id}
+                            />
+                          </div>
+                        </ContextMenuTrigger>
+                        <ContextMenuContent>
+                          <ContextMenuItem onClick={(e) => { e.stopPropagation(); onAppointmentClick?.(appointment); }}>Editar</ContextMenuItem>
+                          <ContextMenuSeparator />
+                          <ContextMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onAppointmentDelete?.(appointment.id); }}>Excluir</ContextMenuItem>
+                        </ContextMenuContent>
+                      </ContextMenu>
                     ))}
                     
                     {/* Indicador de mais agendamentos */}

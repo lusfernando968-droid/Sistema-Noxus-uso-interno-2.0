@@ -10,14 +10,33 @@ interface OverviewTabProps {
   clientes: any[];
   transacoes: any[];
   agendamentos: any[];
+  prevProjetos?: any[];
+  prevClientes?: any[];
+  prevTransacoes?: any[];
+  prevAgendamentos?: any[];
   onOpenMetasTab?: () => void;
   onCreateMeta?: () => void;
 }
 
-export function OverviewTab({ projetos, clientes, transacoes, agendamentos, onOpenMetasTab, onCreateMeta }: OverviewTabProps) {
-  const projetosAtivos = projetos.filter(p => p.status !== "concluido" && p.status !== "cancelado").length;
-  const receitas = transacoes.filter(t => t.tipo === "receita").reduce((sum, t) => sum + Number(t.valor), 0);
+export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prevProjetos = [], prevClientes = [], prevTransacoes = [], prevAgendamentos = [], onOpenMetasTab, onCreateMeta }: OverviewTabProps) {
+  const norm = (v: any) => String(v || '').toLowerCase();
+  const projetosAtivos = projetos.filter(p => norm(p.status) !== "concluido" && norm(p.status) !== "cancelado").length;
+  const receitas = transacoes.filter(t => norm(t.tipo) === "receita").reduce((sum, t) => sum + Number(t.valor || 0), 0);
   const agendamentosAtivos = agendamentos.filter(a => a.status === "agendado").length;
+
+  const prevProjetosAtivos = (prevProjetos || []).filter(p => norm(p.status) !== "concluido" && norm(p.status) !== "cancelado").length;
+  const prevReceitas = (prevTransacoes || [])
+    .filter(t => norm(t.tipo) === "receita")
+    .reduce((sum, t) => sum + Number(t.valor || 0), 0);
+  const prevAgendamentosAtivos = (prevAgendamentos || []).filter(a => a.status === "agendado").length;
+
+  const calcChange = (current: number, previous: number) => {
+    if (!previous && current) return { change: 100, trend: "up" as const };
+    if (!previous && !current) return { change: 0, trend: "up" as const };
+    const diff = current - previous;
+    const percent = (diff / previous) * 100;
+    return { change: Math.abs(Number(percent.toFixed(1))), trend: diff >= 0 ? "up" as const : "down" as const };
+  };
 
   const stats = [
     {
@@ -26,8 +45,7 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, onOp
       value: clientes.length.toString(),
       color: "text-primary",
       bgColor: "bg-primary/20",
-      change: 12.5,
-      trend: "up"
+      ...calcChange(clientes.length, (prevClientes || []).length)
     },
     {
       icon: Briefcase,
@@ -35,17 +53,7 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, onOp
       value: projetosAtivos.toString(),
       color: "text-primary",
       bgColor: "bg-primary/20",
-      change: 8.3,
-      trend: "up"
-    },
-    {
-      icon: DollarSign,
-      label: "Receitas Total",
-      value: `R$ ${(receitas / 1000).toFixed(1)}K`,
-      color: "text-primary",
-      bgColor: "bg-primary/20",
-      change: 15.2,
-      trend: "up"
+      ...calcChange(projetosAtivos, prevProjetosAtivos)
     },
     {
       icon: Calendar,
@@ -53,8 +61,15 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, onOp
       value: agendamentosAtivos.toString(),
       color: "text-primary",
       bgColor: "bg-primary/20",
-      change: -5.1,
-      trend: "down"
+      ...calcChange(agendamentosAtivos, prevAgendamentosAtivos)
+    },
+    {
+      icon: DollarSign,
+      label: "Receitas Total",
+      value: `R$ ${(receitas / 1000).toFixed(1)}K`,
+      color: "text-primary",
+      bgColor: "bg-primary/20",
+      ...calcChange(receitas, prevReceitas)
     },
   ];
 

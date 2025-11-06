@@ -53,16 +53,18 @@ export function FinanceTab({ transacoes }: FinanceTabProps) {
     end: new Date(),
   });
 
+  const norm = (v: any) => String(v || '').toLowerCase();
+
   const revenueData = last6Months.map(month => {
     const monthStart = startOfMonth(month);
     const monthEnd = endOfMonth(month);
     
     const receitas = transacoes
-      .filter(t => t.tipo === "receita" && new Date(t.data_vencimento) >= monthStart && new Date(t.data_vencimento) <= monthEnd)
+      .filter(t => norm(t.tipo) === "receita" && new Date(t.data_vencimento || t.created_at || t.data) >= monthStart && new Date(t.data_vencimento || t.created_at || t.data) <= monthEnd)
       .reduce((sum, t) => sum + Number(t.valor), 0);
 
     const despesas = transacoes
-      .filter(t => t.tipo === "despesa" && new Date(t.data_vencimento) >= monthStart && new Date(t.data_vencimento) <= monthEnd)
+      .filter(t => norm(t.tipo) === "despesa" && new Date(t.data_vencimento || t.created_at || t.data) >= monthStart && new Date(t.data_vencimento || t.created_at || t.data) <= monthEnd)
       .reduce((sum, t) => sum + Number(t.valor), 0);
 
     return {
@@ -75,7 +77,8 @@ export function FinanceTab({ transacoes }: FinanceTabProps) {
 
   // Categories distribution
   const categorias = transacoes.reduce((acc, t) => {
-    acc[t.categoria] = (acc[t.categoria] || 0) + Number(t.valor);
+    const cat = t.categoria || 'Outros';
+    acc[cat] = (acc[cat] || 0) + Number(t.valor);
     return acc;
   }, {} as Record<string, number>);
 

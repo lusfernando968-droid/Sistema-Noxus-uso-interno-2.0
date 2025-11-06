@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { eachMonthOfInterval, endOfMonth, format, isSameMonth, startOfMonth, subMonths } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +50,64 @@ interface DraggableWidgetsProps {
 
   export function DraggableWidgets({ transacoes, clientes, projetos, agendamentos }: DraggableWidgetsProps) {
   const [isEditMode, setIsEditMode] = useState(false);
+  const norm = (v: any) => String(v || '').toLowerCase();
+  const last6Months = useMemo(() => eachMonthOfInterval({ start: subMonths(new Date(), 5), end: new Date() }), []);
+
+  // Receita do mês atual
+  const receitaDoMesAtual = useMemo(() => {
+    const now = new Date();
+    const total = transacoes
+      .filter(t => norm(t.tipo) === 'receita')
+      .filter(t => isSameMonth(new Date(t.data_vencimento || t.created_at || t.data), now))
+      .reduce((sum, t) => sum + Number(t.valor || 0), 0);
+    return `R$ ${Math.round(total).toLocaleString('pt-BR')}`;
+  }, [transacoes]);
+
+  // Receita por mês (últimos 6 meses)
+  const receitaPorMesData = useMemo(() => {
+    return last6Months.map(month => {
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
+      const valorMes = transacoes
+        .filter(t => norm(t.tipo) === 'receita')
+        .filter(t => {
+          const d = new Date(t.data_vencimento || t.created_at || t.data);
+          return d >= monthStart && d <= monthEnd;
+        })
+        .reduce((sum, t) => sum + Number(t.valor || 0), 0);
+      return { name: format(month, 'MMM', { locale: ptBR }), value: valorMes };
+    });
+  }, [last6Months, transacoes]);
+
+  // Taxa de conversão atual e variação
+  const conversionRate = useMemo(() => {
+    const now = new Date();
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+
+    const currentMonthAppointments = agendamentos.filter(a => {
+      const d = new Date(a.data || a.data_agendamento);
+      return d >= monthStart && d <= monthEnd;
+    });
+    const total = currentMonthAppointments.length;
+    const concluidos = currentMonthAppointments.filter(a => norm(a.status) === 'concluido').length;
+    const pct = total ? Math.round((concluidos / total) * 100) : 0;
+
+    // mês anterior
+    const prevMonth = subMonths(now, 1);
+    const prevStart = startOfMonth(prevMonth);
+    const prevEnd = endOfMonth(prevMonth);
+    const prevApps = agendamentos.filter(a => {
+      const d = new Date(a.data || a.data_agendamento);
+      return d >= prevStart && d <= prevEnd;
+    });
+    const prevTotal = prevApps.length;
+    const prevConcluidos = prevApps.filter(a => norm(a.status) === 'concluido').length;
+    const prevPct = prevTotal ? Math.round((prevConcluidos / prevTotal) * 100) : 0;
+
+    const change = Number((pct - prevPct).toFixed(1));
+    return { valueStr: `${pct}%`, change };
+  }, [agendamentos]);
   const [widgets, setWidgets] = useState<Widget[]>([
     {
       id: 'clients-total',
@@ -87,8 +147,8 @@ interface DraggableWidgetsProps {
       icon: DollarSign,
       color: 'text-primary',
       bgColor: 'bg-primary/20',
-      value: 'R$ 28.5K',
-      change: 15.2,
+      value: receitaDoMesAtual,
+      change: 0,
       trendData: [18, 19, 21, 24, 26, 28]
     },
     {
@@ -115,14 +175,7 @@ interface DraggableWidgetsProps {
       icon: TrendingUp,
       color: 'text-primary',
       bgColor: 'bg-primary/20',
-      data: [
-        { name: 'Jan', value: 12000 },
-        { name: 'Fev', value: 15000 },
-        { name: 'Mar', value: 18000 },
-        { name: 'Abr', value: 22000 },
-        { name: 'Mai', value: 25000 },
-        { name: 'Jun', value: 28000 },
-      ]
+      data: receitaPorMesData
     },
     {
       id: 'conversion-rate',
@@ -134,8 +187,8 @@ interface DraggableWidgetsProps {
       icon: BarChart3,
       color: 'text-primary',
       bgColor: 'bg-primary/20',
-      value: '68%',
-      change: 3.2
+      value: conversionRate.valueStr,
+      change: conversionRate.change
     },
     {
       id: 'cancellation-rate',

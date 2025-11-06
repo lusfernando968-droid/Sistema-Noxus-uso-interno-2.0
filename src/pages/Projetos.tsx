@@ -159,21 +159,82 @@ export default function Projetos() {
       const { data, error } = await query;
 
       if (error) throw error;
-      
-      // Simular dados calculados (em produção, viriam do banco ou seriam calculados)
-      const typedData = (data || []).map(item => ({
-        ...item,
-        status: item.status as Status,
-        valor_total: item.valor_total || Math.floor(Math.random() * 5000) + 1000,
-        valor_pago: item.valor_pago || Math.floor(Math.random() * 3000),
-        sessoes_total: Math.floor(Math.random() * 10) + 3,
-        sessoes_realizadas: Math.floor(Math.random() * 5) + 1,
-        fotos_count: Math.floor(Math.random() * 20) + 5,
-        feedback_count: Math.floor(Math.random() * 8) + 2,
-        progresso: Math.floor(Math.random() * 100),
+
+      // Para cada projeto, calcular métricas reais a partir das tabelas relacionadas
+      const enriched = await Promise.all((data || []).map(async (item: any) => {
+        const projetoId = item.id;
+
+        // Valor pago (soma das sessões com status_pagamento = 'pago')
+        let valorPago = 0;
+        try {
+          const { data: valorPagoResp, error: valorPagoErr } = await supabase
+            .rpc('calcular_valor_pago_projeto', { projeto_id_param: projetoId });
+          if (!valorPagoErr && typeof valorPagoResp === 'number') {
+            valorPago = valorPagoResp;
+          }
+        } catch (_) {}
+
+        // Contagem de sessões realizadas
+        let sessoesRealizadas = 0;
+        try {
+          const { count } = await supabase
+            .from('projeto_sessoes')
+            .select('id', { count: 'exact', head: true })
+            .eq('projeto_id', projetoId);
+          if (typeof count === 'number') {
+            sessoesRealizadas = count;
+          }
+        } catch (_) {}
+
+        // Total de sessões planejadas
+        const sessoesTotal = item.quantidade_sessoes || 0;
+
+        // Progresso (em %) calculado localmente, se possível
+        let progressoCalc = 0;
+        if (sessoesTotal > 0) {
+          progressoCalc = Math.round((sessoesRealizadas / sessoesTotal) * 100);
+          if (progressoCalc > 100) progressoCalc = 100;
+        }
+
+        // Contagem de fotos do projeto
+        let fotosCount = 0;
+        try {
+          const { count } = await supabase
+            .from('projeto_fotos')
+            .select('id', { count: 'exact', head: true })
+            .eq('projeto_id', projetoId);
+          if (typeof count === 'number') {
+            fotosCount = count;
+          }
+        } catch (_) {}
+
+        // Contagem de feedbacks (sessões com feedback_cliente não nulo)
+        let feedbackCount = 0;
+        try {
+          const { count } = await supabase
+            .from('projeto_sessoes')
+            .select('id', { count: 'exact', head: true })
+            .eq('projeto_id', projetoId)
+            .not('feedback_cliente', 'is', null);
+          if (typeof count === 'number') {
+            feedbackCount = count;
+          }
+        } catch (_) {}
+
+        return {
+          ...item,
+          status: item.status as Status,
+          valor_total: item.valor_total || 0,
+          valor_pago: valorPago || 0,
+          sessoes_total: sessoesTotal,
+          sessoes_realizadas: sessoesRealizadas,
+          fotos_count: fotosCount,
+          feedback_count: feedbackCount,
+          progresso: progressoCalc,
+        } as Projeto;
       }));
-      
-      setProjetos(typedData);
+
+      setProjetos(enriched);
     } catch (error) {
       console.error("Erro ao buscar projetos:", error);
       toast({

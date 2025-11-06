@@ -16,7 +16,6 @@ import {
   Calendar,
   DollarSign,
   Target,
-  Map as MapIcon,
   Download,
   GitCompare,
   Info,
@@ -62,6 +61,8 @@ interface ReferralNetworkProps {
 }
 
 export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
+  // Offset global para posicionar os nós em relação à linha de geração
+  const NODE_LINE_OFFSET = 0; // 0 = exatamente sobre a linha; positivos = acima; negativos = abaixo
   const { colorTheme, theme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [nodes, setNodes] = useState<NetworkNode[]>([]);
@@ -88,9 +89,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
   const [animationProgress, setAnimationProgress] = useState(0);
   const [previousNodes, setPreviousNodes] = useState<NetworkNode[]>([]);
   
-  // Estados para minimap
-  const [showMinimap, setShowMinimap] = useState(false);
-  const minimapRef = useRef<HTMLCanvasElement>(null);
+  // Minimap removido
 
   // Estados para interatividade avançada
   // Removido: seleção múltipla
@@ -345,124 +344,16 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
 
   useEffect(() => {
     drawNetwork();
-    if (showMinimap) {
-      drawMinimap();
-    }
-  }, [nodes, zoom, pan, selectedNode, hoveredNode, showLabels, highlightedNodes, isAnimating, animationProgress, previousNodes, showMinimap, colorTheme, theme]);
+  }, [nodes, zoom, pan, selectedNode, hoveredNode, showLabels, highlightedNodes, isAnimating, animationProgress, previousNodes, colorTheme, theme]);
 
   // Redesenhar logo após alternar tema, garantindo que variáveis CSS sejam aplicadas
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
       drawNetwork();
-      if (showMinimap) {
-        drawMinimap();
-      }
     });
     return () => cancelAnimationFrame(raf);
   }, [theme]);
 
-  const drawMinimap = () => {
-    const canvas = minimapRef.current;
-    if (!canvas || nodes.length === 0) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const minimapWidth = 200;
-    const minimapHeight = 150;
-    
-    // Configurar canvas
-    canvas.width = minimapWidth;
-    canvas.height = minimapHeight;
-    
-    // Limpar canvas
-    ctx.clearRect(0, 0, minimapWidth, minimapHeight);
-    
-    // Fundo do minimap
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-    ctx.fillRect(0, 0, minimapWidth, minimapHeight);
-    
-    // Calcular bounds da rede
-    const minX = Math.min(...nodes.map(n => n.x));
-    const maxX = Math.max(...nodes.map(n => n.x));
-    const minY = Math.min(...nodes.map(n => n.y));
-    const maxY = Math.max(...nodes.map(n => n.y));
-    
-    const networkWidth = maxX - minX || 800;
-    const networkHeight = maxY - minY || 600;
-    
-    // Escala para caber no minimap
-    const scaleX = (minimapWidth - 20) / networkWidth;
-    const scaleY = (minimapHeight - 20) / networkHeight;
-    const scale = Math.min(scaleX, scaleY);
-    
-    const offsetX = (minimapWidth - networkWidth * scale) / 2;
-    const offsetY = (minimapHeight - networkHeight * scale) / 2;
-    
-    // Desenhar conexões no minimap com cor do tema
-    const themeColorForConnections = getThemeColors();
-    ctx.strokeStyle = `rgba(${themeColorForConnections.r}, ${themeColorForConnections.g}, ${themeColorForConnections.b}, 0.3)`;
-    ctx.lineWidth = 1;
-    nodes.forEach(node => {
-      node.connections.forEach(connectedId => {
-        const connected = nodes.find(n => n.id === connectedId);
-        if (connected && node.level < connected.level) {
-          const x1 = offsetX + (node.x - minX) * scale;
-          const y1 = offsetY + (node.y - minY) * scale;
-          const x2 = offsetX + (connected.x - minX) * scale;
-          const y2 = offsetY + (connected.y - minY) * scale;
-          
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-          ctx.stroke();
-        }
-      });
-    });
-    
-    // Desenhar nós no minimap
-    nodes.forEach(node => {
-      const x = offsetX + (node.x - minX) * scale;
-      const y = offsetY + (node.y - minY) * scale;
-      const radius = Math.max(2, 4 * scale);
-      
-      const isHighlighted = highlightedNodes.has(node.id);
-      const isSelected = selectedNode === node.id;
-      
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, 2 * Math.PI);
-      
-      if (isSelected) {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.strokeStyle = levelColors[Math.min(node.level, levelColors.length - 1)];
-        ctx.lineWidth = 2;
-      } else if (isHighlighted) {
-        ctx.fillStyle = levelColors[Math.min(node.level, levelColors.length - 1)];
-        ctx.strokeStyle = '#FFFFFF';
-        ctx.lineWidth = 1;
-      } else {
-        ctx.fillStyle = levelColors[Math.min(node.level, levelColors.length - 1)];
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.lineWidth = 0.5;
-      }
-      
-      ctx.fill();
-      ctx.stroke();
-    });
-    
-    // Desenhar viewport atual com cor do tema
-    const themeColor = getThemeColors();
-    const viewportX = offsetX + (-pan.x / zoom - minX) * scale;
-    const viewportY = offsetY + (-pan.y / zoom - minY) * scale;
-    const viewportWidth = (800 / zoom) * scale;
-    const viewportHeight = (600 / zoom) * scale;
-    
-    ctx.strokeStyle = `rgba(${themeColor.r}, ${themeColor.g}, ${themeColor.b}, 0.8)`;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([3, 3]);
-    ctx.strokeRect(viewportX, viewportY, viewportWidth, viewportHeight);
-    ctx.setLineDash([]);
-  };
 
   // Função para aplicar filtros avançados
   const applyAdvancedFilters = () => {
@@ -658,11 +549,14 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
 
   const positionHierarchically = (nodesByLevel: Map<number, NetworkNode[]>, width: number, height: number) => {
     const maxLevel = Math.max(...nodesByLevel.keys());
-    const levelHeight = 150; // Espaçamento fixo entre níveis
-    const startY = 100; // Margem superior
+    // Usar o mesmo espaçamento vertical das linhas de geração
+    const levelHeight = 600 / (maxLevel + 2);
+    const startY = levelHeight; // primeira linha de nível
+    const nodeOffset = NODE_LINE_OFFSET; // usar offset global
 
     nodesByLevel.forEach((levelNodes, level) => {
-      const y = startY + (level * levelHeight);
+      const yLine = startY + (level * levelHeight);
+      const y = yLine - nodeOffset;
       
       if (level === 0) {
         // Nós raiz: distribuição melhorada
@@ -724,6 +618,11 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
   const applyGentleForces = (nodes: NetworkNode[], connections: Map<string, string[]>) => {
     const repulsionForce = 800; // Reduzido para menos movimento
     const levelConstraint = 2.0; // Força muito forte para manter níveis
+    // Calcular espaçamento vertical igual ao usado nas linhas de geração
+    const maxLevel = Math.max(...nodes.map(n => n.level));
+    const levelHeight = 600 / (maxLevel + 2);
+    const startY = levelHeight;
+    const nodeOffset = NODE_LINE_OFFSET;
 
     nodes.forEach(node => {
       let fx = 0;
@@ -742,8 +641,8 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         }
       });
 
-      // Força muito forte para manter alinhamento vertical por nível
-      const targetY = 100 + (node.level * 150); // Usar valores fixos
+      // Força muito forte para manter alinhamento vertical por nível (coerente com linhas)
+      const targetY = (startY + (node.level * levelHeight)) - nodeOffset;
       fy += (targetY - node.y) * levelConstraint;
 
       // Aplicar forças com movimento mínimo
@@ -912,16 +811,16 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
           if (isHighlighted) {
             // Conexão brilhante para destacados
             const energyGradient = ctx.createLinearGradient(node.x, node.y, connected.x, connected.y);
-            energyGradient.addColorStop(0, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.8)`);
-            energyGradient.addColorStop(0.5, `rgba(255, 255, 255, 0.6)`); // Centro branco brilhante
-            energyGradient.addColorStop(1, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.8)`);
+            energyGradient.addColorStop(0, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.7)`);
+            energyGradient.addColorStop(0.5, `rgba(255, 255, 255, 0.5)`); // Centro um pouco menos brilhante
+            energyGradient.addColorStop(1, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.7)`);
             
             // Halo de energia (linha mais grossa e difusa)
             ctx.beginPath();
             ctx.moveTo(node.x, node.y);
             ctx.lineTo(connected.x, connected.y);
-            ctx.strokeStyle = `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.2)`;
-            ctx.lineWidth = 6 / zoom;
+            ctx.strokeStyle = `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.12)`;
+            ctx.lineWidth = 4 / zoom;
             ctx.stroke();
             
             // Linha principal brilhante
@@ -929,27 +828,28 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
             ctx.moveTo(node.x, node.y);
             ctx.lineTo(connected.x, connected.y);
             ctx.strokeStyle = energyGradient;
-            ctx.lineWidth = 2 / zoom;
+            ctx.lineWidth = 1.5 / zoom;
           } else {
             // Conexão sutil como linha de constelação
             const subtleGradient = ctx.createLinearGradient(node.x, node.y, connected.x, connected.y);
-            subtleGradient.addColorStop(0, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.2)`);
-            subtleGradient.addColorStop(0.5, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.4)`);
-            subtleGradient.addColorStop(1, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.2)`);
+            subtleGradient.addColorStop(0, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.12)`);
+            subtleGradient.addColorStop(0.5, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.2)`);
+            subtleGradient.addColorStop(1, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.12)`);
             
             ctx.beginPath();
             ctx.moveTo(node.x, node.y);
             ctx.lineTo(connected.x, connected.y);
             ctx.strokeStyle = subtleGradient;
-            ctx.lineWidth = 1 / zoom;
+            ctx.lineWidth = 0.6 / zoom;
           }
-          ctx.globalAlpha = isHighlighted ? 0.9 : 0.7;
+          ctx.globalAlpha = isHighlighted ? 0.8 : 0.45;
           ctx.stroke();
           ctx.globalAlpha = 1;
           
           // Adicionar seta indicando direção (pai -> filho)
-          if (mediumQuality) {
-            const arrowSize = 8 / zoom;
+          // Ocultar setas quando zoom < 1 para evitar poluição visual
+          if (mediumQuality && zoom >= 1) {
+            const arrowSize = 6 / zoom;
             const angle = Math.atan2(connected.y - node.y, connected.x - node.x);
             
             // Posição da seta (70% do caminho)
@@ -968,8 +868,8 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
               arrowY - arrowSize * Math.sin(angle + Math.PI / 6)
             );
             const themeColorForArrow = getThemeColors();
-            ctx.strokeStyle = isHighlighted ? `rgb(${themeColorForArrow.r}, ${themeColorForArrow.g}, ${themeColorForArrow.b})` : 'rgba(148, 163, 184, 0.8)';
-            ctx.lineWidth = 2 / zoom;
+            ctx.strokeStyle = isHighlighted ? `rgb(${themeColorForArrow.r}, ${themeColorForArrow.g}, ${themeColorForArrow.b})` : 'rgba(148, 163, 184, 0.5)';
+            ctx.lineWidth = 1 / zoom;
             ctx.stroke();
           }
         }
@@ -1445,15 +1345,6 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                 >
                   <RotateCcw className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowMinimap(!showMinimap)}
-                  className="rounded-xl"
-                  title="Mostrar/Ocultar Minimap"
-                >
-                  <MapIcon className="w-4 h-4" />
-                </Button>
                 
                 {/* Exportar e Analytics */}
                 <div className="flex items-center gap-1 border-l pl-2 ml-2">
@@ -1483,65 +1374,6 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
               />
-              
-              {/* Minimap */}
-              {showMinimap && (
-                <div className="absolute top-4 right-4 bg-background/90 backdrop-blur-sm border border-border rounded-xl p-2 shadow-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-muted-foreground">Minimap</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowMinimap(false)}
-                      className="h-4 w-4 p-0"
-                    >
-                      ×
-                    </Button>
-                  </div>
-                  <canvas
-                    ref={minimapRef}
-                    width={200}
-                    height={150}
-                    className="border border-border/50 rounded cursor-pointer"
-                    onClick={(e) => {
-                      // Implementar navegação por clique no minimap
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const x = e.clientX - rect.left;
-                      const y = e.clientY - rect.top;
-                      
-                      // Converter coordenadas do minimap para coordenadas da rede
-                      const minimapWidth = 200;
-                      const minimapHeight = 150;
-                      
-                      if (nodes.length > 0) {
-                        const minX = Math.min(...nodes.map(n => n.x));
-                        const maxX = Math.max(...nodes.map(n => n.x));
-                        const minY = Math.min(...nodes.map(n => n.y));
-                        const maxY = Math.max(...nodes.map(n => n.y));
-                        
-                        const networkWidth = maxX - minX || 800;
-                        const networkHeight = maxY - minY || 600;
-                        
-                        const scaleX = (minimapWidth - 20) / networkWidth;
-                        const scaleY = (minimapHeight - 20) / networkHeight;
-                        const scale = Math.min(scaleX, scaleY);
-                        
-                        const offsetX = (minimapWidth - networkWidth * scale) / 2;
-                        const offsetY = (minimapHeight - networkHeight * scale) / 2;
-                        
-                        const networkX = minX + (x - offsetX) / scale;
-                        const networkY = minY + (y - offsetY) / scale;
-                        
-                        // Centralizar a visualização no ponto clicado
-                        setPan({
-                          x: -(networkX - 400) * zoom,
-                          y: -(networkY - 300) * zoom
-                        });
-                      }
-                    }}
-                  />
-                </div>
-              )}
               
               {/* Menu de Exportação */}
               {showExportMenu && (

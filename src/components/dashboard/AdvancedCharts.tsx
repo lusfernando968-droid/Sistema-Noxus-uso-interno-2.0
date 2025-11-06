@@ -1,6 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendingUp, TrendingDown, BarChart3, PieChart, LineChart } from "lucide-react";
-import { useState } from "react";
+import { TrendingUp, TrendingDown, BarChart3, PieChart, LineChart, Calendar } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { eachMonthOfInterval, endOfMonth, format, startOfMonth } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 
 interface ChartData {
   name: string;
@@ -17,32 +35,142 @@ interface AdvancedChartsProps {
 
 export function AdvancedCharts({ transacoes, clientes, projetos, agendamentos }: AdvancedChartsProps) {
   const [selectedChart, setSelectedChart] = useState<'revenue' | 'clients' | 'projects'>('revenue');
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
+  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
+  // Utilitário para normalizar strings (evita problemas entre "RECEITA"/"receita")
+  const norm = (v: any) => String(v || '').toLowerCase();
 
-  // Dados simulados para gráficos (em produção, viriam de cálculos reais)
-  const revenueData: ChartData[] = [
-    { name: 'Jan', value: 12000, change: 8.2 },
-    { name: 'Fev', value: 15000, change: 25.0 },
-    { name: 'Mar', value: 18000, change: 20.0 },
-    { name: 'Abr', value: 22000, change: 22.2 },
-    { name: 'Mai', value: 25000, change: 13.6 },
-    { name: 'Jun', value: 28000, change: 12.0 },
-  ];
+  // Carregar filtros persistidos
+  useEffect(() => {
+    try {
+      const chart = localStorage.getItem('noxus:charts:selectedChart');
+      if (chart === 'revenue' || chart === 'clients' || chart === 'projects') {
+        setSelectedChart(chart as 'revenue' | 'clients' | 'projects');
+      }
 
-  const clientGrowthData: ChartData[] = [
-    { name: 'Jan', value: 45, change: 12.5 },
-    { name: 'Fev', value: 52, change: 15.6 },
-    { name: 'Mar', value: 61, change: 17.3 },
-    { name: 'Abr', value: 68, change: 11.5 },
-    { name: 'Mai', value: 75, change: 10.3 },
-    { name: 'Jun', value: 82, change: 9.3 },
-  ];
+      const year = localStorage.getItem('noxus:charts:selectedYear');
+      if (year) {
+        const y = parseInt(year);
+        if (!Number.isNaN(y)) setSelectedYear(y);
+      }
 
-  const projectPerformanceData: ChartData[] = [
-    { name: 'Concluídos', value: 24, change: 20.0 },
-    { name: 'Em Andamento', value: 8, change: -10.0 },
-    { name: 'Pausados', value: 3, change: -25.0 },
-    { name: 'Cancelados', value: 2, change: -50.0 },
-  ];
+      const months = localStorage.getItem('noxus:charts:selectedMonths');
+      if (months) {
+        const arr = JSON.parse(months);
+        if (Array.isArray(arr)) setSelectedMonths(arr);
+      }
+    } catch {}
+  }, []);
+
+  // Persistir filtros quando mudarem
+  useEffect(() => {
+    try { localStorage.setItem('noxus:charts:selectedChart', selectedChart); } catch {}
+  }, [selectedChart]);
+  useEffect(() => {
+    try { localStorage.setItem('noxus:charts:selectedYear', String(selectedYear)); } catch {}
+  }, [selectedYear]);
+  useEffect(() => {
+    try { localStorage.setItem('noxus:charts:selectedMonths', JSON.stringify(selectedMonths)); } catch {}
+  }, [selectedMonths]);
+
+  // Todos os meses do ano atual
+  const monthsOfYear = useMemo(() => {
+    const start = new Date(selectedYear, 0, 1);
+    const end = new Date(selectedYear, 11, 31);
+    return eachMonthOfInterval({ start, end });
+  }, [selectedYear]);
+
+  // Labels dos meses (ex.: jan, fev, ...)
+  const monthLabels = useMemo(() => monthsOfYear.map((m) => format(m, 'MMM', { locale: ptBR })), [monthsOfYear]);
+
+  // Resetar seleção para todos os meses quando o ano mudar ou labels mudarem
+  useEffect(() => {
+    if (monthLabels.length) {
+      setSelectedMonths((prev) => prev.length ? prev : monthLabels.map((_, idx) => idx));
+    }
+  }, [selectedYear, monthLabels.length]);
+
+  const availableYears = useMemo(() => {
+    const current = new Date().getFullYear();
+    return [current - 2, current - 1, current];
+  }, []);
+
+  // Receita por mês (somente tipo receita)
+  const revenueData: ChartData[] = useMemo(() => {
+    const arr = monthsOfYear.map((month) => {
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
+
+      const valorMes = transacoes
+        .filter(t => norm(t.tipo) === 'receita')
+        .filter(t => {
+          const d = new Date(t.data_vencimento || t.created_at || t.data);
+          return d >= monthStart && d <= monthEnd;
+        })
+        .reduce((sum, t) => sum + Number(t.valor || 0), 0);
+
+      return { name: format(month, 'MMM', { locale: ptBR }), value: valorMes };
+    });
+
+    // calcular variação percentual mês a mês
+    return arr.map((item, idx) => {
+      const prev = arr[idx - 1]?.value ?? 0;
+      const isFuture = endOfMonth(monthsOfYear[idx]) > new Date();
+      let change: number | undefined;
+      if (isFuture) {
+        // Não mostrar variação para meses futuros/incompletos
+        change = undefined;
+      } else if (prev > 0) {
+        change = Number((((item.value - prev) / prev) * 100).toFixed(1));
+      } else {
+        // Se o mês anterior foi 0, mostrar +100% quando houver receita agora
+        if (item.value > 0) change = 100;
+        // Se ambos forem 0, não mostrar variação
+        else change = undefined;
+      }
+      return { ...item, change };
+    });
+  }, [monthsOfYear, transacoes]);
+
+  // Novos clientes por mês
+  const clientGrowthData: ChartData[] = useMemo(() => {
+    const arr = monthsOfYear.map((month) => {
+      const monthStart = startOfMonth(month);
+      const monthEnd = endOfMonth(month);
+      const qtd = clientes.filter(c => {
+        const d = new Date(c.created_at || c.data || new Date());
+        return d >= monthStart && d <= monthEnd;
+      }).length;
+      return { name: format(month, 'MMM', { locale: ptBR }), value: qtd };
+    });
+    return arr.map((item, idx) => {
+      const prev = arr[idx - 1]?.value ?? 0;
+      const isFuture = endOfMonth(monthsOfYear[idx]) > new Date();
+      let change: number | undefined;
+      if (isFuture) {
+        change = undefined;
+      } else if (prev > 0) {
+        change = Number((((item.value - prev) / prev) * 100).toFixed(1));
+      } else {
+        // Se o mês anterior foi 0, e agora temos novos clientes, mostrar +100%
+        if (item.value > 0) change = 100;
+        else change = undefined;
+      }
+      return { ...item, change };
+    });
+  }, [monthsOfYear, clientes]);
+
+  // Performance de projetos atual por status
+  const projectPerformanceData: ChartData[] = useMemo(() => {
+    const statusCount = (status: string) => projetos.filter(p => norm(p.status) === status).length;
+    return [
+      { name: 'Concluídos', value: statusCount('concluido') },
+      { name: 'Em Andamento', value: statusCount('em_andamento') || statusCount('andamento') },
+      { name: 'Planejamento', value: statusCount('planejamento') },
+      { name: 'Cancelados', value: statusCount('cancelado') },
+    ];
+  }, [projetos]);
 
   const getCurrentData = () => {
     switch (selectedChart) {
@@ -70,10 +198,42 @@ export function AdvancedCharts({ transacoes, clientes, projetos, agendamentos }:
     }
   };
 
-  const getMaxValue = () => {
+  // Dados filtrados pelos meses selecionados (apenas para charts mensais)
+  const filteredData: ChartData[] = useMemo(() => {
     const data = getCurrentData();
-    return Math.max(...data.map(d => d.value));
+    if (selectedChart === 'projects') return data;
+    return data.filter((_, idx) => selectedMonths.includes(idx));
+  }, [selectedChart, selectedMonths, revenueData, clientGrowthData, projectPerformanceData]);
+
+  const getMaxValue = () => {
+    const data = filteredData;
+    if (!data.length) return 0;
+    return Math.max(0, ...data.map(d => d.value));
   };
+
+  // Métricas rápidas calculadas
+  const monthlyGrowthPercent = useMemo(() => {
+    const last = revenueData[revenueData.length - 1]?.value ?? 0;
+    const prev = revenueData[revenueData.length - 2]?.value ?? 0;
+    if (!prev) return '+0%';
+    const pct = ((last - prev) / prev) * 100;
+    const sign = pct >= 0 ? '+' : '';
+    return `${sign}${pct.toFixed(1)}%`;
+  }, [revenueData]);
+
+  const ticketMedio = useMemo(() => {
+    const receitas = transacoes.filter(t => norm(t.tipo) === 'receita');
+    const total = receitas.reduce((s, t) => s + Number(t.valor || 0), 0);
+    const avg = receitas.length ? total / receitas.length : 0;
+    return `R$ ${Math.round(avg).toLocaleString('pt-BR')}`;
+  }, [transacoes]);
+
+  const taxaConversao = useMemo(() => {
+    const total = agendamentos.length;
+    const concluidos = agendamentos.filter(a => norm(a.status) === 'concluido').length;
+    const pct = total ? Math.round((concluidos / total) * 100) : 0;
+    return `${pct}%`;
+  }, [agendamentos]);
 
   return (
     <div className="grid gap-6 md:grid-cols-1 lg:grid-cols-3">
@@ -83,6 +243,19 @@ export function AdvancedCharts({ transacoes, clientes, projetos, agendamentos }:
           <div className="flex items-center justify-between">
             <CardTitle className="text-xl font-semibold">{getChartTitle()}</CardTitle>
             <div className="flex gap-2">
+              {/* Seletor de ano */}
+              {selectedChart !== 'projects' && (
+                <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+                  <SelectTrigger className="h-9 w-28">
+                    <SelectValue placeholder="Ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableYears.map((y) => (
+                      <SelectItem key={y} value={String(y)}>{y}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <button
                 onClick={() => setSelectedChart('revenue')}
                 className={`p-2 rounded-xl transition-all ${
@@ -113,14 +286,79 @@ export function AdvancedCharts({ transacoes, clientes, projetos, agendamentos }:
               >
                 <PieChart className="w-4 h-4" />
               </button>
+              {/* Filtro de meses */}
+              {selectedChart !== 'projects' && (
+                <DropdownMenu open={monthMenuOpen} onOpenChange={setMonthMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className={`p-2 rounded-xl transition-all bg-muted/50 hover:bg-muted`}
+                      aria-label="Filtrar meses"
+                    >
+                      <Calendar className="w-4 h-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    side="bottom"
+                    sideOffset={8}
+                    avoidCollisions
+                    collisionPadding={12}
+                    className="max-h-[60vh] overflow-auto"
+                  >
+                    <DropdownMenuLabel>Meses</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {monthLabels.map((label, idx) => (
+                      <DropdownMenuCheckboxItem
+                        key={idx}
+                        checked={selectedMonths.includes(idx)}
+                        onCheckedChange={(checked) => {
+                          setSelectedMonths((prev) => {
+                            if (checked) return Array.from(new Set([...prev, idx])).sort((a,b)=>a-b);
+                            return prev.filter((i) => i !== idx);
+                          });
+                          // manter menu aberto após alterar seleção
+                          setMonthMenuOpen(true);
+                        }}
+                      >
+                        {label}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setSelectedMonths(monthLabels.map((_, i) => i));
+                        setMonthMenuOpen(true);
+                      }}
+                    >
+                      Selecionar todos
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setSelectedMonths([]);
+                        setMonthMenuOpen(true);
+                      }}
+                    >
+                      Limpar seleção
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setMonthMenuOpen(false)}>
+                      Confirmar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {getCurrentData().map((item, index) => {
+            {filteredData.map((item) => {
               const maxValue = getMaxValue();
-              const percentage = (item.value / maxValue) * 100;
+              // Evita barras cheias quando todos os valores são 0 (divisão por zero)
+              const rawPercentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
+              const percentage = Math.max(0, Math.min(100, Number.isFinite(rawPercentage) ? rawPercentage : 0));
               const isPositive = (item.change || 0) >= 0;
               
               return (
@@ -164,7 +402,7 @@ export function AdvancedCharts({ transacoes, clientes, projetos, agendamentos }:
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Crescimento Mensal</p>
-                <p className="text-2xl font-bold text-primary">+18.5%</p>
+                <p className="text-2xl font-bold text-primary">{monthlyGrowthPercent}</p>
               </div>
             </div>
           </CardContent>
@@ -178,7 +416,7 @@ export function AdvancedCharts({ transacoes, clientes, projetos, agendamentos }:
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Ticket Médio</p>
-                <p className="text-2xl font-bold text-primary">R$ 1.2K</p>
+                <p className="text-2xl font-bold text-primary">{ticketMedio}</p>
               </div>
             </div>
           </CardContent>
@@ -192,7 +430,7 @@ export function AdvancedCharts({ transacoes, clientes, projetos, agendamentos }:
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Taxa Conversão</p>
-                <p className="text-2xl font-bold text-primary">68%</p>
+                <p className="text-2xl font-bold text-primary">{taxaConversao}</p>
               </div>
             </div>
           </CardContent>

@@ -4,7 +4,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, Shuffle, ChevronRight, ChevronLeft } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, ChevronRight, ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -1083,10 +1083,6 @@ const Clientes = () => {
                   <span className="hidden sm:inline">Novo Cliente</span>
                 </Button>
               </DialogTrigger>
-              <Button type="button" variant="outline" className="rounded-lg gap-2 h-9 px-3 ml-2" onClick={aplicarDadosVariados} title="Aplicar dados variados">
-                <Shuffle className="w-4 h-4" />
-                <span className="hidden sm:inline">Variar Dados</span>
-              </Button>
               <DialogContent className="rounded-xl">
                 <DialogHeader>
                   <DialogTitle>Novo Cliente</DialogTitle>

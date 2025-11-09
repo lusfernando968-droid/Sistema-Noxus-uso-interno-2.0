@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { AppointmentCard } from "./AppointmentCard";
-import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
 
 interface Agendamento {
@@ -36,7 +35,6 @@ export function CalendarView({
   onDateClick,
   onAppointmentDelete,
 }: CalendarViewProps) {
-  const { playSound } = useSoundEffects();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [draggedAppointment, setDraggedAppointment] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
@@ -44,17 +42,14 @@ export function CalendarView({
   // Navegação de mês
   const goToPreviousMonth = () => {
     setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-    playSound('whoosh');
   };
 
   const goToNextMonth = () => {
     setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-    playSound('whoosh');
   };
 
   const goToToday = () => {
     setCurrentDate(new Date());
-    playSound('chime');
   };
 
   // Gerar dados do calendário
@@ -137,7 +132,6 @@ export function CalendarView({
     setDraggedAppointment(appointmentId);
     e.dataTransfer.setData('text/plain', appointmentId);
     e.dataTransfer.effectAllowed = 'move';
-    playSound('drag');
     
     // Adicionar classe CSS para feedback visual
     setTimeout(() => {
@@ -189,7 +183,6 @@ export function CalendarView({
     
     if (draggedAppointment && onAppointmentMove) {
       onAppointmentMove(draggedAppointment, newDate);
-      playSound('drop');
     }
     
     setDraggedAppointment(null);

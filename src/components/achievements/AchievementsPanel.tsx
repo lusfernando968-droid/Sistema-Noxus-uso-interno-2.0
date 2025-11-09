@@ -12,11 +12,9 @@ import {
 } from '@/components/ui/dialog';
 import { Trophy, Award, Target, RotateCcw } from 'lucide-react';
 import { useAchievementNotifications, Achievement } from '@/hooks/useAchievementNotifications';
-import { useSoundEffects } from '@/hooks/useSoundEffects';
 
 export function AchievementsPanel() {
   const { getUserAchievements, resetAchievements } = useAchievementNotifications();
-  const { playSound } = useSoundEffects();
   const [isOpen, setIsOpen] = useState(false);
   const [achievements, setAchievements] = useState(getUserAchievements());
 
@@ -51,12 +49,10 @@ export function AchievementsPanel() {
   const totalCount = achievements.length;
 
   const handleOpenDialog = () => {
-    playSound('click');
     setIsOpen(true);
   };
 
   const handleResetAchievements = () => {
-    playSound('click');
     resetAchievements();
     // Atualiza o estado local imediatamente
     setAchievements(getUserAchievements());

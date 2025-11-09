@@ -1,4 +1,6 @@
 import { useState } from "react";
+import OnboardingTour from "@/components/ui/OnboardingTour";
+import { useOnboarding } from "@/hooks/useOnboarding";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useDashboardData, DateRange } from "@/hooks/useDashboardData";
@@ -29,6 +31,18 @@ const Index = () => {
   const [metaFormMode, setMetaFormMode] = useState<'create' | 'edit' | 'progress'>('create');
   const [selectedMeta, setSelectedMeta] = useState<MetaComProgresso | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Passos do tour guiado
+  const onboardingSteps = [
+    { title: 'Bem-vindo ao Noxus', description: 'Centralize Clientes, Projetos, Vendas, Financeiro e Agenda num só lugar.' },
+    { title: 'Clientes', description: 'Cadastre clientes, acesse detalhes e relacione com projetos e vendas.' },
+    { title: 'Projetos', description: 'Crie e acompanhe projetos por status, cliente e informações financeiras.' },
+    { title: 'Vendas', description: 'Registre oportunidades e conecte ao cliente e ao projeto quando aplicável.' },
+    { title: 'Financeiro', description: 'Lance receitas e despesas para controlar o saldo por projeto e geral.' },
+    { title: 'Agendamentos', description: 'Agende reuniões, entregas e follow-ups e visualize no calendário.' },
+    { title: 'Perfil', description: 'Ajuste nome, foto e tema claro/escuro para personalizar sua experiência.' },
+  ];
+  const { isOpen, stepIndex, steps, start, next, prev, skip, complete } = useOnboarding(onboardingSteps);
 
   // Funções para gerenciar metas
   const handleCreateMeta = () => {
@@ -62,7 +76,14 @@ const Index = () => {
             Visão completa e detalhada do seu sistema de gestão
           </p>
         </div>
-        
+        {/* Botão para reabrir o tour quando quiser */}
+        <button
+          className="rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-50 dark:hover:bg-neutral-800"
+          onClick={start}
+        >
+          Começar tour
+        </button>
+
         <Select value={dateRange} onValueChange={(value) => setDateRange(value as DateRange)}>
           <SelectTrigger className="w-[180px] rounded-2xl">
             <SelectValue placeholder="Período" />
@@ -156,6 +177,17 @@ const Index = () => {
           mode={metaFormMode}
         />
       )}
+
+      {/* Overlay do tour guiado */}
+      <OnboardingTour
+        isOpen={isOpen}
+        stepIndex={stepIndex}
+        steps={steps}
+        onNext={next}
+        onPrev={prev}
+        onSkip={skip}
+        onComplete={complete}
+      />
     </div>
   );
 };

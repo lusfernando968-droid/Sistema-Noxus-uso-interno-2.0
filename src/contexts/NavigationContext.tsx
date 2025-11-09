@@ -18,8 +18,9 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   });
 
   const [isNavigationVisible, setIsNavigationVisibleState] = useState(() => {
-    const saved = localStorage.getItem("navigation-visible");
-    return saved !== null ? saved === "true" : true;
+    // Sempre visível; ignoramos qualquer valor salvo previamente
+    localStorage.setItem("navigation-visible", "true");
+    return true;
   });
 
   const setNavigationType = (type: NavigationType) => {
@@ -27,9 +28,10 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("navigation-type", type);
   };
 
-  const setIsNavigationVisible = (visible: boolean) => {
-    setIsNavigationVisibleState(visible);
-    localStorage.setItem("navigation-visible", visible.toString());
+  const setIsNavigationVisible = (_visible: boolean) => {
+    // Mantém o menu sempre visível
+    setIsNavigationVisibleState(true);
+    localStorage.setItem("navigation-visible", "true");
   };
 
   return (

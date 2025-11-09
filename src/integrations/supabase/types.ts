@@ -176,6 +176,7 @@ export type Database = {
           avatar_url: string | null
           cargo: string | null
           created_at: string
+          color_theme: string | null
           id: string
           nome_completo: string
           username: string | null
@@ -186,6 +187,7 @@ export type Database = {
           avatar_url?: string | null
           cargo?: string | null
           created_at?: string
+          color_theme?: string | null
           id: string
           nome_completo: string
           username?: string | null
@@ -196,6 +198,7 @@ export type Database = {
           avatar_url?: string | null
           cargo?: string | null
           created_at?: string
+          color_theme?: string | null
           id?: string
           nome_completo?: string
           username?: string | null

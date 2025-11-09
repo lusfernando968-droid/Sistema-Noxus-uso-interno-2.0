@@ -2,7 +2,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, Users, Briefcase, DollarSign, Calendar, ArrowUpRight, ArrowDownRight, BarChart3, Bell } from "lucide-react";
 import { AdvancedCharts } from "./AdvancedCharts";
-import { DraggableWidgets } from "./DraggableWidgets";
 // MetasOverviewCard removido da página inicial
 
 interface OverviewTabProps {
@@ -129,11 +128,6 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
             <BarChart3 className="w-4 h-4 mr-2" />
             Analytics
           </TabsTrigger>
-          <TabsTrigger value="widgets" className="rounded-xl">
-            <TrendingUp className="w-4 h-4 mr-2" />
-            Widgets
-          </TabsTrigger>
-          {/* Insights movidos para uma aba dedicada no dashboard */}
         </TabsList>
 
         <TabsContent value="analytics" className="space-y-6">
@@ -144,17 +138,6 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
             agendamentos={agendamentos}
           />
         </TabsContent>
-
-        <TabsContent value="widgets" className="space-y-6">
-          <DraggableWidgets 
-            transacoes={transacoes}
-            clientes={clientes}
-            projetos={projetos}
-            agendamentos={agendamentos}
-          />
-        </TabsContent>
-
-        {/* Conteúdo de Insights removido desta aba */}
       </Tabs>
     </div>
   );

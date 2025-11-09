@@ -1,6 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { useToastWithSound } from './useToastWithSound';
-import { useSoundEffects } from './useSoundEffects';
+import { useToast } from './use-toast';
 
 // Tipos de conquistas/metas
 export type AchievementType = 
@@ -73,8 +72,7 @@ const ACHIEVEMENT_CONFIGS: Record<AchievementType, Omit<Achievement, 'id' | 'cur
 };
 
 export const useAchievementNotifications = () => {
-  const { toast } = useToastWithSound();
-  const { playSound } = useSoundEffects();
+  const { toast } = useToast();
 
   // Função para verificar e disparar notificação de conquista
   const checkAchievement = useCallback((type: AchievementType, currentValue: number) => {
@@ -116,9 +114,6 @@ export const useAchievementNotifications = () => {
 
   // Função para mostrar notificação de conquista
   const showAchievementNotification = useCallback((achievement: Achievement) => {
-    // Som especial para conquistas
-    playSound('success');
-    
     // Toast com design especial
     toast({
       title: `🎉 ${achievement.icon} ${achievement.title}`,
@@ -128,7 +123,7 @@ export const useAchievementNotifications = () => {
 
     // Log da conquista (pode ser enviado para analytics)
     console.log('🏆 Conquista desbloqueada:', achievement);
-  }, [toast, playSound]);
+  }, [toast]);
 
   // Funções específicas para cada tipo de meta
   const checkClientesMilestone = useCallback((count: number) => {

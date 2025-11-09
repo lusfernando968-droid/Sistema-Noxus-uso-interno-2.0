@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { loginSchema, signupSchema, type LoginInput, type SignupInput } from "@/lib/validations/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,17 @@ export default function Auth() {
   const { user, signIn, signUp, signInWithGoogle } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { theme, setTheme } = useTheme();
+  const prevThemeRef = useRef(theme);
+
+  // Força tema claro (fundo branco) durante a tela de login
+  useEffect(() => {
+    prevThemeRef.current = theme;
+    setTheme("light");
+    return () => {
+      setTheme(prevThemeRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -41,6 +53,14 @@ export default function Auth() {
       confirmPassword: "",
     },
   });
+
+  // Campos separados para nome e sobrenome, sincronizados com nome_completo
+  const [nome, setNome] = useState("");
+  const [sobrenome, setSobrenome] = useState("");
+  useEffect(() => {
+    const full = `${nome} ${sobrenome}`.trim();
+    signupForm.setValue("nome_completo", full, { shouldValidate: true, shouldDirty: true });
+  }, [nome, sobrenome]);
 
   const onLogin = async (data: LoginInput) => {
     setIsLoading(true);
@@ -89,11 +109,18 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md rounded-2xl border-border shadow-xl">
+    <div className="min-h-screen bg-white relative flex items-center justify-center p-4">
+      {/* Fundo animado em espiral borrado */}
+      <div className="login-spiral-wrapper">
+        <div className="login-spiral" />
+      </div>
+      <Card className="relative z-10 w-full max-w-md rounded-2xl border-border shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          <CardTitle className="text-3xl font-bold">SGE</CardTitle>
-          <CardDescription>Sistema de Gestão Empresarial</CardDescription>
+          <div className="flex items-center justify-center gap-2">
+            <Loader2 className="w-8 h-8 text-primary" />
+            <CardTitle className="text-3xl font-bold">Noxus</CardTitle>
+          </div>
+          <CardDescription>De tatuador para tatuador</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
@@ -204,23 +231,27 @@ export default function Auth() {
             <TabsContent value="signup">
               <Form {...signupForm}>
                 <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4 mt-4">
-                  <FormField
-                    control={signupForm.control}
-                    name="nome_completo"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Nome Completo</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="João Silva"
-                            className="rounded-xl"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Nome e Sobrenome separados */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <FormLabel>Nome</FormLabel>
+                      <Input
+                        placeholder="Seu nome"
+                        className="rounded-xl"
+                        value={nome}
+                        onChange={(e) => setNome(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <FormLabel>Sobrenome</FormLabel>
+                      <Input
+                        placeholder="Seu sobrenome"
+                        className="rounded-xl"
+                        value={sobrenome}
+                        onChange={(e) => setSobrenome(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   <FormField
                     control={signupForm.control}
                     name="email"

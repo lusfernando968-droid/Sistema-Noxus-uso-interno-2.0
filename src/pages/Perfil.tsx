@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNavigation } from "@/contexts/NavigationContext";
-import { useSoundContext } from "@/contexts/SoundContext";
 import { profileUpdateSchema, type ProfileUpdateInput } from "@/lib/validations/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,22 +14,20 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { UserAvatar } from "@/components/profile/UserAvatar";
-import { Camera, Loader2, Menu, Eye, EyeOff, Volume2, VolumeX } from "lucide-react";
+import { Camera, Loader2, Menu, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ColorInput } from "@/components/ui/color-input";
+// import removed: ColorInput (tema personalizado removido)
 
 export default function Perfil() {
   const { profile, userRole, updateProfile, user } = useAuth();
-  const { colorTheme, setColorTheme, customColor, setCustomColor } = useTheme();
+  const { colorTheme, setColorTheme } = useTheme();
   const { navigationType, setNavigationType, isNavigationVisible, setIsNavigationVisible } = useNavigation();
-  const { isSoundEnabled, setIsSoundEnabled } = useSoundContext();
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
 
   const colorThemes = [
-    { id: "noxus" as const, name: "Noxus (Padrão)", colors: "bg-gradient-to-r from-purple-500 via-blue-500 to-pink-500" },
     { id: "default" as const, name: "Roxo Padrão", colors: "bg-gradient-to-r from-purple-500 to-purple-600" },
     { id: "ocean" as const, name: "Oceano", colors: "bg-gradient-to-r from-cyan-500 to-blue-500" },
     { id: "sunset" as const, name: "Pôr do Sol", colors: "bg-gradient-to-r from-orange-500 to-pink-500" },
@@ -38,7 +35,6 @@ export default function Perfil() {
     { id: "purple" as const, name: "Violeta", colors: "bg-gradient-to-r from-violet-500 to-purple-500" },
     { id: "rose" as const, name: "Rosa", colors: "bg-gradient-to-r from-rose-500 to-pink-500" },
     { id: "black" as const, name: "Preto", colors: "bg-gradient-to-r from-gray-900 to-black" },
-    { id: "custom" as const, name: "Personalizada", colors: "bg-gradient-to-r from-gray-400 to-gray-600" },
   ];
 
   const form = useForm<ProfileUpdateInput>({
@@ -265,25 +261,7 @@ export default function Perfil() {
               ))}
             </div>
 
-            {/* Seletor de Cor Personalizada */}
-            {colorTheme === "custom" && (
-              <div className="mt-6 pt-6 border-t border-border">
-                <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium mb-2">Cor Personalizada</h4>
-                    <p className="text-xs text-muted-foreground mb-4">
-                      Escolha uma cor personalizada para o sistema
-                    </p>
-                  </div>
-                  <ColorInput
-                    label="Cor Principal"
-                    defaultValue={customColor}
-                    onChange={(color) => setCustomColor(color)}
-                    showOpacity={false}
-                  />
-                </div>
-              </div>
-            )}
+            {/* Tema Personalizado removido */}
           </CardContent>
         </Card>
 
@@ -322,48 +300,6 @@ export default function Perfil() {
             </div>
 
             <Separator />
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-base">Visibilidade do Menu</Label>
-                <p className="text-sm text-muted-foreground">
-                  Mostrar ou ocultar o menu de navegação
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {isNavigationVisible ? (
-                  <Eye className="w-4 h-4 text-muted-foreground" />
-                ) : (
-                  <EyeOff className="w-4 h-4 text-muted-foreground" />
-                )}
-                <Switch
-                  checked={isNavigationVisible}
-                  onCheckedChange={setIsNavigationVisible}
-                />
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-base">Efeitos Sonoros</Label>
-                <p className="text-sm text-muted-foreground">
-                  Ativar ou desativar sons de interação
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {isSoundEnabled ? (
-                  <Volume2 className="w-4 h-4 text-muted-foreground" />
-                ) : (
-                  <VolumeX className="w-4 h-4 text-muted-foreground" />
-                )}
-                <Switch
-                  checked={isSoundEnabled}
-                  onCheckedChange={setIsSoundEnabled}
-                />
-              </div>
-            </div>
           </CardContent>
         </Card>
       </div>

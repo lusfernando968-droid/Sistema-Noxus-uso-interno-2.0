@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Routes, Route } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
-import { useUISound } from "@/hooks/useUISound";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Perfil from "./pages/Perfil";
@@ -22,9 +21,7 @@ import Vendas from "./pages/Vendas";
 const queryClient = new QueryClient();
 
 const AppContent = () => {
-  // Ativa sons em todo o sistema
-  useUISound();
-
+  
   return (
     <Routes>
       <Route path="/auth" element={<Auth />} />

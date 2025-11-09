@@ -10,8 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Calendar, DollarSign, User, Clock, FileText, Image, CheckCircle, MessageSquare, Star } from "lucide-react";
-import { useToastWithSound } from "@/hooks/useToastWithSound";
-import { useSoundEffects } from "@/hooks/useSoundEffects";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { FeedbackManager } from "@/components/projetos/FeedbackManager";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu";
@@ -59,8 +58,7 @@ interface AgendamentoProjeto {
 export default function ProjetoDetalhes() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { toast } = useToastWithSound();
-  const { playSound } = useSoundEffects();
+  const { toast } = useToast();
 
   const [projeto, setProjeto] = useState<Projeto | null>(null);
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
@@ -510,7 +508,6 @@ export default function ProjetoDetalhes() {
             variant="ghost"
             size="icon"
             onClick={() => {
-              playSound('click');
               navigate('/projetos');
             }}
             className="rounded-xl"
@@ -643,7 +640,6 @@ export default function ProjetoDetalhes() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      playSound('click');
                       navigate(`/clientes/${projeto.cliente_id}`);
                     }}
                     className="w-full rounded-xl"
@@ -901,7 +897,6 @@ export default function ProjetoDetalhes() {
             <div className="flex gap-4">
               <Button
                 onClick={() => {
-                  playSound('click');
                   navigate(`/agendamentos?projeto=${projeto.id}`);
                 }}
                 className="rounded-xl"
@@ -911,7 +906,6 @@ export default function ProjetoDetalhes() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  playSound('click');
                   navigate(`/clientes/${projeto.cliente_id}`);
                 }}
                 className="rounded-xl"
@@ -921,7 +915,6 @@ export default function ProjetoDetalhes() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  playSound('click');
                   navigate(`/projetos`);
                 }}
                 className="rounded-xl"

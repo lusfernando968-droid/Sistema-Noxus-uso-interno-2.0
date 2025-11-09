@@ -11,8 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar, Plus, Edit, Trash2, Clock, User, MapPin, CheckCircle, AlertCircle, CalendarDays, List, Search, Star } from "lucide-react";
-import { useToastWithSound } from "@/hooks/useToastWithSound";
-import { useSoundEffects } from "@/hooks/useSoundEffects";
+import { useToast } from "@/hooks/use-toast";
 import { useAchievementNotifications } from "@/hooks/useAchievementNotifications";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -40,8 +39,7 @@ interface Agendamento {
 
 export default function Agendamentos() {
   const navigate = useNavigate();
-  const { toast } = useToastWithSound();
-  const { playSound } = useSoundEffects();
+  const { toast } = useToast();
   const { checkAgendamentosMilestone } = useAchievementNotifications();
   const { user } = useAuth();
 
@@ -298,7 +296,6 @@ export default function Agendamentos() {
     avaliacaoValor?: number
   ) => {
     try {
-      playSound('success');
 
       // Atualiza status local para concluído
       setAgendamentos(prev => prev.map(a => a.id === agendamento.id ? { ...a, status: 'concluido' } : a));
@@ -476,7 +473,6 @@ export default function Agendamentos() {
 
   // Handlers
   const handleSubmit = async () => {
-    playSound('click');
     // Preserva a posição de rolagem do container principal
     const scrollContainer = document.querySelector('main.flex-1') as HTMLElement | null;
     const prevScrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
@@ -600,7 +596,6 @@ export default function Agendamentos() {
   };
 
   const handleEdit = (agendamento: Agendamento) => {
-    playSound('click');
     setEditingAgendamento(agendamento);
     setFormData({
       cliente_nome: agendamento.cliente_nome,
@@ -619,7 +614,6 @@ export default function Agendamentos() {
   };
 
   const handleDelete = async (id: string) => {
-    playSound('click');
     // Atualiza UI imediatamente
     setAgendamentos(prev => prev.filter(a => a.id !== id));
 
@@ -642,7 +636,6 @@ export default function Agendamentos() {
   };
 
   const handleStatusChange = async (id: string, novoStatus: Agendamento['status']) => {
-    playSound('click');
     const prevStatus = agendamentos.find(a => a.id === id)?.status;
     setAgendamentos(prev => prev.map(a => 
       a.id === id ? { ...a, status: novoStatus } : a
@@ -670,7 +663,6 @@ export default function Agendamentos() {
 
   // Funções do calendário
   const handleAppointmentMove = async (appointmentId: string, newDate: string) => {
-    playSound('success');
     const previous = agendamentos.find(a => a.id === appointmentId)?.data_agendamento;
     setAgendamentos(prev => prev.map(a => 
       a.id === appointmentId ? { ...a, data_agendamento: newDate } : a
@@ -1004,7 +996,7 @@ export default function Agendamentos() {
                   }
                 }}>
                   <DialogTrigger asChild>
-                    <Button onClick={() => playSound('click')} className="rounded-lg gap-2 h-9 px-3">
+                    <Button className="rounded-lg gap-2 h-9 px-3">
                       <Plus className="w-4 h-4" />
                       <span className="hidden sm:inline">Novo Agendamento</span>
                     </Button>
@@ -1194,7 +1186,6 @@ export default function Agendamentos() {
                   </div>
                   <div className="flex gap-2 pt-4">
                     <Button variant="outline" onClick={() => {
-                      playSound('click');
                       setIsDialogOpen(false);
                       setEditingAgendamento(null);
                       setFormData(initialFormData);

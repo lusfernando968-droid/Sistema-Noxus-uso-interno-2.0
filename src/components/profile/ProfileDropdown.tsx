@@ -52,10 +52,6 @@ export function ProfileDropdown() {
         <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => navigate("/perfil")} className="rounded-lg">
-          <User className="mr-2 h-4 w-4" />
-          <span>Ver Perfil</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => navigate("/perfil")} className="rounded-lg">
           <Settings className="mr-2 h-4 w-4" />
           <span>Configurações</span>
         </DropdownMenuItem>

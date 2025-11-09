@@ -5,21 +5,18 @@ import "./index.css";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
 import { NavigationProvider } from "./contexts/NavigationContext";
-import { SoundProvider } from "./contexts/SoundContext";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
-    <SoundProvider>
+    <AuthProvider>
       <ThemeProvider>
-        <AuthProvider>
-          <NavigationProvider>
-            <ErrorBoundary>
-              <App />
-            </ErrorBoundary>
-          </NavigationProvider>
-        </AuthProvider>
+        <NavigationProvider>
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
+        </NavigationProvider>
       </ThemeProvider>
-    </SoundProvider>
+    </AuthProvider>
   </BrowserRouter>
 );

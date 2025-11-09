@@ -166,50 +166,8 @@
     --foreground: 0 0% 100%;
   }
 
-  /* Tema Custom - As variáveis são definidas dinamicamente via JavaScript */
-  .theme-custom {
-    /* As propriedades --primary e --primary-foreground são definidas dinamicamente */
-    --accent: var(--primary);
-    --accent-foreground: var(--primary-foreground);
-    --ring: var(--primary);
-  }
+  /* Tema customizado removido */
 
-  .theme-custom.dark {
-    --accent: var(--primary);
-    --accent-foreground: var(--primary-foreground);
-    --ring: var(--primary);
-  }
-
-  /* Tema Noxus (variado por módulo) */
-  .theme-noxus {
-    /* Base UI */
-    --primary: 271 91% 65%;
-    --primary-foreground: 0 0% 100%;
-    --accent: 271 91% 65%;
-    --accent-foreground: 0 0% 100%;
-    --ring: 271 91% 65%;
-
-    /* Paleta por módulo */
-    --projects: 271 91% 65%;   /* Violeta */
-    --finance: 142 71% 45%;    /* Verde */
-    --clients: 199 89% 48%;    /* Azul */
-    --schedules: 38 92% 50%;   /* Laranja */
-    --sales: 347 77% 50%;      /* Rosa/Fúcsia */
-    --metas: 280 79% 70%;      /* Roxo claro */
-  }
-
-  .theme-noxus.dark {
-    --primary: 271 91% 65%;
-    --accent: 271 91% 65%;
-    --ring: 271 91% 65%;
-    /* Mantém paleta por módulo no modo escuro */
-    --projects: 271 91% 65%;
-    --finance: 142 71% 45%;
-    --clients: 199 89% 48%;
-    --schedules: 38 92% 50%;
-    --sales: 347 77% 50%;
-    --metas: 280 79% 70%;
-  }
 }
 
 @layer base {
@@ -248,5 +206,41 @@
   
   [draggable="true"]:active {
     cursor: grabbing;
+  }
+
+  /* Fundo animado em espiral para a página de login */
+  .login-spiral-wrapper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  .login-spiral {
+    position: absolute;
+    width: 140vmax;
+    height: 140vmax;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.6;
+    filter: blur(48px);
+    /* Listras em espiral usando gradiente cônico repetido */
+    background: repeating-conic-gradient(
+      from 0deg at 50% 50%,
+      hsla(var(--accent), 0.12) 0deg 12deg,
+      transparent 12deg 24deg
+    );
+    /* Suaviza as bordas para não competir com o conteúdo */
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, rgba(0,0,0,0.9) 35%, rgba(0,0,0,0) 70%);
+            mask-image: radial-gradient(circle at 50% 50%, rgba(0,0,0,0.9) 35%, rgba(0,0,0,0) 70%);
+    animation: noxus-spiral-rotate 60s linear infinite;
+  }
+}
+
+@keyframes noxus-spiral-rotate {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
   }
 }

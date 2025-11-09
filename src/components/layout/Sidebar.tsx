@@ -1,4 +1,4 @@
-import { Home, Users, Briefcase, DollarSign, Calendar, Package, Moon, Sun, Crown } from "lucide-react";
+import { Home, Users, Briefcase, DollarSign, Calendar, Package, Moon, Sun, Loader2 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
@@ -17,12 +17,12 @@ export function Sidebar() {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <aside className="w-64 h-screen bg-card border-r border-border flex flex-col">
+    <aside className="w-52 h-screen bg-card border-r border-border flex flex-col">
       <div className="p-6 border-b border-border flex items-center gap-3">
-        <Crown className="w-10 h-10 text-primary" />
+        <Loader2 className="w-10 h-10 text-primary" />
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Sistema</h1>
-          <p className="text-sm text-muted-foreground">Gestão Empresarial</p>
+          <h1 className="text-xl font-semibold tracking-tight">Sistema Noxus</h1>
+          <p className="text-sm text-muted-foreground">Gestor para Tatuadores</p>
         </div>
       </div>
 

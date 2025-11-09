@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, Session } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, isSupabaseConfigured } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 type Profile = {
@@ -9,6 +9,7 @@ type Profile = {
   avatar_url: string | null;
   telefone: string | null;
   cargo: string | null;
+  color_theme?: string | null;
 };
 
 type UserRole = "admin" | "manager" | "user";
@@ -61,6 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Se o Supabase não estiver configurado, evitamos subscrever e liberamos a UI
+    if (!isSupabaseConfigured) {
+      console.error("Supabase não configurado: defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no ambiente.");
+      setLoading(false);
+      return;
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
@@ -96,6 +104,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) {
+      return { error: new Error("Supabase não configurado no ambiente. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.") };
+    }
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -116,6 +127,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, nomeCompleto: string) => {
+    if (!isSupabaseConfigured) {
+      return { error: new Error("Supabase não configurado no ambiente. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.") };
+    }
     try {
       const redirectUrl = `${window.location.origin}/`;
       
@@ -168,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (!isSupabaseConfigured) return;
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
@@ -177,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateProfile = async (data: Partial<Profile>) => {
     if (!user) return { error: new Error("Usuário não autenticado") };
+    if (!isSupabaseConfigured) return { error: new Error("Supabase não configurado no ambiente.") };
 
     try {
       const { error } = await supabase

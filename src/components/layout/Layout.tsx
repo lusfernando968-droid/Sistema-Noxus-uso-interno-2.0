@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Header } from "./Header";
 import { DockNav } from "./DockNav";
 import { Sidebar } from "./Sidebar";
@@ -12,6 +13,11 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { navigationType, isNavigationVisible } = useNavigation();
   const [isHoveringMenuArea, setIsHoveringMenuArea] = useState(false);
+  const location = useLocation();
+
+  // Rotas onde o dock global deve ficar oculto
+  const hideDockRoutes = ["/tattoo/financeiro", "/carteira"];
+  const shouldHideDock = hideDockRoutes.includes(location.pathname);
   
   const showSidebar = navigationType === "sidebar";
   const showDock = navigationType === "dock";
@@ -47,7 +53,7 @@ export function Layout({ children }: LayoutProps) {
         <main className="flex-1 overflow-y-auto p-6 pb-24">{children}</main>
         
         {/* Dock */}
-        {showDock && isNavigationVisible && (
+        {showDock && isNavigationVisible && !shouldHideDock && (
           <DockNav />
         )}
 
@@ -56,7 +62,7 @@ export function Layout({ children }: LayoutProps) {
       </div>
       
       {/* Dock suspenso quando visibilidade desabilitada */}
-      {showDock && !isNavigationVisible && (
+      {showDock && !isNavigationVisible && !shouldHideDock && (
         <div
           className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-300 ease-in-out ${
             dockVisible 
@@ -73,7 +79,7 @@ export function Layout({ children }: LayoutProps) {
       )}
       
       {/* Área de hover para dock */}
-      {showDock && !isNavigationVisible && (
+      {showDock && !isNavigationVisible && !shouldHideDock && (
         <div
           className="fixed bottom-0 left-0 right-0 h-20 z-50 bg-transparent pointer-events-auto"
           onMouseEnter={() => setIsHoveringMenuArea(true)}

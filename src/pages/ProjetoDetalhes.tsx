@@ -9,6 +9,10 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar as CalendarComp } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { ArrowLeft, Calendar, DollarSign, User, Clock, FileText, Image, CheckCircle, MessageSquare, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +34,7 @@ interface Projeto {
   categoria: string;
   prioridade: 'baixa' | 'media' | 'alta';
   observacoes: string;
+  quantidade_sessoes: number;
 }
 
 interface Sessao {
@@ -86,6 +91,19 @@ export default function ProjetoDetalhes() {
     descricao: '',
     status: 'agendada'
   });
+  const [manualSessaoDialogOpen, setManualSessaoDialogOpen] = useState(false);
+  const [manualSessaoForm, setManualSessaoForm] = useState<{ data: string; valor: number; descricao: string; status: Sessao['status'] }>({
+    data: '',
+    valor: 0,
+    descricao: '',
+    status: 'concluida'
+  });
+  const [editSessaoCalendarOpen, setEditSessaoCalendarOpen] = useState(false);
+  const [manualSessaoCalendarOpen, setManualSessaoCalendarOpen] = useState(false);
+  const parseDateOnly = (s: string) => {
+    const [y, m, d] = (s || '').split('-').map(Number);
+    return new Date(y || 1970, (m || 1) - 1, d || 1);
+  };
 
   const abrirEdicaoSessao = (s: Sessao) => {
     setEditingSessao(s);
@@ -150,6 +168,44 @@ export default function ProjetoDetalhes() {
     } catch (err) {
       console.error('Erro ao salvar edição da sessão:', err);
       toast({ title: 'Erro ao salvar sessão', description: String(err), variant: 'destructive' });
+    }
+  };
+
+  const registrarSessaoManual = async () => {
+    try {
+      const { data: sessoesExistentes, error: countError } = await supabase
+        .from('projeto_sessoes')
+        .select('id')
+        .eq('projeto_id', id);
+      if (countError) throw countError;
+      const numeroSessao = (sessoesExistentes?.length || 0) + 1;
+      const { error: insertErr } = await supabase
+        .from('projeto_sessoes')
+        .insert({
+          projeto_id: id,
+          agendamento_id: null,
+          numero_sessao: numeroSessao,
+          data_sessao: manualSessaoForm.data,
+          valor_sessao: manualSessaoForm.valor,
+          status_pagamento: mapSessaoStatusToPagamento(manualSessaoForm.status),
+          metodo_pagamento: null,
+          observacoes_tecnicas: manualSessaoForm.descricao || null,
+        });
+      if (insertErr) throw insertErr;
+      setSessoes(prev => [...prev, {
+        id: crypto.randomUUID(),
+        data: manualSessaoForm.data,
+        duracao: 120,
+        descricao: manualSessaoForm.descricao,
+        valor: manualSessaoForm.valor,
+        status: manualSessaoForm.status,
+        numero_sessao: numeroSessao,
+      }]);
+      setManualSessaoDialogOpen(false);
+      setManualSessaoForm({ data: '', valor: 0, descricao: '', status: 'concluida' });
+      toast({ title: 'Sessão registrada', description: 'Sessão adicionada ao histórico.' });
+    } catch (err) {
+      toast({ title: 'Erro ao registrar sessão', description: String(err), variant: 'destructive' });
     }
   };
 
@@ -404,7 +460,8 @@ export default function ProjetoDetalhes() {
           valor_pago: valorPago,
           categoria: projetoEncontrado.categoria || '',
           prioridade: 'media',
-          observacoes: projetoEncontrado.notas || ''
+          observacoes: projetoEncontrado.notas || '',
+          quantidade_sessoes: projetoEncontrado.quantidade_sessoes || 0,
         };
 
         setProjeto(projetoCompleto);
@@ -494,10 +551,10 @@ export default function ProjetoDetalhes() {
     );
   }
 
-  const progressoPagamento = (projeto.valor_pago / projeto.valor_total) * 100;
+  const progressoPagamento = (projeto.valor_pago / (projeto.valor_total || 1)) * 100;
   const sessoesCompletas = sessoes.filter(s => s.status === 'concluida').length;
-  const totalSessoes = sessoes.length;
-  const progressoSessoes = totalSessoes > 0 ? (sessoesCompletas / totalSessoes) * 100 : 0;
+  const totalPlanejadas = projeto.quantidade_sessoes || sessoes.length || 0;
+  const progressoSessoes = totalPlanejadas > 0 ? (sessoesCompletas / totalPlanejadas) * 100 : 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -560,7 +617,7 @@ export default function ProjetoDetalhes() {
                 <Calendar className="w-5 h-5 text-primary" />
                 <div>
                   <p className="text-sm text-muted-foreground">Sessões</p>
-                  <p className="text-2xl font-bold text-primary">{sessoesCompletas}/{totalSessoes}</p>
+                  <p className="text-2xl font-bold text-primary">{sessoesCompletas}/{totalPlanejadas}</p>
                 </div>
               </div>
             </CardContent>
@@ -654,10 +711,10 @@ export default function ProjetoDetalhes() {
           {/* Aba Sessões */}
           <TabsContent value="sessoes" className="space-y-6">
             <Card className="rounded-2xl">
-          <CardHeader>
+            <CardHeader>
             <CardTitle>Histórico de Sessões</CardTitle>
             <CardDescription>
-              {sessoesCompletas} de {totalSessoes} sessões concluídas
+              {sessoesCompletas} de {totalPlanejadas} sessões concluídas
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -768,7 +825,28 @@ export default function ProjetoDetalhes() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Data</Label>
-                    <Input type="date" value={editSessaoForm.data} onChange={(e) => setEditSessaoForm(prev => ({ ...prev, data: e.target.value }))} className="rounded-xl" />
+                    <Popover open={editSessaoCalendarOpen} onOpenChange={setEditSessaoCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="h-9 w-full justify-start text-left font-normal rounded-xl">
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {editSessaoForm.data ? format(parseDateOnly(editSessaoForm.data), "dd/MM/yyyy", { locale: ptBR }) : "dd/mm/aaaa"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComp
+                          mode="single"
+                          selected={editSessaoForm.data ? parseDateOnly(editSessaoForm.data) : undefined}
+                          onSelect={(date) => {
+                            if (date) {
+                              setEditSessaoForm(prev => ({ ...prev, data: format(date, "yyyy-MM-dd") }));
+                              setEditSessaoCalendarOpen(false);
+                            }
+                          }}
+                          locale={ptBR}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   <div>
                     <Label>Valor</Label>
@@ -892,7 +970,7 @@ export default function ProjetoDetalhes() {
         </Tabs>
 
         {/* Ações */}
-        <Card className="rounded-2xl">
+          <Card className="rounded-2xl">
           <CardContent className="p-6">
             <div className="flex gap-4">
               <Button
@@ -902,6 +980,13 @@ export default function ProjetoDetalhes() {
                 className="rounded-xl"
               >
                 Agendar Sessão
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setManualSessaoDialogOpen(true)}
+                className="rounded-xl"
+              >
+                Registrar Sessão
               </Button>
               <Button
                 variant="outline"
@@ -924,6 +1009,68 @@ export default function ProjetoDetalhes() {
             </div>
           </CardContent>
         </Card>
+        <Dialog open={manualSessaoDialogOpen} onOpenChange={setManualSessaoDialogOpen}>
+          <DialogContent className="max-w-lg rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>Registrar Sessão</DialogTitle>
+              <DialogDescription>Adicionar sessão passada sem agendamento</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Data</Label>
+                  <Popover open={manualSessaoCalendarOpen} onOpenChange={setManualSessaoCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="h-9 w-full justify-start text-left font-normal rounded-xl">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {manualSessaoForm.data ? format(parseDateOnly(manualSessaoForm.data), "dd/MM/yyyy", { locale: ptBR }) : "dd/mm/aaaa"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComp
+                        mode="single"
+                        selected={manualSessaoForm.data ? parseDateOnly(manualSessaoForm.data) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            setManualSessaoForm(prev => ({ ...prev, data: format(date, "yyyy-MM-dd") }));
+                            setManualSessaoCalendarOpen(false);
+                          }
+                        }}
+                        locale={ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Label>Valor</Label>
+                  <Input type="number" step="0.01" value={manualSessaoForm.valor} onChange={(e) => setManualSessaoForm(prev => ({ ...prev, valor: Number(e.target.value) }))} className="rounded-xl" />
+                </div>
+              </div>
+              <div>
+                <Label>Descrição</Label>
+                <Textarea value={manualSessaoForm.descricao} onChange={(e) => setManualSessaoForm(prev => ({ ...prev, descricao: e.target.value }))} className="rounded-xl" rows={3} />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={manualSessaoForm.status} onValueChange={(v) => setManualSessaoForm(prev => ({ ...prev, status: v as Sessao['status'] }))}>
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder="Selecione um status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="agendada">Agendada</SelectItem>
+                    <SelectItem value="concluida">Concluída</SelectItem>
+                    <SelectItem value="cancelada">Cancelada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" className="rounded-xl" onClick={() => setManualSessaoDialogOpen(false)}>Cancelar</Button>
+                <Button className="rounded-xl" onClick={registrarSessaoManual}>Salvar</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

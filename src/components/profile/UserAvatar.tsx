@@ -17,7 +17,7 @@ export function UserAvatar({ avatarUrl, name, className }: UserAvatarProps) {
 
   return (
     <Avatar className={cn("border-2 border-border", className)}>
-      {avatarUrl && <AvatarImage src={avatarUrl} alt={name} />}
+      {avatarUrl && <AvatarImage src={avatarUrl} alt={name} className="object-cover object-center w-full h-full" />}
       <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
         {initials}
       </AvatarFallback>

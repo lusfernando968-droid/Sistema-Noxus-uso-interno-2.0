@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { Home, Users, Briefcase, Calendar, DollarSign, Package } from "lucide-react";
+import { BarChart3, Users, Briefcase, Calendar, DollarSign, Package, BookOpen, Megaphone } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNavigation } from "@/contexts/NavigationContext";
 
 const menuItems = [
-  { icon: Home, label: "Dashboard", path: "/" },
+  { icon: BarChart3, label: "Dashboard", path: "/noxus" },
   { icon: Users, label: "Clientes", path: "/clientes" },
   { icon: Briefcase, label: "Projetos", path: "/projetos" },
   { icon: Calendar, label: "Agendamentos", path: "/agendamentos" },
-  { icon: DollarSign, label: "Financeiro", path: "/financeiro" },
-  
+  { icon: Megaphone, label: "Marketing", path: "/marketing" },
+  { icon: Package, label: "Estoque", path: "/estoque" },
+  { icon: DollarSign, label: "Financeiro Tattoo", path: "/financeiro" },
 ];
 
 export function DockNav() {

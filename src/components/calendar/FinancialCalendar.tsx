@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
-type TipoTransacao = "RECEITA" | "DESPESA";
+type TipoTransacao = "RECEITA" | "DESPESA" | "APORTE";
 
 interface Transacao {
   id: string;

@@ -33,8 +33,8 @@ export function FloatingAIChat() {
 
       {/* Popup posicionado próximo ao botão flutuante (canto inferior direito) */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md w-[420px] rounded-2xl h-[70vh] overflow-hidden fixed right-6 bottom-24 left-auto top-auto translate-x-0 translate-y-0 shadow-2xl origin-bottom-right transition-transform duration-300 ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 flex flex-col">
-          <DialogHeader className="flex-shrink-0">
+        <DialogContent className="max-w-lg w-[95vw] sm:w-[520px] md:w-[560px] rounded-2xl h-[80vh] sm:h-[75vh] overflow-hidden fixed right-6 bottom-24 left-auto top-auto translate-x-0 translate-y-0 shadow-2xl origin-bottom-right transition-transform duration-300 ease-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 flex flex-col">
+          <DialogHeader className="flex-shrink-0 px-3 py-2">
             <DialogTitle>Assistente IA</DialogTitle>
           </DialogHeader>
           <div className="mt-2 flex-1 min-h-0">

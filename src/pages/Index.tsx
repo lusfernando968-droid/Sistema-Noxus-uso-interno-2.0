@@ -148,6 +148,7 @@ const Index = () => {
             <FinanceTab transacoes={transacoes} />
           </TabsContent>
 
+
           <TabsContent value="clients" className="space-y-4">
             <ClientsTab clientes={clientes} />
           </TabsContent>

@@ -1,236 +1,86 @@
-# 🍎 Apple Zen CRM
+# Apple Zen CRM
 
-Um sistema de CRM moderno e intuitivo com visualização avançada de rede de indicações, desenvolvido com React, TypeScript e Supabase.
+Sistema de CRM moderno com visualização avançada de rede de indicações. Construído com React + Vite, TypeScript, TailwindCSS, Radix UI e integrações com Supabase e AI (Gemini/OpenAI).
 
-## 📝 Changelog: Página de Clientes
+## Stack
+- `React 18`, `TypeScript`, `Vite 5`
+- `TailwindCSS`, `Radix UI`, `lucide-react`
+- `React Router`, `@tanstack/react-query`
+- `Supabase` (auth/dados), `Recharts` (gráficos)
+- Integrações AI: `@google/generative-ai` (Gemini) e proxy OpenAI
 
-Data: Atual
+## Pré-requisitos
+- `Node >= 18`
+- `pnpm 8` (projeto usa `packageManager: pnpm@8.15.4`)
 
-- fix(clientes): restaurar ícones de setas laterais, exibindo-os apenas quando o `Card` da tabela está ≥50% visível na viewport e existe overflow horizontal, usando `IntersectionObserver` no container do card.
-- fix(global): remover barra horizontal adicional global adicionando `overflow-x-hidden` ao `body`, mantendo o scroll horizontal somente no container da tabela (`overflow-x-auto`).
-- ux: manter coluna "Ações" com `sticky right-0` e `z-index` apropriado para visibilidade durante a rolagem horizontal.
-- docs: registrar causa provável (conteúdo largo + coluna sticky gerando overflow global; detecção de visibilidade baseada no container errado escondendo as setas) e a solução aplicada.
-
-Validação
-- Testado em resoluções mobile, tablet e desktop via servidor de desenvolvimento (Vite).
-- Setas reaparecem quando cabíveis e somem fora de contexto, sem barras extras globais.
-
-## ✨ Funcionalidades Principais
-
-### 📊 Dashboard Inteligente
-- **Analytics Avançados** com gráficos interativos
-- **Widgets Customizáveis** e reorganizáveis
-- **Insights Inteligentes** com recomendações automáticas
-- **Notificações em Tempo Real** integradas no header
-
-### 👥 Gestão de Clientes
-- **CRUD Completo** com edição inline
-- **Sistema de Indicações** com rastreamento de origem
-- **Visualização em Rede Neural** estilo Obsidian
-- **Múltiplas Visualizações**: Lista, Grid, Tabela e Rede
-- **Busca e Filtros** avançados
-
-### 🕸️ Rede de Indicações
-- **Visualização Hierárquica** com níveis bem definidos
-- **Layout Circular** alternativo
-- **Conexões Direcionais** com setas e gradientes
-- **Zoom e Pan** com qualidade HiDPI
-- **Sistema LOD** (Level of Detail) para performance
-
-### 🎯 Outras Funcionalidades
-- **Projetos** vinculados a clientes
-- **Agendamentos** com status e categorias
-- **Financeiro** com controle de receitas/despesas
-- **Estoque** para produtos e serviços
-- **Sistema de Conquistas** gamificado
-- **Temas** claro e escuro
-- **Efeitos Sonoros** opcionais
-
-## 🛠️ Tecnologias Utilizadas
-
-### Frontend
-- **React 18** com TypeScript
-- **Vite** para build e desenvolvimento
-- **Tailwind CSS** para estilização
-- **shadcn/ui** para componentes
-- **Lucide React** para ícones
-- **React Router** para navegação
-- **React Query** para cache de dados
-
-### Backend
-- **Supabase** (PostgreSQL + Auth + Storage)
-- **Row Level Security** (RLS)
-- **Real-time subscriptions**
-
-### Funcionalidades Avançadas
-- **Canvas API** para visualização de rede
-- **localStorage** para dados temporários
-- **Service Workers** para PWA
-- **Responsive Design** mobile-first
-
-## 🚀 Como Executar
-
-### Pré-requisitos
-- Node.js 18+ 
-- npm ou yarn
-- Conta no Supabase
-
-### Instalação
-
-1. **Clone o repositório**
+## Instalação e Execução
 ```bash
-git clone https://github.com/seu-usuario/apple-zen-crm.git
-cd apple-zen-crm
+pnpm install
+pnpm dev      # servidor de desenvolvimento
+pnpm build    # build de produção
+pnpm preview  # preview do build
+pnpm lint     # checagens de lint
 ```
+- Servidor de desenvolvimento: `http://localhost:8082/` (configurado em `vite.config.ts`)
 
-2. **Instale as dependências**
+## Variáveis de Ambiente
+Crie um arquivo `.env.local` na raiz com:
 ```bash
-npm install
+# Supabase
+VITE_SUPABASE_URL=https://<sua-instancia>.supabase.co
+VITE_SUPABASE_ANON_KEY=sbp_...
+# ou use VITE_SUPABASE_PUBLISHABLE_KEY se aplicável
+
+# Recursos de metas
+VITE_ENABLE_METAS=true
+
+# Gemini
+VITE_GEMINI_API_KEY=AIza...
+
+# OpenAI via proxy (opcional; padrão: http://localhost:5174/api/chat)
+VITE_OPENAI_PROXY_URL=https://seu-proxy.exemplo/api/chat
 ```
+- Supabase client: `src/integrations/supabase/client.ts` usa `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
+- Gemini: `src/integrations/gemini/client.ts` usa `VITE_GEMINI_API_KEY` e seleciona modelo estável automaticamente.
+- OpenAI: `src/integrations/openai/client.ts` consome `VITE_OPENAI_PROXY_URL`.
 
-3. **Configure as variáveis de ambiente**
-```bash
-cp .env.example .env
-```
+## Estrutura do Projeto (resumo)
+- `src/pages/` páginas principais (Clientes, Financeiro, Projetos, etc.)
+- `src/components/` UI e módulos (dashboard, financeiro, layout, ui)
+- `src/contexts/` contextos globais (Auth, Theme, Navigation)
+- `src/hooks/` hooks específicos (dados, onboarding, metas, financeiro)
+- `src/integrations/` clientes externos (Supabase, Gemini, OpenAI)
+- `src/lib/` utilitários e configs (`config.ts` com `VITE_ENABLE_METAS`)
+- `src/App.tsx` e `src/main.tsx` bootstrap da aplicação
 
-Edite o arquivo `.env` com suas credenciais do Supabase:
-```env
-VITE_SUPABASE_URL=sua_url_do_supabase
-VITE_SUPABASE_ANON_KEY=sua_chave_anonima
-```
+## Convenções
+- Aliases de import: `@` aponta para `./src` (ver `vite.config.ts`).
+- CSS via Tailwind; componentes base em `src/components/ui/`.
+- Evitar duplicação de lógica; preferir hooks em `src/hooks/`.
+- Não commit de segredos (.env); use `.env.local` apenas no dev.
 
-4. **Execute as migrações do banco**
-```bash
-# Se tiver Supabase CLI instalado
-supabase db push
+## Funcionalidades Principais
+- Dashboard com widgets, gráficos e insights.
+- Gestão de clientes e rede de indicações (visualização SVG).
+- Calendário financeiro e tabelas de controle.
+- Metas e notificações em tempo real.
+- Chat AI (Gemini/OpenAI) quando configurado.
 
-# Ou execute manualmente no painel do Supabase
-```
+## Deploy
+- Build com `pnpm build` gera `dist/`.
+- Sirva `dist/` atrás de um servidor estático (Nginx, Vercel, etc.).
+- Configure variáveis de ambiente no provedor (prefixo `VITE_`).
 
-5. **Inicie o servidor de desenvolvimento**
-```bash
-npm run dev
-```
+## Troubleshooting
+- Supabase não configurado lança erro de acesso ao client.
+- Sem `VITE_GEMINI_API_KEY`: recursos de AI são desativados com aviso.
+- Porta de dev fixa em `8082`; ajuste em `vite.config.ts` se necessário.
 
-6. **Acesse a aplicação**
-```
-http://localhost:5173
-```
+## Scripts
+- `dev`: Vite dev server
+- `build`: Build de produção
+- `preview`: Preview do build
+- `lint`: ESLint
 
-## 📁 Estrutura do Projeto
-
-```
-src/
-├── components/          # Componentes reutilizáveis
-│   ├── ui/             # Componentes base (shadcn/ui)
-│   ├── dashboard/      # Componentes do dashboard
-│   ├── clientes/       # Componentes de clientes
-│   ├── layout/         # Layout e navegação
-│   └── auth/           # Autenticação
-├── contexts/           # Contextos React
-├── hooks/              # Hooks customizados
-├── pages/              # Páginas da aplicação
-├── lib/                # Utilitários e configurações
-└── integrations/       # Integrações (Supabase)
-```
-
-## 🎨 Funcionalidades Destacadas
-
-### Rede de Indicações
-- **Algoritmo de Posicionamento** hierárquico
-- **Renderização HiDPI** para qualidade cristalina
-- **Gradientes e Sombras** para profundidade 3D
-- **Interatividade** com zoom, pan e seleção
-
-### Dashboard Avançado
-- **Métricas em Tempo Real** com animações
-- **Gráficos Interativos** responsivos
-- **Widgets Drag & Drop** personalizáveis
-- **Insights com IA** (simulados)
-
-### Sistema de Notificações
-- **Bell Icon Inteligente** no header
-- **5 Tipos** de notificações
-- **Estados** lido/não lido
-- **Timestamps** inteligentes
-
-## 🔧 Scripts Disponíveis
-
-```bash
-npm run dev          # Servidor de desenvolvimento
-npm run build        # Build para produção
-npm run preview      # Preview do build
-npm run lint         # Verificar código
-```
-
-## 🌐 Deploy
-
-### Lovable (Recomendado)
-1. Conecte seu repositório GitHub ao Lovable
-2. Configure as variáveis de ambiente
-3. Deploy automático a cada push
-
-### Vercel
-```bash
-npm run build
-vercel --prod
-```
-
-### Netlify
-```bash
-npm run build
-# Upload da pasta dist/
-```
-
-## 📊 Banco de Dados
-
-### Tabelas Principais
-- `profiles` - Perfis de usuário
-- `clientes` - Dados dos clientes
-- `projetos` - Projetos vinculados
-- `agendamentos` - Agendamentos e tarefas
-- `transacoes` - Movimentações financeiras
-- `estoque` - Produtos e serviços
-
-### Funcionalidades do Banco
-- **Row Level Security** para isolamento de dados
-- **Triggers** para timestamps automáticos
-- **Índices** otimizados para performance
-- **Relacionamentos** bem definidos
-
-## 🎯 Roadmap
-
-- [ ] **Mobile App** com React Native
-- [ ] **API REST** para integrações
-- [ ] **Relatórios PDF** automatizados
-- [ ] **Integração WhatsApp** para comunicação
-- [ ] **IA Real** para insights e recomendações
-- [ ] **Multi-tenancy** para empresas
-- [ ] **Marketplace** de plugins
-
-## 🤝 Contribuição
-
-1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
-## 📝 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
-
-## 👨‍💻 Autor
-
-Desenvolvido com ❤️ por [Seu Nome]
-
-## 🙏 Agradecimentos
-
-- **shadcn/ui** pelos componentes incríveis
-- **Supabase** pela infraestrutura robusta
-- **Lucide** pelos ícones elegantes
-- **Tailwind CSS** pela estilização eficiente
-
----
-
-⭐ Se este projeto te ajudou, considere dar uma estrela no GitHub!
+## Licença
+MIT

@@ -167,11 +167,12 @@ export default function Projetos() {
         // Valor pago (soma das sessões com status_pagamento = 'pago')
         let valorPago = 0;
         try {
-          const { data: valorPagoResp, error: valorPagoErr } = await supabase
-            .rpc('calcular_valor_pago_projeto', { projeto_id_param: projetoId });
-          if (!valorPagoErr && typeof valorPagoResp === 'number') {
-            valorPago = valorPagoResp;
-          }
+          const { data: sessoesPagas } = await supabase
+            .from('projeto_sessoes')
+            .select('valor_sessao')
+            .eq('projeto_id', projetoId)
+            .eq('status_pagamento', 'pago');
+          valorPago = (sessoesPagas || []).reduce((sum, s: any) => sum + (s.valor_sessao || 0), 0);
         } catch (_) {}
 
         // Contagem de sessões realizadas
@@ -179,7 +180,7 @@ export default function Projetos() {
         try {
           const { count } = await supabase
             .from('projeto_sessoes')
-            .select('id', { count: 'exact', head: true })
+            .select('id', { count: 'exact' })
             .eq('projeto_id', projetoId);
           if (typeof count === 'number') {
             sessoesRealizadas = count;
@@ -201,7 +202,7 @@ export default function Projetos() {
         try {
           const { count } = await supabase
             .from('projeto_fotos')
-            .select('id', { count: 'exact', head: true })
+            .select('id', { count: 'exact' })
             .eq('projeto_id', projetoId);
           if (typeof count === 'number') {
             fotosCount = count;
@@ -213,7 +214,7 @@ export default function Projetos() {
         try {
           const { count } = await supabase
             .from('projeto_sessoes')
-            .select('id', { count: 'exact', head: true })
+            .select('id', { count: 'exact' })
             .eq('projeto_id', projetoId)
             .not('feedback_cliente', 'is', null);
           if (typeof count === 'number') {

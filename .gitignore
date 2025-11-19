@@ -3,4 +3,7 @@ upload-staging/
 .vite/
 node_portable/
 .env
+ .env.*
+ !.env.example
+ dist/
 *.tar

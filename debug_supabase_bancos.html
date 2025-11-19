@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste de Inserção de Banco - Debug</title>
+</head>
+<body>
+    <h1>🔍 Debug de Inserção de Banco</h1>
+    <button onclick="testInsert()">🧪 Testar Inserção</button>
+    <button onclick="checkAuth()">🔐 Verificar Autenticação</button>
+    <button onclick="checkExistingCodes()">📋 Verificar Códigos Existentes</button>
+    <div id="resultado" style="margin-top: 20px; padding: 10px; border: 1px solid #ccc;"></div>
+
+    <script>
+        const SUPABASE_URL = 'https://kkmnhpbbkkrkwbgnqxfy.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrbW5ocGJia2tya3diZ25xeGZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE0NTQxMzUsImV4cCI6MjA0NzAzMDEzNX0.1WQ3LVALE3q2W3fN3XaQhL3Xb3xZ3Y3Z3Y3Z3Y3Z3Y3Z';
+
+        function log(message, type = 'info') {
+            const resultado = document.getElementById('resultado');
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            resultado.innerHTML += `<div style="color: ${color}; margin: 5px 0;">📝 ${new Date().toLocaleTimeString()}: ${message}</div>`;
+        }
+
+        async function checkAuth() {
+            log('🔐 Verificando autenticação...');
+            
+            try {
+                // Verificar sessão atual
+                const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const user = await response.json();
+                    log(`✅ Usuário autenticado: ${user.email || user.id}`, 'success');
+                    return true;
+                } else {
+                    log('⚠️ Nenhum usuário autenticado encontrado', 'error');
+                    return false;
+                }
+            } catch (error) {
+                log(`❌ Erro ao verificar autenticação: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        async function checkExistingCodes() {
+            log('📋 Verificando códigos de banco existentes...');
+            
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/bancos?select=codigo,nome_curto`, {
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const bancos = await response.json();
+                    log(`✅ Encontrados ${bancos.length} bancos`, 'success');
+                    bancos.slice(0, 5).forEach(banco => {
+                        log(`   - ${banco.codigo}: ${banco.nome_curto}`);
+                    });
+                    
+                    // Verificar se código 998 já existe
+                    const exists = bancos.some(b => b.codigo === '998');
+                    if (exists) {
+                        log('⚠️ Código 998 já existe! Use um código diferente.', 'error');
+                    }
+                    
+                    return bancos;
+                } else {
+                    log(`❌ Erro ao buscar bancos: ${response.status}`, 'error');
+                    return [];
+                }
+            } catch (error) {
+                log(`❌ Erro: ${error.message}`, 'error');
+                return [];
+            }
+        }
+
+        async function testInsert() {
+            const resultado = document.getElementById('resultado');
+            resultado.innerHTML = '';
+            
+            log('🚀 Iniciando teste de inserção...');
+            
+            // Primeiro verificar autenticação
+            const isAuthenticated = await checkAuth();
+            if (!isAuthenticated) {
+                log('❌ Necessário estar autenticado para inserir', 'error');
+                return;
+            }
+            
+            // Verificar códigos existentes
+            const existingBanks = await checkExistingCodes();
+            
+            // Encontrar código disponível
+            let testCode = '998';
+            let counter = 997;
+            while (existingBanks.some(b => b.codigo === testCode) && counter > 900) {
+                testCode = counter.toString();
+                counter--;
+            }
+            
+            const testBank = {
+                nome_curto: "Banco Teste Debug",
+                nome: "Banco Teste Debug S.A.",
+                codigo: testCode,
+                cor_primaria: "#FF0000",
+                ativo: true
+            };
+            
+            log(`📝 Tentando inserir com código ${testCode}...`);
+            log(`📊 Dados: ${JSON.stringify(testBank)}`);
+            
+            try {
+                // Obter token de autenticação real (se disponível)
+                const authResponse = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    }
+                });
+                
+                let token = SUPABASE_ANON_KEY;
+                if (authResponse.ok) {
+                    // Se houver um usuário autenticado, precisaríamos do token real
+                    // Por enquanto, vamos usar o anon key
+                    log('🔑 Usando token de autenticação');
+                }
+                
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/bancos`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    },
+                    body: JSON.stringify(testBank)
+                });
+                
+                const responseText = await response.text();
+                log(`📡 Status: ${response.status} - ${response.statusText}`);
+                
+                if (response.ok) {
+                    try {
+                        const data = JSON.parse(responseText);
+                        log(`✅ Banco inserido com sucesso! ID: ${data[0]?.id}`, 'success');
+                        log(`📊 Dados retornados: ${JSON.stringify(data[0])}`);
+                    } catch (e) {
+                        log(`✅ Banco inserido! Resposta: ${responseText}`, 'success');
+                    }
+                } else {
+                    log(`❌ Erro na inserção`, 'error');
+                    log(`📄 Resposta: ${responseText}`, 'error');
+                    
+                    // Analisar erro específico
+                    if (response.status === 401) {
+                        log('🚫 Erro de autenticação - token inválido', 'error');
+                    } else if (response.status === 403) {
+                        log('🚫 Erro de permissão - RLS ou políticas restritivas', 'error');
+                    } else if (response.status === 409) {
+                        log('⚠️ Conflito - código ou nome duplicado', 'error');
+                    } else if (response.status === 400) {
+                        log('📋 Erro de validação - campos obrigatórios', 'error');
+                        try {
+                            const errorData = JSON.parse(responseText);
+                            log(`💡 Detalhes: ${JSON.stringify(errorData)}`);
+                        } catch (e) {
+                            log(`💡 Resposta: ${responseText}`);
+                        }
+                    }
+                }
+                
+            } catch (error) {
+                log(`❌ Erro geral: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

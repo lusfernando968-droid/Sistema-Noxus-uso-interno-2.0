@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,14 @@ export function AIChat() {
   const [includeContext, setIncludeContext] = useState(true);
   const { user } = useAuth();
   const { clientes, projetos, agendamentos, transacoes, isLoading: dataLoading } = useDashboardData("30d");
+  const messagesRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = messagesRef.current;
+    if (el) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages, loading]);
 
   function buildContextSummary() {
     try {
@@ -138,23 +147,93 @@ export function AIChat() {
     }
   };
 
+  // Renderização simples de Markdown: negrito (**texto**) e listas iniciadas por "* " ou "- "
+  function renderInline(text: string): ReactNode[] {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+      const match = part.match(/^\*\*(.*?)\*\*$/);
+      if (match) {
+        return (
+          <strong key={i} className="font-semibold">
+            {match[1]}
+          </strong>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  }
+
+  function renderMessageContent(content: string): ReactNode {
+    const lines = content.split("\n").filter((l) => l.trim().length > 0);
+    const blocks: ReactNode[] = [];
+    let listItems: string[] = [];
+
+    const getBulletEmoji = (text: string) => {
+      const t = text.toLowerCase();
+      // Financeiro
+      if (/(receita|despesa|financeir|saldo|pagament|faturamento|custo|lucro)/.test(t)) return "💰";
+      // Agenda/Calendário
+      if (/(agenda|agendamento|reuni|calend|prazo|follow-up|confirm)/.test(t)) return "📅";
+      // Crescimento/Metas/Oportunidades/Tendências
+      if (/(oportunidade|crescimento|upsell|tendên|tendenc|meta|expans|conversão|conversao|melhora|escala)/.test(t)) return "📈";
+      return "•";
+    };
+
+    const flushList = () => {
+      if (listItems.length) {
+        blocks.push(
+          <div key={`list-${blocks.length}`} className="pl-1 space-y-1">
+            {listItems.map((li, idx) => (
+              <div key={idx} className="leading-relaxed flex items-start gap-2">
+                <span className="select-none" aria-hidden>
+                  {getBulletEmoji(li)}
+                </span>
+                <span>{renderInline(li)}</span>
+              </div>
+            ))}
+          </div>
+        );
+        listItems = [];
+      }
+    };
+
+    for (const raw of lines) {
+      const line = raw.trim();
+      const listMatch = line.match(/^([*\-•])\s+(.*)$/);
+      if (listMatch) {
+        listItems.push(listMatch[2]);
+        continue;
+      }
+      // encerra lista antes de bloco normal
+      flushList();
+      blocks.push(
+        <p key={`p-${blocks.length}`} className="leading-relaxed">
+          {renderInline(line)}
+        </p>
+      );
+    }
+
+    flushList();
+    return <div className="space-y-2">{blocks}</div>;
+  }
+
   return (
     <Card className="rounded-2xl border border-border/40 bg-background shadow-sm h-full flex flex-col">
-      <CardHeader className="p-4">
+      <CardHeader className="p-3">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-xl">
             <Bot className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-lg">Chat de IA (Insights)</CardTitle>
-            <p className="text-xs text-muted-foreground">Converse com a IA para obter recomendações e análises.</p>
+            <CardTitle className="text-base">Chat de IA (Insights)</CardTitle>
+            <p className="text-[11px] leading-tight text-muted-foreground">Converse com a IA para obter recomendações e análises.</p>
           </div>
         </div>
       </CardHeader>
       <CardContent className="p-4 flex-1 min-h-0 flex flex-col">
         <div className="space-y-4 flex-1 min-h-0 flex flex-col">
           {/* Context toggle */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1 text-[11px] leading-tight text-muted-foreground">
             <Checkbox id="ctx" checked={includeContext} onCheckedChange={(v) => setIncludeContext(Boolean(v))} />
             <label htmlFor="ctx">Incluir contexto do sistema (últimos 30 dias)</label>
             {includeContext && dataLoading && (
@@ -162,15 +241,15 @@ export function AIChat() {
             )}
           </div>
           {/* Messages */}
-          <div className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-border/40 p-3 bg-muted/20">
+          <div ref={messagesRef} className="flex-1 min-h-0 overflow-y-auto rounded-xl border border-border/40 p-3 bg-muted/20">
             {messages.filter(m => m.role !== "system").length === 0 ? (
               <p className="text-sm text-muted-foreground">Faça uma pergunta, por exemplo: "Quais oportunidades de upsell vejo esta semana?"</p>
             ) : (
               <div className="space-y-3">
                 {messages.filter(m => m.role !== "system").map((m, idx) => (
                   <div key={idx} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-background border"}`}>
-                      {m.content}
+                    <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-background border"}`}>
+                      {renderMessageContent(m.content)}
                     </div>
                   </div>
                 ))}
@@ -189,7 +268,7 @@ export function AIChat() {
           )}
 
           {/* Input */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0 border-t pt-3 mt-2">
             <Input
               placeholder="Digite sua pergunta…"
               value={input}

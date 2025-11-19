@@ -19,6 +19,7 @@ import { Calendar as CalendarComp } from "@/components/ui/calendar";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseLocal, isSupabaseLocalConfigured } from "@/integrations/supabase/local";
 import { useAuth } from "@/contexts/AuthContext";
 
 // Interfaces
@@ -42,6 +43,7 @@ export default function Agendamentos() {
   const { toast } = useToast();
   const { checkAgendamentosMilestone } = useAchievementNotifications();
   const { user } = useAuth();
+  const supabaseClient = isSupabaseLocalConfigured ? supabaseLocal : supabase;
 
   // Estados
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
@@ -87,6 +89,18 @@ export default function Agendamentos() {
     tatuador: string;
     local: string;
   }>(initialFormData);
+
+  useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+    const y = sessionStorage.getItem('agendamentos-scroll-y');
+    if (y) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, parseInt(y, 10));
+      });
+    }
+  }, []);
 
   // Buscar lista de clientes
   useEffect(() => {
@@ -193,6 +207,21 @@ export default function Agendamentos() {
       case 'concluido': return <CheckCircle className="w-4 h-4" />;
       case 'cancelado': return <AlertCircle className="w-4 h-4" />;
       default: return <Calendar className="w-4 h-4" />;
+    }
+  };
+
+  const fetchAgendamentoOwner = async (id: string) => {
+    try {
+      if (!user || !isUUID(id)) return null;
+      const { data, error } = await supabase
+        .from('agendamentos')
+        .select('id, user_id, status')
+        .eq('id', id)
+        .maybeSingle();
+      if (error) return null;
+      return data as any;
+    } catch (_) {
+      return null;
     }
   };
 
@@ -415,10 +444,21 @@ export default function Agendamentos() {
 
       // Atualiza status no banco, quando o agendamento já existir lá
       if (isUUID(agendamento.id)) {
-        await supabase
-          .from('agendamentos')
-          .update({ status: 'concluido' })
-          .eq('id', agendamento.id);
+        const owner = await fetchAgendamentoOwner(agendamento.id);
+        if (!owner || String(owner.user_id) !== String(user.id)) {
+          toast({ title: 'Sem permissão para atualizar', description: 'Este agendamento não pertence ao seu usuário.', variant: 'destructive' });
+        } else {
+          const { data: updated, error: statusErr } = await supabase
+            .from('agendamentos')
+            .update({ status: 'concluido' })
+            .eq('id', agendamento.id)
+            .select('id, status')
+            .maybeSingle();
+          if (statusErr) throw statusErr;
+          if (!updated) {
+            toast({ title: 'Atualização não aplicada', description: 'Nenhuma linha foi atualizada.', variant: 'destructive' });
+          }
+        }
       }
 
       toast({ title: 'Sessão confirmada!', description: 'Registro salvo nas tabelas relacionadas.' });
@@ -476,6 +516,7 @@ export default function Agendamentos() {
     // Preserva a posição de rolagem do container principal
     const scrollContainer = document.querySelector('main.flex-1') as HTMLElement | null;
     const prevScrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
+    sessionStorage.setItem('agendamentos-scroll-y', String(prevScrollTop));
     
     if (editingAgendamento) {
       // Editando agendamento existente
@@ -484,7 +525,60 @@ export default function Agendamentos() {
         ...formData
       };
       setAgendamentos(prev => prev.map(a => a.id === editingAgendamento.id ? agendamentoAtualizado : a));
-      toast({ title: "Agendamento atualizado com sucesso!" });
+
+      // Persistir no banco quando logado e o ID for real
+      try {
+        if (user && isUUID(editingAgendamento.id)) {
+          const projetoSelecionado = projetos.find((p) => p.titulo === formData.tatuador) || projetos.find((p) => p.id === formData.tatuador);
+          const basePayload: any = {
+            titulo: formData.servico || formData.cliente_nome,
+            descricao: formData.observacoes,
+            data: formData.data_agendamento,
+            hora: formData.hora_inicio,
+            status: formData.status,
+          };
+          if (projetoSelecionado?.id) {
+            basePayload.projeto_id = projetoSelecionado.id;
+          }
+          let updatedOk = false;
+          try {
+            const { data: updated, error } = await supabaseClient
+              .from('agendamentos')
+              .update({ ...basePayload, valor_estimado: formData.valor_estimado })
+              .eq('id', editingAgendamento.id)
+              .eq('user_id', user.id)
+              .select('id')
+              .maybeSingle();
+            if (error) throw error;
+            if (updated) updatedOk = true;
+          } catch (err: any) {
+            const msg = String(err?.message || '').toLowerCase();
+            if (msg.includes('column') && msg.includes('valor_estimado')) {
+              const { data: updated2, error: error2 } = await supabaseClient
+                .from('agendamentos')
+                .update(basePayload)
+                .eq('id', editingAgendamento.id)
+                .eq('user_id', user.id)
+                .select('id')
+                .maybeSingle();
+              if (error2) throw error2;
+              if (updated2) updatedOk = true;
+            } else {
+              throw err;
+            }
+          }
+          if (!updatedOk) {
+            toast({ title: "Atualização não aplicada", description: "Nenhuma linha foi atualizada.", variant: "destructive" });
+          } else {
+            toast({ title: "Agendamento atualizado com sucesso!" });
+          }
+        } else {
+          toast({ title: "Agendamento atualizado localmente" });
+        }
+      } catch (err) {
+        console.error('Erro ao atualizar agendamento no banco:', err);
+        toast({ title: "Erro ao atualizar no banco", description: "Tente novamente mais tarde.", variant: "destructive" });
+      }
     } else {
       // Criando novo agendamento
       // Se estiver logado, persistir no Supabase respeitando RLS e relações
@@ -508,6 +602,7 @@ export default function Agendamentos() {
               data: formData.data_agendamento,
               hora: formData.hora_inicio,
               status: formData.status,
+              valor_estimado: formData.valor_estimado || 0,
             })
             .select()
             .single();
@@ -614,18 +709,19 @@ export default function Agendamentos() {
   };
 
   const handleDelete = async (id: string) => {
+    console.log('Agendamentos: handleDelete', { id });
     // Atualiza UI imediatamente
     setAgendamentos(prev => prev.filter(a => a.id !== id));
 
     // Persiste no banco quando houver ID real
     try {
       if (user && isUUID(id)) {
-        const { error } = await supabase.from('agendamentos').delete().eq('id', id);
+        const { error } = await supabaseClient.from('agendamentos').delete().eq('id', id);
         if (error) throw error;
 
         // Remover registros relacionados (opcional) se existirem vínculos por agendamento_id
-        await supabase.from('projeto_sessoes').delete().eq('agendamento_id', id);
-        await supabase.from('transacoes').delete().eq('agendamento_id', id);
+        await supabaseClient.from('projeto_sessoes').delete().eq('agendamento_id', id);
+        await supabaseClient.from('transacoes').delete().eq('agendamento_id', id);
       }
 
       toast({ title: "Agendamento removido com sucesso!" });
@@ -636,6 +732,7 @@ export default function Agendamentos() {
   };
 
   const handleStatusChange = async (id: string, novoStatus: Agendamento['status']) => {
+    console.log('Agendamentos: handleStatusChange', { id, novoStatus });
     const prevStatus = agendamentos.find(a => a.id === id)?.status;
     setAgendamentos(prev => prev.map(a => 
       a.id === id ? { ...a, status: novoStatus } : a
@@ -643,11 +740,18 @@ export default function Agendamentos() {
 
     try {
       if (user && isUUID(id)) {
-        const { error } = await supabase
+        const owner = await fetchAgendamentoOwner(id);
+        if (!owner || String(owner.user_id) !== String(user.id)) {
+          throw new Error('owner_mismatch');
+        }
+        const { data: updated, error } = await supabaseClient
           .from('agendamentos')
           .update({ status: novoStatus })
-          .eq('id', id);
+          .eq('id', id)
+          .select('id, status')
+          .maybeSingle();
         if (error) throw error;
+        if (!updated) throw new Error('no_rows_updated');
       }
       toast({ title: `Status alterado para ${getStatusLabel(novoStatus)}` });
     } catch (err) {
@@ -657,12 +761,14 @@ export default function Agendamentos() {
           a.id === id ? { ...a, status: prevStatus } : a
         ));
       }
-      toast({ title: 'Falha ao atualizar status', description: 'Tente novamente mais tarde.', variant: 'destructive' });
+      const desc = (err as any)?.message === 'owner_mismatch' ? 'Este agendamento não pertence ao seu usuário.' : 'Tente novamente mais tarde.';
+      toast({ title: 'Falha ao atualizar status', description: desc, variant: 'destructive' });
     }
   };
 
   // Funções do calendário
   const handleAppointmentMove = async (appointmentId: string, newDate: string) => {
+    console.log('Agendamentos: handleAppointmentMove', { appointmentId, newDate });
     const previous = agendamentos.find(a => a.id === appointmentId)?.data_agendamento;
     setAgendamentos(prev => prev.map(a => 
       a.id === appointmentId ? { ...a, data_agendamento: newDate } : a
@@ -670,13 +776,15 @@ export default function Agendamentos() {
 
     try {
       if (user && isUUID(appointmentId)) {
-        const { error } = await supabase
+        const { error } = await supabaseClient
           .from('agendamentos')
           .update({ data: newDate })
-          .eq('id', appointmentId);
+          .eq('id', appointmentId)
+          .eq('user_id', user.id);
         if (error) throw error;
       }
       toast({ title: "Agendamento movido com sucesso!" });
+      console.log('Agendamentos: move success');
     } catch (err) {
       console.error('Erro ao mover agendamento no banco:', err);
       if (previous) {
@@ -723,6 +831,7 @@ export default function Agendamentos() {
         const { data, error } = await supabase
           .from('agendamentos')
           .select('*')
+          .eq('user_id', user.id)
           .order('created_at', { ascending: false });
         if (error) throw error;
 
@@ -741,7 +850,7 @@ export default function Agendamentos() {
             servico: row.titulo,
             status: row.status || 'agendado',
             observacoes: row.descricao || '',
-            valor_estimado: 0,
+            valor_estimado: Number(row.valor_estimado || 0),
             tatuador: proj?.titulo || '',
             // Local não é utilizado no app
             local: ''

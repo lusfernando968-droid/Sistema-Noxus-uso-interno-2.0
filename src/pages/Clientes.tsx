@@ -4,7 +4,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, ChevronRight, ChevronLeft } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, User, ChevronRight, ChevronLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -108,6 +108,7 @@ const Clientes = () => {
     setShowRightArrow(el.scrollLeft < maxScroll - 1);
   };
 
+
   useEffect(() => {
     const el = tableScrollRef.current;
     // Atualiza inicialmente (após layout)
@@ -150,6 +151,34 @@ const Clientes = () => {
   const [filterCityQuery, setFilterCityQuery] = useState("");
   const [cityRankingMode, setCityRankingMode] = useState<"mais_usadas" | "mais_recentes">("mais_usadas");
   const [cityUsageCounts, setCityUsageCounts] = useState<Record<string, number>>({});
+  type ColKey = 'nome'|'email'|'telefone'|'instagram'|'cidade'|'ltv'|'categoria'|'indicado_por'|'indicados'|'projetos'|'acoes';
+  const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>({
+    nome: true,
+    email: true,
+    telefone: true,
+    instagram: true,
+    cidade: true,
+    ltv: true,
+    categoria: true,
+    indicado_por: true,
+    indicados: true,
+    projetos: true,
+    acoes: true,
+  });
+  const colLabels: Record<ColKey, string> = {
+    nome: 'Nome',
+    email: 'Email',
+    telefone: 'Telefone',
+    instagram: 'Instagram',
+    cidade: 'Cidade',
+    ltv: 'LTV',
+    categoria: 'Categoria',
+    indicado_por: 'Indicado por',
+    indicados: 'Indicados',
+    projetos: 'Projetos',
+    acoes: 'Ações',
+  };
+  const toggleCol = (key: ColKey) => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
   
   // Helper: retorna cidades ordenadas conforme ranking atual e filtradas
   const getRankedCities = (excludeNames: string[], query: string) => {
@@ -347,11 +376,18 @@ const Clientes = () => {
       };
       if (formData.email) payload.email = formData.email;
       if (formData.telefone) payload.telefone = formData.telefone;
+      if (formData.instagram) payload.instagram = formData.instagram;
+      if (formData.cidade) payload.cidade = formData.cidade;
       // Campos adicionais (instagram, cidade) serão tratados após migrações específicas
       // Persistir indicação diretamente no banco, se fornecida
       if (formData.indicado_por && formData.indicado_por !== "none") {
         payload.indicado_por = formData.indicado_por;
       }
+
+      const cityNames: string[] = (selectedCities.length > 0
+        ? selectedCities.map(c => (c.nome || '').trim()).filter(Boolean)
+        : ((cityQuery || '').trim() ? [(cityQuery || '').trim()] : [])
+      );
 
       const { data, error } = await supabase
         .from("clientes")
@@ -361,25 +397,25 @@ const Clientes = () => {
 
       // Indicação já persistida no banco (fallback local não necessário aqui)
 
-      // Se houver cidades selecionadas, garantir criação e vincular ao cliente
-      if (data && data[0] && selectedCities.length > 0) {
+      // Se houver cidades, garantir criação e vincular ao cliente
+      if (data && data[0] && cityNames.length > 0) {
         try {
           // Criar cidades que não possuem id
           const ensuredCityIds: string[] = [];
-          for (const c of selectedCities) {
-            if (c.id) {
-              ensuredCityIds.push(c.id);
+          for (const nome of cityNames) {
+            const existing = availableCities.find(c => (c.nome || '').toLowerCase() === nome.toLowerCase());
+            if (existing?.id) {
+              ensuredCityIds.push(existing.id);
             } else {
               const { data: created, error: createErr } = await supabase
                 .from("cidades")
-                .insert([{ user_id: user.id, nome: c.nome }])
+                .insert([{ user_id: user.id, nome }])
                 .select();
               if (createErr) throw createErr;
               const createdId = created && created[0] ? created[0].id : undefined;
               if (createdId) {
                 ensuredCityIds.push(createdId);
-                // Atualiza histórico local para que apareça nas próximas sugestões
-                setAvailableCities(prev => prev.some(x => x.nome.toLowerCase() === c.nome.toLowerCase()) ? prev : [...prev, { id: createdId, nome: c.nome, created_at: created?.[0]?.created_at }]);
+                setAvailableCities(prev => prev.some(x => (x.nome || '').toLowerCase() === nome.toLowerCase()) ? prev : [...prev, { id: createdId, nome, created_at: created?.[0]?.created_at }]);
               }
             }
           }
@@ -401,7 +437,7 @@ const Clientes = () => {
           projetos_count: 0,
           transacoes_count: 0,
           indicado_por: formData.indicado_por && formData.indicado_por !== "none" ? formData.indicado_por : null,
-          cidades: selectedCities.length > 0 ? selectedCities.map(c => c.nome) : undefined
+          cidades: cityNames.length > 0 ? cityNames : undefined
         };
         setClientes(prev => [novoCliente, ...prev]);
       }
@@ -1073,8 +1109,25 @@ const Clientes = () => {
                   {filterCityQuery && <Button variant="ghost" className="rounded-xl" onClick={() => setFilterCityQuery("")}>Limpar texto</Button>}
                   <Button className="rounded-xl" onClick={() => { /* Popover fecha ao clicar fora; sem ação extra */ }}>Aplicar</Button>
                 </div>
-              </PopoverContent>
-            </Popover>
+            </PopoverContent>
+          </Popover>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="icon" className="rounded-lg h-9" title="Mostrar/ocultar colunas">
+                <EyeOff className="w-4 h-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="rounded-xl w-56">
+              <div className="space-y-1">
+                {(Object.keys(colLabels) as ColKey[]).map((key) => (
+                  <div key={key} className="flex items-center gap-2 py-1">
+                    <Checkbox id={`col-${key}`} checked={visibleCols[key]} onCheckedChange={() => toggleCol(key)} />
+                    <label htmlFor={`col-${key}`} className="text-sm">{colLabels[key]}</label>
+                  </div>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
             
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -1426,23 +1479,23 @@ const Clientes = () => {
                        <p>Nenhum cliente encontrado.</p>
                        <p className="text-sm mt-1">Clique em "Adicionar Cliente" para começar.</p>
                      </div>
-                   </Card> : <Card className="rounded-xl overflow-hidden relative" ref={tableContainerRef}>
+                  </Card> : <Card className="rounded-xl overflow-hidden relative" ref={tableContainerRef}>
                      <div className="overflow-x-auto scroll-smooth" ref={tableScrollRef}>
                        <div className="min-w-[1600px]">
                          <Table>
                          <TableHeader>
                            <TableRow>
-                             <TableHead className="min-w-[200px]">Nome</TableHead>
-                             <TableHead className="min-w-[250px]">Email</TableHead>
-                             <TableHead className="min-w-[150px]">Telefone</TableHead>
-                             <TableHead className="min-w-[200px]">Instagram</TableHead>
-                             <TableHead className="min-w-[150px]">Cidade</TableHead>
-                             <TableHead className="min-w-[150px]">LTV</TableHead>
-                             <TableHead className="min-w-[120px]">Categoria</TableHead>
-                             <TableHead className="min-w-[180px]">Indicado por</TableHead>
-                             <TableHead className="min-w-[200px]">Indicados</TableHead>
-                             <TableHead className="min-w-[120px]">Projetos</TableHead>
-                             <TableHead className="text-right min-w-[150px] sticky right-0 bg-background z-10">Ações</TableHead>
+                             {visibleCols.nome && <TableHead className="min-w-[200px]">Nome</TableHead>}
+                             {visibleCols.email && <TableHead className="min-w-[250px]">Email</TableHead>}
+                             {visibleCols.telefone && <TableHead className="min-w-[150px]">Telefone</TableHead>}
+                             {visibleCols.instagram && <TableHead className="min-w-[200px]">Instagram</TableHead>}
+                             {visibleCols.cidade && <TableHead className="min-w-[150px]">Cidade</TableHead>}
+                             {visibleCols.ltv && <TableHead className="min-w-[150px]">LTV</TableHead>}
+                             {visibleCols.categoria && <TableHead className="min-w-[120px]">Categoria</TableHead>}
+                             {visibleCols.indicado_por && <TableHead className="min-w-[180px]">Indicado por</TableHead>}
+                             {visibleCols.indicados && <TableHead className="min-w-[200px]">Indicados</TableHead>}
+                             {visibleCols.projetos && <TableHead className="min-w-[120px]">Projetos</TableHead>}
+                             {visibleCols.acoes && <TableHead className="text-right min-w-[190px] sticky right-0 bg-background z-10">Ações</TableHead>}
                            </TableRow>
                          </TableHeader>
                          <TableBody>
@@ -1454,34 +1507,34 @@ const Clientes = () => {
                               className={(isEditing ? "bg-muted/50 " : "") + `cursor-pointer ${(["ocean","sunset","forest","purple","rose"] as const).includes(colorTheme as any) ? "hover:bg-muted/20" : "hover:bg-muted/30"} transition-colors`}
                               onDoubleClick={() => startEditing(cliente.id, cliente)}
                             >
-                                 <TableCell>
+                                 {visibleCols.nome && <TableCell>
                                    {isEditing ? <Input value={editData.nome} onChange={e => updateEditedData(cliente.id, 'nome', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : <span className="font-medium">{cliente.nome}</span>}
-                                 </TableCell>
-                                 <TableCell>
+                                 </TableCell>}
+                                 {visibleCols.email && <TableCell>
                                    {isEditing ? <Input type="email" value={editData.email} onChange={e => updateEditedData(cliente.id, 'email', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : <span className="text-muted-foreground">{cliente.email}</span>}
-                                 </TableCell>
-                                 <TableCell>
+                                 </TableCell>}
+                                 {visibleCols.telefone && <TableCell>
                                    {isEditing ? <Input value={editData.telefone} onChange={e => updateEditedData(cliente.id, 'telefone', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : <span className="text-muted-foreground">{cliente.telefone}</span>}
-                                 </TableCell>
-                                 <TableCell>
+                                 </TableCell>}
+                                 {visibleCols.instagram && <TableCell>
                                    {isEditing ? <Input value={(editData as any).instagram || ''} onChange={e => updateEditedData(cliente.id, 'instagram' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : cliente.instagram ? <a href={cliente.instagram} target="_blank" rel="noreferrer" className="text-primary underline text-sm">{cliente.instagram}</a> : <span className="text-xs text-muted-foreground italic">Não informado</span>}
-                                 </TableCell>
-                                 <TableCell>
-                                   {isEditing ? <Input value={(editData as any).cidade || ''} onChange={e => updateEditedData(cliente.id, 'cidade' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : cliente.cidade ? <span className="text-muted-foreground">{cliente.cidade}</span> : <span className="text-xs text-muted-foreground italic">Não informado</span>}
-                                 </TableCell>
-                                  <TableCell>
+                                 </TableCell>}
+                                 {visibleCols.cidade && <TableCell>
+                                  {isEditing ? <Input value={(editData as any).cidade || ''} onChange={e => updateEditedData(cliente.id, 'cidade' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : ((cliente as any).cidades && (cliente as any).cidades.length > 0) ? <span className="text-muted-foreground">{(cliente as any).cidades.join(', ')}</span> : cliente.cidade ? <span className="text-muted-foreground">{cliente.cidade}</span> : <span className="text-xs text-muted-foreground italic">Não informado</span>}
+                                 </TableCell>}
+                                  {visibleCols.ltv && <TableCell>
                                     <div className="space-y-1">
                                       <span className="font-semibold text-success">
                                         R$ {cliente.ltv.toFixed(2)}
                                       </span>
                                     </div>
-                                  </TableCell>
-                                 <TableCell>
+                                  </TableCell>}
+                                 {visibleCols.categoria && <TableCell>
                                    <Badge variant="outline" className={`rounded-full text-xs ${getLTVColor(cliente.ltv, maxLTV)}`}>
                                      {getLTVLabel(cliente.ltv)}
                                    </Badge>
-                                 </TableCell>
-                                 <TableCell>
+                                 </TableCell>}
+                                 {visibleCols.indicado_por && <TableCell>
                                    {isEditing ? <Select value={editData.indicado_por || "none"} onValueChange={value => updateEditedData(cliente.id, 'indicado_por', value === "none" ? "" : value)}>
                                        <SelectTrigger className="rounded-xl h-8 text-xs" onKeyDown={handleKeyDownSaveDefer(cliente.id)}>
                                          <SelectValue placeholder="Selecionar indicador" />
@@ -1498,8 +1551,8 @@ const Clientes = () => {
                                            {clientes.find(c => c.id === cliente.indicado_por)?.nome || 'Cliente não encontrado'}
                                          </Badge>
                                        </div> : <span className="text-xs text-muted-foreground italic">Cliente direto</span>}
-                                 </TableCell>
-                                 <TableCell>
+                                 </TableCell>}
+                                 {visibleCols.indicados && <TableCell>
                                    {/* Quem este cliente já indicou */}
                                    {(() => {
                                      const indicados = clientes.filter(c => c.indicado_por === cliente.id);
@@ -1507,14 +1560,14 @@ const Clientes = () => {
                                      const nomes = indicados.map(i => i.nome).join(', ');
                                      return <span className="text-sm" title={nomes}>{indicados.length} cliente(s)</span>;
                                    })()}
-                                 </TableCell>
-                                 <TableCell>
+                                 </TableCell>}
+                                 {visibleCols.projetos && <TableCell>
                                    <div className="text-sm text-muted-foreground">
                                      <div>{cliente.projetos_count} projeto(s)</div>
                                      <div className="text-xs">{cliente.transacoes_count} transação(ões)</div>
                                    </div>
-                                 </TableCell>
-                                <TableCell className="text-right sticky right-0 bg-background z-10">
+                                 </TableCell>}
+                               {visibleCols.acoes && <TableCell className="text-right sticky right-0 bg-background z-10 min-w-[190px]">
                                   <div className="flex gap-1 justify-end relative z-20">
                                     {isEditing ? <>
                                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-success hover:bg-success/10" onClick={() => saveEdit(cliente.id)} title="Salvar">
@@ -1527,6 +1580,9 @@ const Clientes = () => {
                                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40 hover:text-foreground" onClick={() => navigate(`/projetos?cliente=${cliente.id}`)} title="Ver projetos">
                                           <FolderOpen className="w-4 h-4" />
                                         </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40 hover:text-foreground" onClick={() => navigate(`/clientes/${cliente.id}`)} title="Ver perfil">
+                                          <User className="w-4 h-4" />
+                                        </Button>
                                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40 hover:text-foreground" onClick={() => startEditing(cliente.id, cliente)} title="Editar">
                                           <Pencil className="w-4 h-4" />
                                         </Button>
@@ -1535,7 +1591,7 @@ const Clientes = () => {
                                         </Button>
                                       </>}
                                   </div>
-                                </TableCell>
+                                </TableCell>}
                               </TableRow>;
                   })}
                          </TableBody>

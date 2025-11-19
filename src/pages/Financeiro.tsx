@@ -27,10 +27,16 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseLocal, isSupabaseLocalConfigured } from "@/integrations/supabase/local";
 import { useAuth } from "@/contexts/AuthContext";
+import { useContasBancarias } from "@/hooks/useContasBancarias";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FinancialCalendar } from "@/components/calendar/FinancialCalendar";
+import BankBalanceWidget from "@/components/financeiro/BankBalanceWidget";
+import { calcularSaldoConta, saldoPosTransacao } from "@/utils/saldoPorConta";
+import TabelaGestaoBancos from "@/components/financeiro/TabelaGestaoBancos";
+import { useCarteira } from "@/hooks/useCarteira";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -44,7 +50,7 @@ import {
 } from "@/components/ui/alert-dialog";
 
 
-type TipoTransacao = "RECEITA" | "DESPESA";
+type TipoTransacao = "RECEITA" | "DESPESA" | "APORTE";
 
 interface Transacao {
   id: string;
@@ -58,6 +64,7 @@ interface Transacao {
   agendamentos?: {
     titulo: string;
   };
+  conta_id?: string | null;
 }
 
 interface Agendamento {
@@ -87,15 +94,26 @@ const CATEGORIAS_DESPESA = [
 
 
 const Financeiro = () => {
+  // Set document title
+  useEffect(() => {
+    document.title = "Financeiro Tattoo - Noxus";
+  }, []);
   const { user } = useAuth();
+  const { items: contas } = useContasBancarias();
+  const { items: carteiraItems } = useCarteira();
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLiquidarOpen, setIsLiquidarOpen] = useState(false);
+  const [liquidarTargetId, setLiquidarTargetId] = useState<string | null>(null);
+  const [liquidarContaId, setLiquidarContaId] = useState<string>("");
+  const [liquidarData, setLiquidarData] = useState<string>(new Date().toISOString().split('T')[0]);
   const [filtroTipo, setFiltroTipo] = useState<"TODOS" | TipoTransacao>("TODOS");
   const [filtroCategoria, setFiltroCategoria] = useState<string>("TODOS");
   const [filtroStatus, setFiltroStatus] = useState<"TODOS" | "LIQUIDADAS" | "PENDENTES">("TODOS");
+  const [filtroContaId, setFiltroContaId] = useState<string>("TODAS");
   const [formData, setFormData] = useState({
     tipo: "RECEITA" as TipoTransacao,
     categoria: "",
@@ -104,9 +122,19 @@ const Financeiro = () => {
     descricao: "",
     agendamento_id: "",
     liquidarFuturo: true,
+    conta_id: "",
+    conta_destino_id: "",
   });
 
-  // Formatação de moeda BRL para o campo Valor
+  const contaSelecionadaId = formData.conta_id || "";
+  const saldoConta = calcularSaldoConta(contaSelecionadaId, contas, carteiraItems as any);
+  const previewSaldoPos = saldoPosTransacao(
+    Number(saldoConta.saldoAtual || 0),
+    formData.tipo,
+    Number(parseFloat(formData.valor || "0") || 0),
+    true
+  );
+
   const formatCurrencyBR = (value: string) => {
     if (value === "") return "";
     const num = Number(value);
@@ -151,6 +179,39 @@ const Financeiro = () => {
         ...t,
         tipo: t.tipo as TipoTransacao
       })) || []);
+      try {
+        const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
+        const list = (data || []).filter((t: any) => !!t.data_liquidacao && !!t.conta_id);
+        for (const t of list) {
+          const filtro: any = {
+            user_id: t.user_id,
+            descricao: t.descricao,
+            valor: t.valor,
+            categoria: t.categoria,
+            data_vencimento: t.data_vencimento,
+            conta_id: t.conta_id,
+            data_liquidacao: t.data_liquidacao,
+          };
+          const { data: exists } = await sb
+            .from("financeiro_tattoo")
+            .select("id")
+            .match(filtro)
+            .limit(1);
+          if (!exists || !exists.length) {
+            await sb.from("financeiro_tattoo").insert({
+              user_id: t.user_id,
+              tipo: t.tipo,
+              categoria: t.categoria,
+              valor: Number(t.valor || 0),
+              data_vencimento: t.data_vencimento,
+              descricao: t.descricao,
+              agendamento_id: t.agendamento_id || null,
+              data_liquidacao: t.data_liquidacao,
+              conta_id: t.conta_id,
+            });
+          }
+        }
+      } catch (_) {}
     }
   };
 
@@ -167,6 +228,47 @@ const Financeiro = () => {
     }
   };
 
+  const ensureCarteiraSync = async (id: string) => {
+    try {
+      const { data: t, error: e1 } = await supabase
+        .from("transacoes")
+        .select("*")
+        .eq("id", id)
+        .single();
+      if (e1 || !t) return;
+      if (!t.data_liquidacao || !t.conta_id) return;
+      const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
+      const filtro = {
+        user_id: t.user_id,
+        descricao: t.descricao,
+        valor: t.valor,
+        categoria: t.categoria,
+        data_vencimento: t.data_vencimento,
+        conta_id: t.conta_id,
+        data_liquidacao: t.data_liquidacao,
+      } as any;
+      const { data: existe, error: e2 } = await sb
+        .from("financeiro_tattoo")
+        .select("id")
+        .match(filtro)
+        .limit(1);
+      if (e2) return;
+      if (existe && existe.length) return;
+      const payload = {
+        user_id: t.user_id,
+        tipo: t.tipo,
+        categoria: t.categoria,
+        valor: Number(t.valor || 0),
+        data_vencimento: t.data_vencimento,
+        descricao: t.descricao,
+        agendamento_id: t.agendamento_id || null,
+        data_liquidacao: t.data_liquidacao,
+        conta_id: t.conta_id,
+      };
+      await sb.from("financeiro_tattoo").insert(payload);
+    } catch (_) {}
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -176,7 +278,6 @@ const Financeiro = () => {
     }
 
     if (isEditMode && editingId) {
-      // Atualização de transação existente (não modifica data_liquidacao aqui)
       const updatePayload = {
         tipo: formData.tipo,
         categoria: formData.categoria,
@@ -184,6 +285,7 @@ const Financeiro = () => {
         data_vencimento: formData.data_vencimento,
         descricao: formData.descricao,
         agendamento_id: formData.agendamento_id || null,
+        conta_id: formData.conta_id || null,
       };
 
       const { error } = await supabase
@@ -192,62 +294,260 @@ const Financeiro = () => {
         .eq("id", editingId);
 
       if (error) {
-        toast.error("Erro ao atualizar transação");
-        console.error(error);
+        const msg = String(error.message || "");
+        const isSchemaCacheConta = msg.includes("conta_id") || msg.includes("schema cache");
+        if (isSchemaCacheConta) {
+          const retryPayload: any = { ...updatePayload };
+          delete retryPayload.conta_id;
+          const { error: errRetry } = await supabase
+            .from("transacoes")
+            .update(retryPayload)
+            .eq("id", editingId);
+          if (errRetry) {
+            toast.error("Erro ao atualizar transação");
+            console.error(errRetry);
+          } else {
+            toast.warning("Transação atualizada sem vincular conta. Aplique a migration de conta_id.");
+            setIsDialogOpen(false);
+            setIsEditMode(false);
+            setEditingId(null);
+            fetchTransacoes();
+            await ensureCarteiraSync(editingId);
+          }
+        } else {
+          toast.error("Erro ao atualizar transação");
+          console.error(error);
+        }
       } else {
         toast.success("Transação atualizada com sucesso!");
         setIsDialogOpen(false);
         setIsEditMode(false);
         setEditingId(null);
         fetchTransacoes();
+        await ensureCarteiraSync(editingId);
       }
     } else {
-      // Criação de nova transação
       const hoje = new Date().toISOString().split('T')[0];
-      const payload = {
-        user_id: user.id,
-        tipo: formData.tipo,
-        categoria: formData.categoria,
-        valor: parseFloat(formData.valor),
-        data_vencimento: formData.data_vencimento,
-        descricao: formData.descricao,
-        agendamento_id: formData.agendamento_id || null,
-        data_liquidacao: formData.liquidarFuturo ? null : hoje,
-      };
+      if (formData.tipo === "APORTE") {
+        if (!formData.conta_id || !formData.conta_destino_id) {
+          toast.error("Selecione a conta de origem e a conta destino");
+          return;
+        }
+        if (formData.conta_id === formData.conta_destino_id) {
+          toast.error("Conta origem e destino devem ser diferentes");
+          return;
+        }
 
-      const { error } = await supabase.from("transacoes").insert(payload);
+        const valorNum = parseFloat(formData.valor);
+        const despesaPayload = {
+          user_id: user.id,
+          tipo: "DESPESA",
+          categoria: "Aporte",
+          valor: valorNum,
+          data_vencimento: formData.data_vencimento,
+          descricao: formData.descricao || "Aporte para outra conta",
+          agendamento_id: formData.agendamento_id || null,
+          data_liquidacao: formData.liquidarFuturo ? null : hoje,
+          conta_id: formData.conta_id || null,
+        };
+        const receitaPayload = {
+          user_id: user.id,
+          tipo: "RECEITA",
+          categoria: "Aporte",
+          valor: valorNum,
+          data_vencimento: formData.data_vencimento,
+          descricao: formData.descricao || "Aporte recebido de outra conta",
+          agendamento_id: formData.agendamento_id || null,
+          data_liquidacao: formData.liquidarFuturo ? null : hoje,
+          conta_id: formData.conta_destino_id || null,
+        };
 
-      if (error) {
-        toast.error("Erro ao criar transação");
-        console.error(error);
+        let createdDesp: any = null;
+        const { data: createdDespInit, error: errDesp } = await supabase
+          .from("transacoes")
+          .insert(despesaPayload)
+          .select("id")
+          .single();
+        if (!errDesp) {
+          createdDesp = createdDespInit as any;
+        } else {
+          const msg = String(errDesp.message || "");
+          const isSchemaCacheConta = msg.includes("conta_id") || msg.includes("schema cache");
+          if (!isSchemaCacheConta) {
+            toast.error("Erro ao criar parte de origem do aporte");
+            console.error(errDesp);
+            return;
+          }
+          const fallbackDesp = { ...despesaPayload } as any;
+          delete fallbackDesp.conta_id;
+          const { data: createdDesp2, error: errDesp2 } = await supabase
+            .from("transacoes")
+            .insert(fallbackDesp)
+            .select("id")
+            .single();
+          if (errDesp2) {
+            toast.error("Erro ao criar parte de origem do aporte");
+            console.error(errDesp2);
+            return;
+          }
+          createdDesp = createdDesp2 as any;
+          toast.warning("Aporte origem criado sem conta_id. Aplique a migration.");
+        }
+        const { error: errRec } = await supabase
+          .from("transacoes")
+          .insert(receitaPayload);
+        if (errRec) {
+          const msg = String(errRec.message || "");
+          const isSchemaCacheConta = msg.includes("conta_id") || msg.includes("schema cache");
+          if (!isSchemaCacheConta) {
+            await supabase.from("transacoes").delete().eq("id", createdDesp.id);
+            toast.error("Erro ao criar parte de destino do aporte");
+            console.error(errRec);
+            return;
+          }
+          const fallbackRec = { ...receitaPayload } as any;
+          delete fallbackRec.conta_id;
+          const { error: errRec2 } = await supabase
+            .from("transacoes")
+            .insert(fallbackRec);
+          if (errRec2) {
+            await supabase.from("transacoes").delete().eq("id", createdDesp.id);
+            toast.error("Erro ao criar parte de destino do aporte");
+            console.error(errRec2);
+            return;
+          }
+          toast.warning("Aporte destino criado sem conta_id. Aplique a migration.");
+        }
+        toast.success("Aporte criado com sucesso!");
       } else {
+        const payload = {
+          user_id: user.id,
+          tipo: formData.tipo,
+          categoria: formData.categoria,
+          valor: parseFloat(formData.valor),
+          data_vencimento: formData.data_vencimento,
+          descricao: formData.descricao,
+          agendamento_id: formData.agendamento_id || null,
+          data_liquidacao: formData.liquidarFuturo ? null : hoje,
+          conta_id: formData.conta_id || null,
+        };
+        const { error } = await supabase.from("transacoes").insert(payload);
+        if (error) {
+          const msg = String(error.message || "");
+          const isSchemaCacheConta = msg.includes("conta_id") || msg.includes("schema cache");
+          if (isSchemaCacheConta) {
+            const fallback = { ...payload } as any;
+            delete fallback.conta_id;
+            const { error: err2 } = await supabase.from("transacoes").insert(fallback);
+            if (err2) {
+              toast.error("Erro ao criar transação");
+              console.error(err2);
+              return;
+            }
+            toast.warning("Transação criada sem conta_id. Aplique a migration.");
+          } else {
+            toast.error("Erro ao criar transação");
+            console.error(error);
+            return;
+          }
+        }
         toast.success("Transação criada com sucesso!");
-        setFormData({ 
-          tipo: "RECEITA", 
-          categoria: "",
-          valor: "", 
-          data_vencimento: "", 
-          descricao: "",
-          agendamento_id: "",
-          liquidarFuturo: true,
-        });
-        setIsDialogOpen(false);
-        fetchTransacoes();
       }
+
+      setFormData({ 
+        tipo: "RECEITA", 
+        categoria: "",
+        valor: "", 
+        data_vencimento: "", 
+        descricao: "",
+        agendamento_id: "",
+        liquidarFuturo: true,
+        conta_id: "",
+        conta_destino_id: "",
+      });
+      setIsDialogOpen(false);
+      fetchTransacoes();
     }
   };
 
-  const handleLiquidar = async (id: string) => {
+  const openLiquidarDialog = (t: Transacao) => {
+    setLiquidarTargetId(t.id);
+    setLiquidarContaId(String(t.conta_id || ""));
+    setLiquidarData(new Date().toISOString().split('T')[0]);
+    setIsLiquidarOpen(true);
+  };
+
+  const handleConfirmLiquidar = async () => {
+    if (!liquidarTargetId) return;
+    if (!liquidarContaId) {
+      toast.error("Selecione um banco/conta para a baixa");
+      return;
+    }
+    const transacaoAlvo = transacoes.find((t) => t.id === liquidarTargetId);
+    const carteiraPayload = transacaoAlvo ? {
+      user_id: user?.id,
+      tipo: transacaoAlvo.tipo === 'DESPESA' ? 'DESPESA' : 'RECEITA',
+      categoria: transacaoAlvo.categoria,
+      valor: Number(transacaoAlvo.valor || 0),
+      data_vencimento: transacaoAlvo.data_vencimento,
+      descricao: transacaoAlvo.descricao,
+      agendamento_id: transacaoAlvo.agendamento_id || null,
+      data_liquidacao: liquidarData,
+      conta_id: liquidarContaId,
+    } : null;
+    const payload: any = {
+      data_liquidacao: liquidarData,
+      conta_id: liquidarContaId,
+    };
     const { error } = await supabase
       .from("transacoes")
-      .update({ data_liquidacao: new Date().toISOString().split('T')[0] })
-      .eq("id", id);
+      .update(payload)
+      .eq("id", liquidarTargetId);
 
     if (error) {
-      toast.error("Erro ao liquidar transação");
-      console.error(error);
+      const msg = String(error.message || "");
+      const isSchemaCacheConta = msg.includes("conta_id") || msg.includes("schema cache");
+      if (isSchemaCacheConta) {
+        const { error: errRetry } = await supabase
+          .from("transacoes")
+          .update({ data_liquidacao: liquidarData })
+          .eq("id", liquidarTargetId);
+        if (errRetry) {
+          toast.error("Erro ao liquidar transação");
+          console.error(errRetry);
+          return;
+        }
+        toast.warning("Baixa feita sem vincular conta na tabela transacoes. Aplique a migration de conta_id.");
+        if (carteiraPayload) {
+          const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
+          const { error: errCarteira } = await sb
+            .from("financeiro_tattoo")
+            .insert(carteiraPayload);
+          if (errCarteira) {
+            console.error(errCarteira);
+          }
+        }
+        setIsLiquidarOpen(false);
+        setLiquidarTargetId(null);
+        fetchTransacoes();
+        return;
+      } else {
+        toast.error("Erro ao liquidar transação");
+        console.error(error);
+      }
     } else {
       toast.success("Transação liquidada!");
+      if (carteiraPayload) {
+        const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
+        const { error: errCarteira } = await sb
+          .from("financeiro_tattoo")
+          .insert(carteiraPayload);
+        if (errCarteira) {
+          console.error(errCarteira);
+        }
+      }
+      setIsLiquidarOpen(false);
+      setLiquidarTargetId(null);
       fetchTransacoes();
     }
   };
@@ -278,6 +578,8 @@ const Financeiro = () => {
       descricao: "",
       agendamento_id: "",
       liquidarFuturo: true,
+      conta_id: "",
+      conta_destino_id: "",
     });
     setIsDialogOpen(true);
   };
@@ -293,6 +595,8 @@ const Financeiro = () => {
       descricao: t.descricao,
       agendamento_id: t.agendamento_id || "",
       liquidarFuturo: true,
+      conta_id: t.conta_id || "",
+      conta_destino_id: "",
     });
     setIsDialogOpen(true);
   };
@@ -302,6 +606,7 @@ const Financeiro = () => {
     if (filtroCategoria !== "TODOS" && t.categoria !== filtroCategoria) return false;
     if (filtroStatus === "LIQUIDADAS" && !t.data_liquidacao) return false;
     if (filtroStatus === "PENDENTES" && t.data_liquidacao) return false;
+    if (filtroContaId !== "TODAS" && (t.conta_id ?? "") !== filtroContaId) return false;
     return true;
   });
 
@@ -323,7 +628,6 @@ const Financeiro = () => {
 
   const saldo = totalReceitas - totalDespesas;
 
-  // Agrupar transações por data de vencimento para visualização de Agenda
   const transacoesPorData = transacoesFiltradas.reduce((acc, t) => {
     const key = t.data_vencimento;
     if (!acc[key]) acc[key] = [];
@@ -346,25 +650,21 @@ const Financeiro = () => {
       descricao: "",
       agendamento_id: "",
       liquidarFuturo: true,
+      conta_id: "",
+      conta_destino_id: "",
     });
     setIsDialogOpen(true);
   };
 
   const hasActiveFilters =
-    filtroTipo !== "TODOS" || filtroCategoria !== "TODOS" || filtroStatus !== "TODOS";
+    filtroTipo !== "TODOS" || filtroCategoria !== "TODOS" || filtroStatus !== "TODOS" || filtroContaId !== "TODAS";
 
   const categoriasDisponiveis = formData.tipo === "RECEITA" ? CATEGORIAS_RECEITA : CATEGORIAS_DESPESA;
-  
-  // Criar lista única de categorias para filtros, evitando duplicatas
   const todasCategoriasUnicas = Array.from(new Set([...CATEGORIAS_RECEITA, ...CATEGORIAS_DESPESA]));
-  
-  // Criar categorias com prefixos para chaves únicas
   const categoriasComPrefixo = [
     ...CATEGORIAS_RECEITA.map(cat => ({ key: `receita-${cat}`, value: cat, label: cat })),
     ...CATEGORIAS_DESPESA.map(cat => ({ key: `despesa-${cat}`, value: cat, label: cat }))
   ];
-  
-  // Remover duplicatas mantendo apenas valores únicos
   const categoriasParaFiltro = categoriasComPrefixo.filter((cat, index, self) => 
     self.findIndex(c => c.value === cat.value) === index
   );
@@ -373,19 +673,14 @@ const Financeiro = () => {
     <div className="space-y-6 pb-20">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Financeiro</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Financeiro Tattoo</h1>
           <p className="text-muted-foreground mt-1">
             Gestão completa de receitas e despesas
           </p>
         </div>
-        {/* Botões removidos do topo - serão reposicionados abaixo das abas */}
-        {/* espaço reservado vazio */}
       </div>
       
 
-      {/* Filtros movidos para Popover acima */}
-
-      {/* Cards de resumo */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-6 rounded-xl bg-gradient-to-br from-success/10 to-success/5">
           <div className="flex items-center gap-3 mb-2">
@@ -441,18 +736,16 @@ const Financeiro = () => {
           </p>
         </Card>
       </div>
-      {/* Filtros movidos para Popover acima */}
 
-      {/* Abas de visualização: Tabela, Calendário e Lista */}
       <Tabs defaultValue="tabela" className="space-y-4">
         <div className="flex justify-center">
           <TabsList className="inline-flex w-auto rounded-2xl bg-gradient-to-r from-muted/30 to-muted/10 p-1.5 backdrop-blur-sm border border-border/20 shadow-lg">
             <TabsTrigger value="tabela" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">Tabela</TabsTrigger>
             <TabsTrigger value="agenda" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">Calendário</TabsTrigger>
             <TabsTrigger value="lista" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">Lista</TabsTrigger>
+            <TabsTrigger value="bancos" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">Bancos</TabsTrigger>
           </TabsList>
         </div>
-        {/* Toolbar reposicionada abaixo das abas */}
         <div className="flex justify-end gap-2">
           <Popover>
             <PopoverTrigger asChild>
@@ -478,13 +771,14 @@ const Financeiro = () => {
                       setFiltroTipo("TODOS");
                       setFiltroCategoria("TODOS");
                       setFiltroStatus("TODOS");
+                      setFiltroContaId("TODAS");
                     }}
                   >
                     Limpar
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
                   <Select value={filtroTipo} onValueChange={(value: any) => setFiltroTipo(value)}>
@@ -527,6 +821,26 @@ const Financeiro = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Conta</Label>
+                  <Select value={filtroContaId} onValueChange={setFiltroContaId}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TODAS">Todas</SelectItem>
+                      {contas.map((c) => {
+                        const bank = (c as any).banco_detalhes?.nome_curto || (c as any).banco || "";
+                        const label = bank ? `${bank} · ${c.nome}` : `${c.nome}`;
+                        return (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {label}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               {hasActiveFilters && (
                 <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -539,6 +853,16 @@ const Financeiro = () => {
                   )}
                   {filtroStatus !== "TODOS" && (
                     <Badge variant="secondary" className="rounded-full text-xs">{filtroStatus}</Badge>
+                  )}
+                  {filtroContaId !== "TODAS" && (
+                    <Badge variant="secondary" className="rounded-full text-xs">
+                      {(() => {
+                        const c = contas.find(c => String(c.id) === filtroContaId);
+                        if (!c) return "Conta";
+                        const bank = (c as any).banco_detalhes?.nome_curto || (c as any).banco || "";
+                        return bank ? `${bank} · ${c.nome}` : `${c.nome}`;
+                      })()}
+                    </Badge>
                   )}
                 </div>
               )}
@@ -561,7 +885,7 @@ const Financeiro = () => {
                   <Select
                     value={formData.tipo}
                     onValueChange={(value: TipoTransacao) =>
-                      setFormData({ ...formData, tipo: value, categoria: "" })
+                      setFormData({ ...formData, tipo: value, categoria: value === "APORTE" ? "Aporte" : "" })
                     }
                   >
                     <SelectTrigger className="rounded-xl">
@@ -570,29 +894,100 @@ const Financeiro = () => {
                     <SelectContent>
                       <SelectItem value="RECEITA">Receita</SelectItem>
                       <SelectItem value="DESPESA">Despesa</SelectItem>
+                      <SelectItem value="APORTE">Aporte</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
+                {formData.tipo !== "APORTE" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="categoria">Categoria</Label>
+                    <Select
+                      value={formData.categoria}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, categoria: value })
+                      }
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder="Selecione uma categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categoriasDisponiveis.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
-                  <Label htmlFor="categoria">Categoria</Label>
+                  <Label htmlFor="conta">Conta</Label>
                   <Select
-                    value={formData.categoria}
+                    value={formData.conta_id}
                     onValueChange={(value) =>
-                      setFormData({ ...formData, categoria: value })
+                      setFormData({ ...formData, conta_id: value === "none" ? "" : value })
                     }
                   >
                     <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="Selecione uma categoria" />
+                      <SelectValue placeholder="Selecione uma conta" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categoriasDisponiveis.map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="none">Nenhuma conta</SelectItem>
+                      {contas.map((c) => {
+                        const bank = (c as any).banco_detalhes?.nome_curto || (c as any).banco || "";
+                        const label = bank ? `${bank} · ${c.nome}` : `${c.nome}`;
+                        return (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {label}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
+                {formData.tipo === "APORTE" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="conta_destino">Conta destino</Label>
+                    <Select
+                      value={formData.conta_destino_id}
+                      onValueChange={(value) =>
+                        setFormData({ ...formData, conta_destino_id: value === "none" ? "" : value })
+                      }
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder="Selecione a conta destino" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhuma conta</SelectItem>
+                        {contas.map((c) => {
+                          const bank = (c as any).banco_detalhes?.nome_curto || (c as any).banco || "";
+                          const label = bank ? `${bank} · ${c.nome}` : `${c.nome}`;
+                          return (
+                            <SelectItem key={c.id} value={String(c.id)}>
+                              {label}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {formData.conta_id && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <Label>Saldo inicial</Label>
+                      <p className="text-sm font-semibold">R$ {saldoConta.saldoInicial.toFixed(2)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Saldo atual</Label>
+                      <p className={`text-sm font-semibold ${saldoConta.saldoAtual >= 0 ? "text-success" : "text-destructive"}`}>R$ {saldoConta.saldoAtual.toFixed(2)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Saldo pós-transação</Label>
+                      <p className={`text-sm font-semibold ${previewSaldoPos >= 0 ? "text-success" : "text-destructive"}`}>R$ {previewSaldoPos.toFixed(2)}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="agendamento">Vincular a Agendamento (Opcional)</Label>
                   <Select
@@ -695,7 +1090,6 @@ const Financeiro = () => {
           </Dialog>
         </div>
 
-        {/* Lista (cartões) */}
         <TabsContent value="lista">
           <div className="grid gap-4">
             {transacoesFiltradas.map((transacao) => (
@@ -738,7 +1132,7 @@ const Financeiro = () => {
                   <div className="flex gap-2">
                     {!transacao.data_liquidacao && (
                       <Button
-                        onClick={() => handleLiquidar(transacao.id)}
+                        onClick={() => openLiquidarDialog(transacao)}
                         className="rounded-xl gap-2"
                         size="sm"
                       >
@@ -798,7 +1192,6 @@ const Financeiro = () => {
           </div>
         </TabsContent>
 
-        {/* Tabela */}
         <TabsContent value="tabela">
           <Card className="rounded-2xl">
             <div className="p-0">
@@ -841,7 +1234,7 @@ const Financeiro = () => {
                         <div className="flex justify-end gap-2">
                           {!t.data_liquidacao && (
                             <Button
-                              onClick={() => handleLiquidar(t.id)}
+                              onClick={() => openLiquidarDialog(t)}
                               className="rounded-xl gap-2"
                               size="sm"
                             >
@@ -903,7 +1296,6 @@ const Financeiro = () => {
           </Card>
         </TabsContent>
 
-        {/* Agenda (visualização em calendário) */}
         <TabsContent value="agenda" className="space-y-6">
           <FinancialCalendar
             transacoes={transacoesFiltradas}
@@ -911,6 +1303,64 @@ const Financeiro = () => {
             onDateClick={handleCalendarDateClick}
           />
         </TabsContent>
+
+        <TabsContent value="bancos" className="space-y-6">
+          <TabelaGestaoBancos />
+        </TabsContent>
+        {isLiquidarOpen && (
+          <Dialog open={isLiquidarOpen} onOpenChange={setIsLiquidarOpen}>
+            <DialogContent className="rounded-xl">
+              <DialogHeader>
+                <DialogTitle>Baixar Transação</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Banco/Conta</Label>
+                  <Select value={liquidarContaId} onValueChange={setLiquidarContaId}>
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue placeholder="Selecione uma conta" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contas.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Data de Liquidação</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="h-9 w-full justify-start text-left font-normal rounded-xl">
+                        <Calendar className="mr-2 h-4 w-4" />
+                        {liquidarData
+                          ? format(parse(liquidarData, "yyyy-MM-dd", new Date()), "dd/MM/yyyy", { locale: ptBR })
+                          : "dd/mm/aaaa"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <CalendarComp
+                        mode="single"
+                        selected={liquidarData ? parse(liquidarData, "yyyy-MM-dd", new Date()) : undefined}
+                        onSelect={(date) => {
+                          if (date) setLiquidarData(format(date, "yyyy-MM-dd"));
+                        }}
+                        locale={ptBR}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="flex gap-2">
+                  <Button className="rounded-xl" onClick={handleConfirmLiquidar}>Confirmar Baixa</Button>
+                  <Button variant="outline" className="rounded-xl" onClick={() => setIsLiquidarOpen(false)}>Cancelar</Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </Tabs>
     </div>
   );

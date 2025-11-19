@@ -1,4 +1,4 @@
-import { Home, Users, Briefcase, DollarSign, Calendar, Package, Moon, Sun, Loader2 } from "lucide-react";
+import { Home, Users, Briefcase, DollarSign, Calendar, Package, Moon, Sun, Loader2, BookOpen } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,9 @@ const menuItems = [
   { icon: Users, label: "Clientes", path: "/clientes" },
   { icon: Briefcase, label: "Projetos", path: "/projetos" },
   { icon: Calendar, label: "Agendamentos", path: "/agendamentos" },
-  { icon: DollarSign, label: "Financeiro", path: "/financeiro" },
-  
+  { icon: DollarSign, label: "Financeiro", path: "/tattoo/financeiro" },
+  { icon: DollarSign, label: "Financeiro Tattoo", path: "/financeiro" },
+  { icon: BookOpen, label: "Conhecimento", path: "/conhecimento" },
 ];
 
 export function Sidebar() {

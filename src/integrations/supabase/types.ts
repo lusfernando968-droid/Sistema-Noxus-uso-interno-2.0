@@ -317,10 +317,11 @@ export type Database = {
           },
         ]
       }
-      transacoes: {
+      financeiro_tattoo: {
         Row: {
           agendamento_id: string | null
           categoria: string
+          conta_id: string | null
           created_at: string
           data_liquidacao: string | null
           data_vencimento: string
@@ -334,6 +335,7 @@ export type Database = {
         Insert: {
           agendamento_id?: string | null
           categoria: string
+          conta_id?: string | null
           created_at?: string
           data_liquidacao?: string | null
           data_vencimento: string
@@ -347,6 +349,7 @@ export type Database = {
         Update: {
           agendamento_id?: string | null
           categoria?: string
+          conta_id?: string | null
           created_at?: string
           data_liquidacao?: string | null
           data_vencimento?: string
@@ -365,7 +368,68 @@ export type Database = {
             referencedRelation: "agendamentos"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_transacoes_conta"
+            columns: ["conta_id"]
+            isOneToOne: false
+            referencedRelation: "contas_bancarias"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      financeiro_geral: {
+        Row: {
+          id: string
+          user_id: string
+          data: string
+          descricao: string
+          valor: number
+          categoria: string
+          forma_pagamento: string
+          comprovante: string | null
+          observacoes: string | null
+          tipo: "entrada" | "saida"
+          origem: string | null
+          origem_id: string | null
+          setor: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          data: string
+          descricao: string
+          valor: number
+          categoria: string
+          forma_pagamento: string
+          comprovante?: string | null
+          observacoes?: string | null
+          tipo: "entrada" | "saida"
+          origem?: string | null
+          origem_id?: string | null
+          setor?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          data?: string
+          descricao?: string
+          valor?: number
+          categoria?: string
+          forma_pagamento?: string
+          comprovante?: string | null
+          observacoes?: string | null
+          tipo?: "entrada" | "saida"
+          origem?: string | null
+          origem_id?: string | null
+          setor?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {

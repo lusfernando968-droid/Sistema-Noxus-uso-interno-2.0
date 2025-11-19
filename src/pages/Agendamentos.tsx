@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Plus, Edit, Trash2, Clock, User, MapPin, CheckCircle, AlertCircle, CalendarDays, List, Search, Star } from "lucide-react";
+import { Calendar, Plus, Edit, Trash2, Clock, User, MapPin, CheckCircle, AlertCircle, CalendarDays, List, Search, Star, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAchievementNotifications } from "@/hooks/useAchievementNotifications";
 import { CalendarView } from "@/components/calendar/CalendarView";
@@ -18,6 +18,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComp } from "@/components/ui/calendar";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import AnaliseUsoDialog from "@/components/agendamento/AnaliseUsoDialog";
+import { useAnaliseCusto } from "@/hooks/useAnaliseCusto";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseLocal, isSupabaseLocalConfigured } from "@/integrations/supabase/local";
 import { useAuth } from "@/contexts/AuthContext";
@@ -157,7 +159,7 @@ export default function Agendamentos() {
       {
         id: "2",
         cliente_nome: "Carlos Santos",
-        cliente_id: "2", 
+        cliente_id: "2",
         data_agendamento: "2024-01-16",
         hora_inicio: "10:00",
         hora_fim: "12:00",
@@ -229,9 +231,9 @@ export default function Agendamentos() {
   const agendamentosFiltrados = agendamentos.filter(agendamento => {
     const matchStatus = filtroStatus === 'todos' || agendamento.status === filtroStatus;
     const matchBusca = agendamento.cliente_nome.toLowerCase().includes(busca.toLowerCase()) ||
-                      agendamento.servico.toLowerCase().includes(busca.toLowerCase()) ||
-                      agendamento.tatuador.toLowerCase().includes(busca.toLowerCase());
-    
+      agendamento.servico.toLowerCase().includes(busca.toLowerCase()) ||
+      agendamento.tatuador.toLowerCase().includes(busca.toLowerCase());
+
     return matchStatus && matchBusca;
   });
 
@@ -487,6 +489,9 @@ export default function Agendamentos() {
     setIsFeedbackDialogOpen(true);
   };
 
+  const { analises } = useAnaliseCusto();
+  const [isAnaliseDialogOpen, setIsAnaliseDialogOpen] = useState(false);
+
   const submitFeedbackAndConfirm = async () => {
     if (!agendamentoParaConfirmar) return;
     // Se não estiver logado, manter o diálogo aberto e avisar
@@ -497,6 +502,21 @@ export default function Agendamentos() {
       });
       return; // mantém o diálogo aberto para o usuário não perder o texto
     }
+
+    // Check for active analysis
+    const hasActiveAnalysis = analises.some(a => a.status === 'ativo');
+    if (hasActiveAnalysis) {
+      setIsAnaliseDialogOpen(true);
+      // We pause here. The dialog will call handleFinalConfirm when done.
+      return;
+    }
+
+    await handleFinalConfirm();
+  };
+
+  const handleFinalConfirm = async () => {
+    if (!agendamentoParaConfirmar) return;
+
     const texto = feedbackCliente.trim();
     await handleConfirmSessao(
       agendamentoParaConfirmar,
@@ -505,6 +525,7 @@ export default function Agendamentos() {
       avaliacao || undefined
     );
     setIsFeedbackDialogOpen(false);
+    setIsAnaliseDialogOpen(false);
     setAgendamentoParaConfirmar(null);
     setFeedbackCliente('');
     setObservacoesTecnicas('');
@@ -517,7 +538,7 @@ export default function Agendamentos() {
     const scrollContainer = document.querySelector('main.flex-1') as HTMLElement | null;
     const prevScrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
     sessionStorage.setItem('agendamentos-scroll-y', String(prevScrollTop));
-    
+
     if (editingAgendamento) {
       // Editando agendamento existente
       const agendamentoAtualizado: Agendamento = {
@@ -734,7 +755,7 @@ export default function Agendamentos() {
   const handleStatusChange = async (id: string, novoStatus: Agendamento['status']) => {
     console.log('Agendamentos: handleStatusChange', { id, novoStatus });
     const prevStatus = agendamentos.find(a => a.id === id)?.status;
-    setAgendamentos(prev => prev.map(a => 
+    setAgendamentos(prev => prev.map(a =>
       a.id === id ? { ...a, status: novoStatus } : a
     ));
 
@@ -757,7 +778,7 @@ export default function Agendamentos() {
     } catch (err) {
       console.error('Erro ao atualizar status no banco:', err);
       if (prevStatus) {
-        setAgendamentos(prev => prev.map(a => 
+        setAgendamentos(prev => prev.map(a =>
           a.id === id ? { ...a, status: prevStatus } : a
         ));
       }
@@ -770,7 +791,7 @@ export default function Agendamentos() {
   const handleAppointmentMove = async (appointmentId: string, newDate: string) => {
     console.log('Agendamentos: handleAppointmentMove', { appointmentId, newDate });
     const previous = agendamentos.find(a => a.id === appointmentId)?.data_agendamento;
-    setAgendamentos(prev => prev.map(a => 
+    setAgendamentos(prev => prev.map(a =>
       a.id === appointmentId ? { ...a, data_agendamento: newDate } : a
     ));
 
@@ -788,7 +809,7 @@ export default function Agendamentos() {
     } catch (err) {
       console.error('Erro ao mover agendamento no banco:', err);
       if (previous) {
-        setAgendamentos(prev => prev.map(a => 
+        setAgendamentos(prev => prev.map(a =>
           a.id === appointmentId ? { ...a, data_agendamento: previous } : a
         ));
       }
@@ -839,7 +860,7 @@ export default function Agendamentos() {
           const proj = projetos.find(p => p.id === row.projeto_id);
           const clienteId = proj?.cliente_id || '';
           const clienteNome = clientes.find(c => c.id === clienteId)?.nome || '';
-          const horaInicio = typeof row.hora === 'string' ? row.hora.slice(0,5) : '';
+          const horaInicio = typeof row.hora === 'string' ? row.hora.slice(0, 5) : '';
           return {
             id: row.id,
             cliente_nome: clienteNome,
@@ -956,13 +977,13 @@ export default function Agendamentos() {
             <div className="space-y-2">
               <Label>Avaliação</Label>
               <div className="flex items-center gap-2">
-                {[1,2,3,4,5].map((n) => (
+                {[1, 2, 3, 4, 5].map((n) => (
                   <button
                     key={n}
                     type="button"
                     onClick={() => setAvaliacao(n)}
                     className="p-1"
-                    aria-label={`Avaliar ${n} estrela${n>1 ? 's' : ''}`}
+                    aria-label={`Avaliar ${n} estrela${n > 1 ? 's' : ''}`}
                   >
                     <Star className={`w-5 h-5 ${n <= avaliacao ? 'text-yellow-400' : 'text-muted-foreground'}`} />
                   </button>
@@ -970,7 +991,7 @@ export default function Agendamentos() {
                 <span className="text-sm text-muted-foreground">{avaliacao} estrelas</span>
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label>Feedback do cliente</Label>
               <Textarea
@@ -1050,231 +1071,36 @@ export default function Agendamentos() {
                 <List className="w-5 h-5 transition-colors" />
                 <span className="font-medium text-sm hidden sm:inline">Visualização em Lista</span>
               </TabsTrigger>
-          </TabsList>
+            </TabsList>
           </div>
 
           {/* Filtros e Busca */}
           <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 flex-1">
-                  <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar por cliente, serviço ou projeto..."
-                      value={busca}
-                      onChange={(e) => setBusca(e.target.value)}
-                      className="pl-10 rounded-lg border-muted/50 bg-background/50 backdrop-blur-sm h-9"
-                    />
-                  </div>
+            <div className="flex items-center gap-3 flex-1">
+              <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por cliente, serviço ou projeto..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  className="pl-10 rounded-lg border-muted/50 bg-background/50 backdrop-blur-sm h-9"
+                />
+              </div>
 
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="rounded-lg h-9">Filtros</Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[360px] rounded-xl p-4">
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <Label>Status</Label>
-                          <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-                            <SelectTrigger className="rounded-xl">
-                              <SelectValue placeholder="Todos" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl">
-                              <SelectItem value="todos">Todos Status</SelectItem>
-                              <SelectItem value="agendado">Agendado</SelectItem>
-                              <SelectItem value="confirmado">Confirmado</SelectItem>
-                              <SelectItem value="em_andamento">Em Andamento</SelectItem>
-                              <SelectItem value="concluido">Concluído</SelectItem>
-                              <SelectItem value="cancelado">Cancelado</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex justify-end gap-2 pt-2">
-                          <Button variant="ghost" className="rounded-xl" onClick={() => setFiltroStatus('todos')}>Limpar</Button>
-                          <Button className="rounded-xl">Aplicar</Button>
-                        </div>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <Dialog open={isDialogOpen} onOpenChange={(open) => {
-                  setIsDialogOpen(open);
-                  if (!open) {
-                    setEditingAgendamento(null);
-                    setFormData(initialFormData);
-                  }
-                }}>
-                  <DialogTrigger asChild>
-                    <Button className="rounded-lg gap-2 h-9 px-3">
-                      <Plus className="w-4 h-4" />
-                      <span className="hidden sm:inline">Novo Agendamento</span>
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent 
-                    className="max-w-2xl"
-                  >
-                    <DialogHeader>
-                      <DialogTitle>{editingAgendamento ? "Editar Agendamento" : "Novo Agendamento"}</DialogTitle>
-                    </DialogHeader>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Cliente</Label>
-                      <Select
-                        value={formData.cliente_id}
-                        onValueChange={(value) => {
-                          const c = clientes.find((cl) => cl.id === value);
-                          setFormData(prev => ({
-                            ...prev,
-                            cliente_id: value,
-                            cliente_nome: c?.nome || "",
-                            tatuador: "",
-                            valor_estimado: 0
-                          }))
-                        }}
-                      >
-                        <SelectTrigger className="rounded-xl">
-                          <SelectValue placeholder="Selecione um cliente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {clientes.map((cliente) => (
-                            <SelectItem key={cliente.id} value={cliente.id}>
-                              {cliente.nome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Serviço</Label>
-                      <Select
-                        value={formData.servico}
-                        onValueChange={(value) => setFormData(prev => ({ ...prev, servico: value }))}
-                      >
-                        <SelectTrigger className="rounded-xl">
-                          <SelectValue placeholder="Selecione o serviço" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Início de projeto">Início de projeto</SelectItem>
-                          <SelectItem value="Continuação">Continuação</SelectItem>
-                          <SelectItem value="Retoque">Retoque</SelectItem>
-                          <SelectItem value="Orçamento">Orçamento</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Data</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            className="h-9 w-full justify-start text-left font-normal rounded-xl"
-                          >
-                            <Calendar className="mr-2 h-4 w-4" />
-                            {formData.data_agendamento
-                              ? format(
-                                  parse(formData.data_agendamento, "yyyy-MM-dd", new Date()),
-                                  "dd/MM/yyyy",
-                                  { locale: ptBR }
-                                )
-                              : "dd/mm/aaaa"}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <CalendarComp
-                            mode="single"
-                            selected={formData.data_agendamento ? parse(formData.data_agendamento, "yyyy-MM-dd", new Date()) : undefined}
-                            onSelect={(date) => {
-                              if (date) {
-                                setFormData(prev => ({ ...prev, data_agendamento: format(date, "yyyy-MM-dd") }));
-                              }
-                            }}
-                            locale={ptBR}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                    <div>
-                      <Label>Projeto</Label>
-                      <Select
-                        value={formData.tatuador}
-                        onValueChange={(value) => {
-                          const p = projetos.find((pr) => pr.titulo === value) || projetos.find((pr) => pr.id === value);
-                          setFormData(prev => ({
-                            ...prev,
-                            tatuador: p?.titulo || value,
-                            // Preenche o valor estimado com o valor por sessão do projeto, se existir
-                            valor_estimado: typeof p?.valor_por_sessao === 'number' ? (p!.valor_por_sessao as number) : prev.valor_estimado
-                          }))
-                        }}
-                      >
-                        <SelectTrigger className="rounded-xl" disabled={!formData.cliente_id}>
-                          <SelectValue placeholder={formData.cliente_id ? "Selecione o projeto" : "Selecione primeiro um cliente"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {projetos
-                            .filter((projeto) => projeto.cliente_id === formData.cliente_id)
-                            .map((projeto) => (
-                              <SelectItem key={projeto.id} value={projeto.titulo}>
-                                {projeto.titulo}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                      {formData.cliente_id && projetos.filter((p) => p.cliente_id === formData.cliente_id).length === 0 && (
-                        <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
-                          <span>Nenhum projeto para este cliente.</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="rounded-xl px-2"
-                            onClick={() => navigate(`/projetos?cliente=${formData.cliente_id}`)}
-                          >
-                            Criar projeto
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <Label>Hora Início</Label>
-                      <Input
-                        type="time"
-                        step="60"
-                        value={formData.hora_inicio}
-                        onChange={(e) => handleTimeChange('hora_inicio', e.target.value)}
-                        onBlur={() => handleTimeBlur('hora_inicio')}
-                        className="rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Hora Fim</Label>
-                      <Input
-                        type="time"
-                        step="60"
-                        value={formData.hora_fim}
-                        onChange={(e) => handleTimeChange('hora_fim', e.target.value)}
-                        onBlur={() => handleTimeBlur('hora_fim')}
-                        className="rounded-xl"
-                      />
-                    </div>
-                    <div>
-                      <Label>Valor Estimado</Label>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        value={formatCurrencyBR(formData.valor_estimado)}
-                        onChange={handleValorEstimadoChange}
-                        placeholder="R$ 0,00"
-                        className="rounded-xl"
-                      />
-                    </div>
-                    <div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="rounded-lg h-9">Filtros</Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[360px] rounded-xl p-4">
+                  <div className="space-y-3">
+                    <div className="space-y-2">
                       <Label>Status</Label>
-                      <Select value={formData.status} onValueChange={(value: any) => setFormData(prev => ({ ...prev, status: value }))}>
+                      <Select value={filtroStatus} onValueChange={setFiltroStatus}>
                         <SelectTrigger className="rounded-xl">
-                          <SelectValue />
+                          <SelectValue placeholder="Todos" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="todos">Todos Status</SelectItem>
                           <SelectItem value="agendado">Agendado</SelectItem>
                           <SelectItem value="confirmado">Confirmado</SelectItem>
                           <SelectItem value="em_andamento">Em Andamento</SelectItem>
@@ -1283,31 +1109,269 @@ export default function Agendamentos() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="col-span-2 relative z-50">
-                      <Label>Observações</Label>
-                      <Textarea
-                        value={formData.observacoes}
-                        onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
-                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        rows={3}
-                      />
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button variant="ghost" className="rounded-xl" onClick={() => setFiltroStatus('todos')}>Limpar</Button>
+                      <Button className="rounded-xl">Aplicar</Button>
                     </div>
                   </div>
-                  <div className="flex gap-2 pt-4">
-                    <Button variant="outline" onClick={() => {
-                      setIsDialogOpen(false);
-                      setEditingAgendamento(null);
-                      setFormData(initialFormData);
-                    }} className="rounded-xl">
-                      Cancelar
-                    </Button>
-                    <Button onClick={handleSubmit} className="rounded-xl">
-                      {editingAgendamento ? "Atualizar" : "Criar"}
-                    </Button>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                setEditingAgendamento(null);
+                setFormData(initialFormData);
+              }
+            }}>
+              <DialogTrigger asChild>
+                <Button className="rounded-lg gap-2 h-9 px-3">
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Novo Agendamento</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto"
+              >
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2 text-xl">
+                    <Calendar className="h-5 w-5" />
+                    {editingAgendamento ? "Editar Agendamento" : "Novo Agendamento"}
+                  </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-6">
+                  {/* Grupo: Informações do Cliente */}
+                  <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                    <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                      <User className="h-4 w-4" /> Informações do Cliente
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Cliente</Label>
+                        <Select
+                          value={formData.cliente_id}
+                          onValueChange={(value) => {
+                            const c = clientes.find((cl) => cl.id === value);
+                            setFormData(prev => ({
+                              ...prev,
+                              cliente_id: value,
+                              cliente_nome: c?.nome || "",
+                              tatuador: "",
+                              valor_estimado: 0
+                            }))
+                          }}
+                        >
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue placeholder="Selecione um cliente" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {clientes.map((cliente) => (
+                              <SelectItem key={cliente.id} value={cliente.id}>
+                                {cliente.nome}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Projeto</Label>
+                        <Select
+                          value={formData.tatuador}
+                          onValueChange={(value) => {
+                            const p = projetos.find((pr) => pr.titulo === value) || projetos.find((pr) => pr.id === value);
+                            setFormData(prev => ({
+                              ...prev,
+                              tatuador: p?.titulo || value,
+                              valor_estimado: typeof p?.valor_por_sessao === 'number' ? (p!.valor_por_sessao as number) : prev.valor_estimado
+                            }))
+                          }}
+                        >
+                          <SelectTrigger className="rounded-xl" disabled={!formData.cliente_id}>
+                            <SelectValue placeholder={formData.cliente_id ? "Selecione o projeto" : "Selecione primeiro um cliente"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {projetos
+                              .filter((projeto) => projeto.cliente_id === formData.cliente_id)
+                              .map((projeto) => (
+                                <SelectItem key={projeto.id} value={projeto.titulo}>
+                                  {projeto.titulo}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        {formData.cliente_id && projetos.filter((p) => p.cliente_id === formData.cliente_id).length === 0 && (
+                          <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
+                            <span>Nenhum projeto para este cliente.</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="rounded-xl px-2"
+                              onClick={() => navigate(`/projetos?cliente=${formData.cliente_id}`)}
+                            >
+                              Criar projeto
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </DialogContent>
-                </Dialog>
-              </div>
+
+                  {/* Grupo: Agendamento */}
+                  <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                    <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                      <Clock className="h-4 w-4" /> Agendamento
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Serviço</Label>
+                        <Select
+                          value={formData.servico}
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, servico: value }))}
+                        >
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue placeholder="Selecione o serviço" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Início de projeto">Início de projeto</SelectItem>
+                            <SelectItem value="Continuação">Continuação</SelectItem>
+                            <SelectItem value="Retoque">Retoque</SelectItem>
+                            <SelectItem value="Orçamento">Orçamento</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Data</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              className="h-9 w-full justify-start text-left font-normal rounded-xl"
+                            >
+                              <Calendar className="mr-2 h-4 w-4" />
+                              {formData.data_agendamento
+                                ? format(
+                                  parse(formData.data_agendamento, "yyyy-MM-dd", new Date()),
+                                  "dd/MM/yyyy",
+                                  { locale: ptBR }
+                                )
+                                : "dd/mm/aaaa"}
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComp
+                              mode="single"
+                              selected={formData.data_agendamento ? parse(formData.data_agendamento, "yyyy-MM-dd", new Date()) : undefined}
+                              onSelect={(date) => {
+                                if (date) {
+                                  setFormData(prev => ({ ...prev, data_agendamento: format(date, "yyyy-MM-dd") }));
+                                }
+                              }}
+                              locale={ptBR}
+                              initialFocus
+                            />
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div>
+                        <Label>Hora Início</Label>
+                        <div className="relative">
+                          <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                          <Input
+                            type="time"
+                            step="60"
+                            value={formData.hora_inicio}
+                            onChange={(e) => handleTimeChange('hora_inicio', e.target.value)}
+                            onBlur={() => handleTimeBlur('hora_inicio')}
+                            className="rounded-xl pl-9"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Hora Fim</Label>
+                        <div className="relative">
+                          <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
+                          <Input
+                            type="time"
+                            step="60"
+                            value={formData.hora_fim}
+                            onChange={(e) => handleTimeChange('hora_fim', e.target.value)}
+                            onBlur={() => handleTimeBlur('hora_fim')}
+                            className="rounded-xl pl-9"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grupo: Detalhes */}
+                  <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                    <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                      <FileText className="h-4 w-4" /> Detalhes
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Valor Estimado</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-2.5 text-sm text-muted-foreground">R$</span>
+                          <Input
+                            type="text"
+                            inputMode="numeric"
+                            value={formatCurrencyBR(formData.valor_estimado)}
+                            onChange={handleValorEstimadoChange}
+                            placeholder="0,00"
+                            className="rounded-xl pl-10"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label>Status</Label>
+                        <Select value={formData.status} onValueChange={(value: any) => setFormData(prev => ({ ...prev, status: value }))}>
+                          <SelectTrigger className="rounded-xl">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="agendado">Agendado</SelectItem>
+                            <SelectItem value="confirmado">Confirmado</SelectItem>
+                            <SelectItem value="em_andamento">Em Andamento</SelectItem>
+                            <SelectItem value="concluido">Concluído</SelectItem>
+                            <SelectItem value="cancelado">Cancelado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="col-span-2">
+                        <Label>Observações</Label>
+                        <div className="relative">
+                          <FileText className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Textarea
+                            value={formData.observacoes}
+                            onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
+                            className="rounded-xl pl-9 min-h-[80px]"
+                            placeholder="Observações sobre o agendamento..."
+                            rows={3}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button variant="outline" onClick={() => {
+                    setIsDialogOpen(false);
+                    setEditingAgendamento(null);
+                    setFormData(initialFormData);
+                  }} className="rounded-xl">
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSubmit} className="rounded-xl">
+                    {editingAgendamento ? "Atualizar" : "Criar"}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
 
           {/* Aba do Calendário */}
           <TabsContent value="calendar" className="space-y-6">
@@ -1410,6 +1474,11 @@ export default function Agendamentos() {
             </Card>
           </TabsContent>
         </Tabs>
+        <AnaliseUsoDialog
+          open={isAnaliseDialogOpen}
+          onOpenChange={setIsAnaliseDialogOpen}
+          onConfirm={handleFinalConfirm}
+        />
       </div>
     </div>
   );

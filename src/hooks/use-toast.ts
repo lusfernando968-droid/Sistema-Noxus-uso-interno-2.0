@@ -30,21 +30,21 @@ type ActionType = typeof actionTypes;
 
 type Action =
   | {
-      type: ActionType["ADD_TOAST"];
-      toast: ToasterToast;
-    }
+    type: ActionType["ADD_TOAST"];
+    toast: ToasterToast;
+  }
   | {
-      type: ActionType["UPDATE_TOAST"];
-      toast: Partial<ToasterToast>;
-    }
+    type: ActionType["UPDATE_TOAST"];
+    toast: Partial<ToasterToast>;
+  }
   | {
-      type: ActionType["DISMISS_TOAST"];
-      toastId?: ToasterToast["id"];
-    }
+    type: ActionType["DISMISS_TOAST"];
+    toastId?: ToasterToast["id"];
+  }
   | {
-      type: ActionType["REMOVE_TOAST"];
-      toastId?: ToasterToast["id"];
-    };
+    type: ActionType["REMOVE_TOAST"];
+    toastId?: ToasterToast["id"];
+  };
 
 interface State {
   toasts: ToasterToast[];
@@ -100,9 +100,9 @@ export const reducer = (state: State, action: Action): State => {
         toasts: state.toasts.map((t) =>
           t.id === toastId || toastId === undefined
             ? {
-                ...t,
-                open: false,
-              }
+              ...t,
+              open: false,
+            }
             : t,
         ),
       };
@@ -155,6 +155,21 @@ function toast({ ...props }: Toast) {
       },
     },
   });
+
+  // Play sound based on toast variant
+  try {
+    const soundEnabled = localStorage.getItem('noxus-sound-enabled') !== 'false';
+    if (soundEnabled) {
+      const soundType = props.variant === 'destructive' ? 'error' : 'success';
+      const audio = new Audio(`/sounds/${soundType}.mp3`);
+      audio.volume = 0.5;
+      audio.play().catch(() => {
+        // Silently fail if sound doesn't exist
+      });
+    }
+  } catch (error) {
+    // Ignore sound errors
+  }
 
   return {
     id: id,

@@ -4,7 +4,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, User, ChevronRight, ChevronLeft } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, User, ChevronRight, ChevronLeft, Mail, Phone, Instagram, MapPin, UserPlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -151,7 +151,7 @@ const Clientes = () => {
   const [filterCityQuery, setFilterCityQuery] = useState("");
   const [cityRankingMode, setCityRankingMode] = useState<"mais_usadas" | "mais_recentes">("mais_usadas");
   const [cityUsageCounts, setCityUsageCounts] = useState<Record<string, number>>({});
-  type ColKey = 'nome'|'email'|'telefone'|'instagram'|'cidade'|'ltv'|'categoria'|'indicado_por'|'indicados'|'projetos'|'acoes';
+  type ColKey = 'nome' | 'email' | 'telefone' | 'instagram' | 'cidade' | 'ltv' | 'categoria' | 'indicado_por' | 'indicados' | 'projetos' | 'acoes';
   const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>({
     nome: true,
     email: true,
@@ -179,7 +179,7 @@ const Clientes = () => {
     acoes: 'Ações',
   };
   const toggleCol = (key: ColKey) => setVisibleCols(prev => ({ ...prev, [key]: !prev[key] }));
-  
+
   // Helper: retorna cidades ordenadas conforme ranking atual e filtradas
   const getRankedCities = (excludeNames: string[], query: string) => {
     const excludeLower = excludeNames.map(n => (n || "").toLowerCase());
@@ -859,8 +859,8 @@ const Clientes = () => {
   const { colorTheme } = useTheme();
   if (loading) {
     return <div className="flex items-center justify-center h-96">
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>;
+      <p className="text-muted-foreground">Carregando...</p>
+    </div>;
   }
   const accentStrongThemes = new Set(["ocean", "sunset", "forest", "purple", "rose"]);
   const cardGradientClass = accentStrongThemes.has(colorTheme)
@@ -868,97 +868,97 @@ const Clientes = () => {
     : "bg-gradient-to-br from-primary/10 to-primary/5";
 
   return <div className="space-y-6 pb-20">
-      {/* Banner Informativo */}
-      <Card className="rounded-3xl border-0 bg-gradient-to-r from-blue-500/10 to-blue-600/5 shadow-lg">
-        
+    {/* Banner Informativo */}
+    <Card className="rounded-3xl border-0 bg-gradient-to-r from-blue-500/10 to-blue-600/5 shadow-lg">
+
+    </Card>
+
+    {/* Seeding removido: exibir apenas dados reais do banco */}
+
+    <div className="mb-6">
+      <h1 className="text-3xl font-semibold tracking-tight">Clientes</h1>
+      <p className="text-muted-foreground mt-1">
+        Gerencie sua base de clientes e acompanhe o LTV
+      </p>
+    </div>
+
+
+
+    {/* Cards de Estatísticas */}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <div className="p-1.5 rounded-lg bg-primary/20">
+            <DollarSign className="w-4 h-4 text-primary" />
+          </div>
+          <p className="text-xs text-muted-foreground">LTV Total</p>
+        </div>
+        <p className="text-xl font-semibold">
+          R$ {totalLTV.toFixed(2)}
+        </p>
       </Card>
 
-      {/* Seeding removido: exibir apenas dados reais do banco */}
-      
-      <div className="mb-6">
-        <h1 className="text-3xl font-semibold tracking-tight">Clientes</h1>
-        <p className="text-muted-foreground mt-1">
-          Gerencie sua base de clientes e acompanhe o LTV
-        </p>
-      </div>
-
-
-
-      {/* Cards de Estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-lg bg-primary/20">
-              <DollarSign className="w-4 h-4 text-primary" />
-            </div>
-            <p className="text-xs text-muted-foreground">LTV Total</p>
+      <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <div className="p-1.5 rounded-lg bg-primary/20">
+            <TrendingUp className="w-4 h-4 text-primary" />
           </div>
-          <p className="text-xl font-semibold">
-            R$ {totalLTV.toFixed(2)}
-          </p>
-        </Card>
-
-        <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-lg bg-primary/20">
-              <TrendingUp className="w-4 h-4 text-primary" />
-            </div>
-            <p className="text-xs text-muted-foreground">LTV Médio</p>
-          </div>
-          <p className="text-xl font-semibold">
-            R$ {avgLTV.toFixed(2)}
-          </p>
-        </Card>
-
-        <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-lg bg-primary/20">
-              <TrendingUp className="w-4 h-4 text-primary" />
-            </div>
-            <p className="text-xs text-muted-foreground">Maior LTV</p>
-          </div>
-          <p className="text-xl font-semibold">
-            R$ {maxLTV.toFixed(2)}
-          </p>
-        </Card>
-
-        <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-lg bg-primary/20">
-              <Users className="w-4 h-4 text-primary" />
-            </div>
-            <p className="text-xs text-muted-foreground">Total Clientes</p>
-          </div>
-          <p className="text-xl font-semibold">
-            {clientes.length}
-          </p>
-        </Card>
-      </div>
-
-      <Tabs value={viewMode} onValueChange={v => setViewMode(v as any)} className="w-full">
-        <div className="flex justify-center mb-4">
-          <TabsList className="inline-flex w-auto rounded-2xl bg-gradient-to-r from-muted/30 to-muted/10 p-1.5 backdrop-blur-sm border border-border/20 shadow-lg">
-            <TabsTrigger value="table" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50">
-              <Table2 className="w-5 h-5 transition-colors" />
-              <span className="font-medium text-sm hidden sm:inline">Tabela</span>
-            </TabsTrigger>
-            <TabsTrigger value="network" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50">
-              <Network className="w-5 h-5 transition-colors" />
-              <span className="font-medium text-sm hidden sm:inline">Rede</span>
-            </TabsTrigger>
-            <TabsTrigger value="cards" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50">
-              <LayoutList className="w-5 h-5 transition-colors" />
-              <span className="font-medium text-sm hidden sm:inline">Lista</span>
-            </TabsTrigger>
-            <TabsTrigger value="grid" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50">
-              <LayoutGrid className="w-5 h-5 transition-colors" />
-              <span className="font-medium text-sm hidden sm:inline">Grid</span>
-            </TabsTrigger>
-          </TabsList>
+          <p className="text-xs text-muted-foreground">LTV Médio</p>
         </div>
+        <p className="text-xl font-semibold">
+          R$ {avgLTV.toFixed(2)}
+        </p>
+      </Card>
 
-        {/* Barra de filtros compacta e sutil - posicionada após as abas */}
-        {viewMode !== 'network' && (
+      <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <div className="p-1.5 rounded-lg bg-primary/20">
+            <TrendingUp className="w-4 h-4 text-primary" />
+          </div>
+          <p className="text-xs text-muted-foreground">Maior LTV</p>
+        </div>
+        <p className="text-xl font-semibold">
+          R$ {maxLTV.toFixed(2)}
+        </p>
+      </Card>
+
+      <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <div className="p-1.5 rounded-lg bg-primary/20">
+            <Users className="w-4 h-4 text-primary" />
+          </div>
+          <p className="text-xs text-muted-foreground">Total Clientes</p>
+        </div>
+        <p className="text-xl font-semibold">
+          {clientes.length}
+        </p>
+      </Card>
+    </div>
+
+    <Tabs value={viewMode} onValueChange={v => setViewMode(v as any)} className="w-full">
+      <div className="flex justify-center mb-4">
+        <TabsList className="inline-flex w-auto rounded-2xl bg-gradient-to-r from-muted/30 to-muted/10 p-1.5 backdrop-blur-sm border border-border/20 shadow-lg">
+          <TabsTrigger value="table" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50">
+            <Table2 className="w-5 h-5 transition-colors" />
+            <span className="font-medium text-sm hidden sm:inline">Tabela</span>
+          </TabsTrigger>
+          <TabsTrigger value="network" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50">
+            <Network className="w-5 h-5 transition-colors" />
+            <span className="font-medium text-sm hidden sm:inline">Rede</span>
+          </TabsTrigger>
+          <TabsTrigger value="cards" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50">
+            <LayoutList className="w-5 h-5 transition-colors" />
+            <span className="font-medium text-sm hidden sm:inline">Lista</span>
+          </TabsTrigger>
+          <TabsTrigger value="grid" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50">
+            <LayoutGrid className="w-5 h-5 transition-colors" />
+            <span className="font-medium text-sm hidden sm:inline">Grid</span>
+          </TabsTrigger>
+        </TabsList>
+      </div>
+
+      {/* Barra de filtros compacta e sutil - posicionada após as abas */}
+      {viewMode !== 'network' && (
         <div className="flex items-center justify-between gap-4 py-3 px-1 mb-4">
           <div className="flex items-center gap-3 flex-1">
             <div className="relative flex-1 max-w-md">
@@ -1109,26 +1109,26 @@ const Clientes = () => {
                   {filterCityQuery && <Button variant="ghost" className="rounded-xl" onClick={() => setFilterCityQuery("")}>Limpar texto</Button>}
                   <Button className="rounded-xl" onClick={() => { /* Popover fecha ao clicar fora; sem ação extra */ }}>Aplicar</Button>
                 </div>
-            </PopoverContent>
-          </Popover>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="icon" className="rounded-lg h-9" title="Mostrar/ocultar colunas">
-                <EyeOff className="w-4 h-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="rounded-xl w-56">
-              <div className="space-y-1">
-                {(Object.keys(colLabels) as ColKey[]).map((key) => (
-                  <div key={key} className="flex items-center gap-2 py-1">
-                    <Checkbox id={`col-${key}`} checked={visibleCols[key]} onCheckedChange={() => toggleCol(key)} />
-                    <label htmlFor={`col-${key}`} className="text-sm">{colLabels[key]}</label>
-                  </div>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
-            
+              </PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="rounded-lg h-9" title="Mostrar/ocultar colunas">
+                  <EyeOff className="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="rounded-xl w-56">
+                <div className="space-y-1">
+                  {(Object.keys(colLabels) as ColKey[]).map((key) => (
+                    <div key={key} className="flex items-center gap-2 py-1">
+                      <Checkbox id={`col-${key}`} checked={visibleCols[key]} onCheckedChange={() => toggleCol(key)} />
+                      <label htmlFor={`col-${key}`} className="text-sm">{colLabels[key]}</label>
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="rounded-lg gap-2 h-9 px-3">
@@ -1136,111 +1136,149 @@ const Clientes = () => {
                   <span className="hidden sm:inline">Novo Cliente</span>
                 </Button>
               </DialogTrigger>
-              <DialogContent className="rounded-xl">
+              <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto rounded-xl">
                 <DialogHeader>
-                  <DialogTitle>Novo Cliente</DialogTitle>
+                  <DialogTitle className="flex items-center gap-2 text-xl">
+                    <User className="h-5 w-5" />
+                    Novo Cliente
+                  </DialogTitle>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nome">Nome</Label>
-                    <Input id="nome" className="rounded-xl" value={formData.nome} onChange={e => setFormData({
-                    ...formData,
-                    nome: e.target.value
-                  })} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" className="rounded-xl" value={formData.email} onChange={e => setFormData({
-                    ...formData,
-                    email: e.target.value
-                  })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="telefone">Telefone</Label>
-                    <Input id="telefone" className="rounded-xl" value={formData.telefone} onChange={e => setFormData({
-                    ...formData,
-                    telefone: e.target.value
-                  })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="instagram">Instagram (link)</Label>
-                    <Input id="instagram" placeholder="https://instagram.com/usuario" className="rounded-xl" value={formData.instagram} onChange={e => setFormData({
-                    ...formData,
-                    instagram: e.target.value
-                  })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Cidades</Label>
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {selectedCities.map((c) => (
-                        <Badge key={c.nome} variant="secondary" className="rounded-full px-2 py-1 text-xs">
-                          <span>{c.nome}</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedCities(prev => prev.filter(x => x.nome !== c.nome))}
-                            className="ml-2 text-muted-foreground hover:text-foreground"
-                            aria-label={`Remover ${c.nome}`}
-                          >
-                            ×
-                          </button>
-                        </Badge>
-                      ))}
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Grupo: Informações de Contato */}
+                  <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                    <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                      <User className="h-4 w-4" /> Informações de Contato
+                    </h3>
+                    <div className="space-y-2">
+                      <Label htmlFor="nome">Nome</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input id="nome" className="rounded-xl pl-9" value={formData.nome} onChange={e => setFormData({
+                          ...formData,
+                          nome: e.target.value
+                        })} required />
+                      </div>
                     </div>
-                    <Input
-                      placeholder="Digite e pressione Enter para adicionar"
-                      className="rounded-xl"
-                      value={cityQuery}
-                      onChange={e => setCityQuery(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          const nome = cityQuery.trim();
-                          if (!nome) return;
-                          const existing = availableCities.find(c => c.nome.toLowerCase() === nome.toLowerCase());
-                          setSelectedCities(prev => {
-                            if (prev.some(p => p.nome.toLowerCase() === nome.toLowerCase())) return prev;
-                            return [...prev, existing ? { id: existing.id, nome: existing.nome } : { nome }];
-                          });
-                          setCityQuery("");
-                        }
-                      }}
-                    />
-                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>Ranking:</span>
-                      <Button type="button" variant={cityRankingMode === "mais_usadas" ? "secondary" : "ghost"} size="sm" className="h-6 rounded-full px-2"
-                        onClick={() => setCityRankingMode("mais_usadas")}>Mais usadas</Button>
-                      <Button type="button" variant={cityRankingMode === "mais_recentes" ? "secondary" : "ghost"} size="sm" className="h-6 rounded-full px-2"
-                        onClick={() => setCityRankingMode("mais_recentes")}>Mais recentes</Button>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input id="email" type="email" className="rounded-xl pl-9" value={formData.email} onChange={e => setFormData({
+                            ...formData,
+                            email: e.target.value
+                          })} />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="telefone">Telefone</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input id="telefone" className="rounded-xl pl-9" value={formData.telefone} onChange={e => setFormData({
+                            ...formData,
+                            telefone: e.target.value
+                          })} />
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {getRankedCities(selectedCities.map(s => s.nome), cityQuery).map(c => (
-                        <Button key={c.id || c.nome} type="button" variant="outline" size="sm" className="rounded-full h-7"
-                          onClick={() => {
-                            setSelectedCities(prev => prev.some(p => p.nome.toLowerCase() === c.nome.toLowerCase()) ? prev : [...prev, { id: c.id, nome: c.nome }]);
+                    <div className="space-y-2">
+                      <Label htmlFor="instagram">Instagram (link)</Label>
+                      <div className="relative">
+                        <Instagram className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input id="instagram" placeholder="https://instagram.com/usuario" className="rounded-xl pl-9" value={formData.instagram} onChange={e => setFormData({
+                          ...formData,
+                          instagram: e.target.value
+                        })} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grupo: Localização */}
+                  <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                    <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                      <MapPin className="h-4 w-4" /> Localização
+                    </h3>
+                    <div className="space-y-2">
+                      <Label>Cidades</Label>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {selectedCities.map((c) => (
+                          <Badge key={c.nome} variant="secondary" className="rounded-full px-2 py-1 text-xs">
+                            <span>{c.nome}</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCities(prev => prev.filter(x => x.nome !== c.nome))}
+                              className="ml-2 text-muted-foreground hover:text-foreground"
+                              aria-label={`Remover ${c.nome}`}
+                            >
+                              ×
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                      <Input
+                        placeholder="Digite e pressione Enter para adicionar"
+                        className="rounded-xl"
+                        value={cityQuery}
+                        onChange={e => setCityQuery(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            const nome = cityQuery.trim();
+                            if (!nome) return;
+                            const existing = availableCities.find(c => c.nome.toLowerCase() === nome.toLowerCase());
+                            setSelectedCities(prev => {
+                              if (prev.some(p => p.nome.toLowerCase() === nome.toLowerCase())) return prev;
+                              return [...prev, existing ? { id: existing.id, nome: existing.nome } : { nome }];
+                            });
                             setCityQuery("");
-                          }}
-                        >
-                          {c.nome}
-                        </Button>
-                      ))}
+                          }
+                        }}
+                      />
+                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Ranking:</span>
+                        <Button type="button" variant={cityRankingMode === "mais_usadas" ? "secondary" : "ghost"} size="sm" className="h-6 rounded-full px-2"
+                          onClick={() => setCityRankingMode("mais_usadas")}>Mais usadas</Button>
+                        <Button type="button" variant={cityRankingMode === "mais_recentes" ? "secondary" : "ghost"} size="sm" className="h-6 rounded-full px-2"
+                          onClick={() => setCityRankingMode("mais_recentes")}>Mais recentes</Button>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {getRankedCities(selectedCities.map(s => s.nome), cityQuery).map(c => (
+                          <Button key={c.id || c.nome} type="button" variant="outline" size="sm" className="rounded-full h-7"
+                            onClick={() => {
+                              setSelectedCities(prev => prev.some(p => p.nome.toLowerCase() === c.nome.toLowerCase()) ? prev : [...prev, { id: c.id, nome: c.nome }]);
+                              setCityQuery("");
+                            }}
+                          >
+                            {c.nome}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="indicado_por">Indicado por (opcional)</Label>
-                    <Select value={formData.indicado_por} onValueChange={value => setFormData({
-                    ...formData,
-                    indicado_por: value
-                  })}>
-                      <SelectTrigger className="rounded-xl">
-                        <SelectValue placeholder="Selecione o cliente que indicou" />
-                      </SelectTrigger>
-                      <SelectContent className="rounded-xl">
-                        <SelectItem value="none">Nenhum (cliente direto)</SelectItem>
-                        {clientes.map(cliente => <SelectItem key={cliente.id} value={cliente.id}>
+
+                  {/* Grupo: Indicação */}
+                  <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                    <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                      <UserPlus className="h-4 w-4" /> Indicação
+                    </h3>
+                    <div className="space-y-2">
+                      <Label htmlFor="indicado_por">Indicado por (opcional)</Label>
+                      <Select value={formData.indicado_por} onValueChange={value => setFormData({
+                        ...formData,
+                        indicado_por: value
+                      })}>
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder="Selecione o cliente que indicou" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          <SelectItem value="none">Nenhum (cliente direto)</SelectItem>
+                          {clientes.map(cliente => <SelectItem key={cliente.id} value={cliente.id}>
                             {cliente.nome}
                           </SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
+
                   <Button type="submit" className="w-full rounded-xl">
                     Salvar Cliente
                   </Button>
@@ -1248,7 +1286,7 @@ const Clientes = () => {
               </DialogContent>
             </Dialog>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-muted/30 rounded-lg p-1">
               <Button variant={sortBy === "ltv" ? "default" : "ghost"} size="sm" className="rounded-md h-7 px-2 text-xs" onClick={() => setSortBy("ltv")}>
@@ -1261,382 +1299,382 @@ const Clientes = () => {
                 Data
               </Button>
             </div>
-            
+
             <Badge variant="outline" className="rounded-md text-xs px-2 py-1 bg-background/50">
               {filteredClientes.length}
             </Badge>
           </div>
         </div>
-        )}
+      )}
 
 
 
-        {/* Visualização em Lista (Cards) */}
-        <TabsContent value="cards" className="mt-6 animate-in fade-in-50 duration-300">
-          {sortedClientes.length === 0 ? <Card className="p-12 rounded-xl">
-              <div className="text-center text-muted-foreground">
-                <p>Nenhum cliente encontrado.</p>
-                <p className="text-sm mt-1">Clique em "Novo Cliente" para começar.</p>
-              </div>
-            </Card> : <div className="space-y-4">
-              {sortedClientes.map(cliente => {
-                const isEditing = editingRows.has(cliente.id);
-                const editData = editedData[cliente.id] || cliente;
-                const strongAccentThemes = ["ocean", "sunset", "forest", "purple", "rose"] as const;
-                const isStrongAccent = strongAccentThemes.includes(colorTheme as any);
-                const hoverClass = isStrongAccent ? "hover:bg-muted/20" : "hover:bg-muted/30";
-                return (
-                  <Card
-                    key={cliente.id}
-                    className={`p-6 rounded-xl hover:shadow-lg transition-shadow cursor-pointer ${hoverClass} transition-colors`}
-                    onDoubleClick={() => startEditing(cliente.id, cliente)}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-3 flex-1">
-                        <div className="flex items-start gap-3 flex-wrap">
-                          <div className="flex-1 min-w-[220px]">
-                            {isEditing ? (
-                              <div className="space-y-2">
-                                <Input value={editData.nome || ""} onChange={e => updateEditedData(cliente.id, 'nome', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" />
-                                <Input type="email" value={editData.email || ""} onChange={e => updateEditedData(cliente.id, 'email', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" />
-                                <Input value={editData.telefone || ""} onChange={e => updateEditedData(cliente.id, 'telefone', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" />
-                                <Input value={(editData as any).instagram || ""} onChange={e => updateEditedData(cliente.id, 'instagram' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" placeholder="Instagram (link)" />
-                                <Input value={(editData as any).cidade || ""} onChange={e => updateEditedData(cliente.id, 'cidade' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" placeholder="Cidade" />
-                              </div>
-                            ) : (
-                              <>
-                                <h3 className="font-semibold text-lg">{cliente.nome}</h3>
-                                <p className="text-sm text-muted-foreground">{cliente.email}</p>
-                                <p className="text-sm text-muted-foreground">{cliente.telefone}</p>
-                              </>
-                            )}
-                          </div>
-                          <div className="flex flex-col items-end gap-2">
-                            <Badge variant="outline" className={`rounded-full text-xs ${getLTVColor(cliente.ltv, maxLTV)}`}>
-                              {getLTVLabel(cliente.ltv)}
-                            </Badge>
-                            <span className="text-sm font-semibold text-success">R$ {cliente.ltv.toFixed(2)}</span>
-                          </div>
-                        </div>
-
-                        {!isEditing && (
-                          <div className="space-y-2">
-                            <div className="flex gap-4 text-xs text-muted-foreground">
-                              <span>{cliente.projetos_count} projeto(s)</span>
-                              <span>•</span>
-                              <span>{cliente.transacoes_count} transação(ões)</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2">
+      {/* Visualização em Lista (Cards) */}
+      <TabsContent value="cards" className="mt-6 animate-in fade-in-50 duration-300">
+        {sortedClientes.length === 0 ? <Card className="p-12 rounded-xl">
+          <div className="text-center text-muted-foreground">
+            <p>Nenhum cliente encontrado.</p>
+            <p className="text-sm mt-1">Clique em "Novo Cliente" para começar.</p>
+          </div>
+        </Card> : <div className="space-y-4">
+          {sortedClientes.map(cliente => {
+            const isEditing = editingRows.has(cliente.id);
+            const editData = editedData[cliente.id] || cliente;
+            const strongAccentThemes = ["ocean", "sunset", "forest", "purple", "rose"] as const;
+            const isStrongAccent = strongAccentThemes.includes(colorTheme as any);
+            const hoverClass = isStrongAccent ? "hover:bg-muted/20" : "hover:bg-muted/30";
+            return (
+              <Card
+                key={cliente.id}
+                className={`p-6 rounded-xl hover:shadow-lg transition-shadow cursor-pointer ${hoverClass} transition-colors`}
+                onDoubleClick={() => startEditing(cliente.id, cliente)}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-3 flex-1">
+                    <div className="flex items-start gap-3 flex-wrap">
+                      <div className="flex-1 min-w-[220px]">
                         {isEditing ? (
-                          <>
-                            <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 text-success" onClick={() => saveEdit(cliente.id)} title="Salvar">
-                              <Check className="w-3 h-3" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8" onClick={() => cancelEditing(cliente.id)} title="Cancelar">
-                              <X className="w-3 h-3" />
-                            </Button>
-                          </>
+                          <div className="space-y-2">
+                            <Input value={editData.nome || ""} onChange={e => updateEditedData(cliente.id, 'nome', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" />
+                            <Input type="email" value={editData.email || ""} onChange={e => updateEditedData(cliente.id, 'email', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" />
+                            <Input value={editData.telefone || ""} onChange={e => updateEditedData(cliente.id, 'telefone', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" />
+                            <Input value={(editData as any).instagram || ""} onChange={e => updateEditedData(cliente.id, 'instagram' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" placeholder="Instagram (link)" />
+                            <Input value={(editData as any).cidade || ""} onChange={e => updateEditedData(cliente.id, 'cidade' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-9" placeholder="Cidade" />
+                          </div>
                         ) : (
                           <>
-                            <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8" onClick={() => navigate(`/projetos?cliente=${cliente.id}`)}>
-                              <FolderOpen className="w-3 h-3" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 text-destructive" onClick={() => handleDelete(cliente.id)}>
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
+                            <h3 className="font-semibold text-lg">{cliente.nome}</h3>
+                            <p className="text-sm text-muted-foreground">{cliente.email}</p>
+                            <p className="text-sm text-muted-foreground">{cliente.telefone}</p>
                           </>
                         )}
                       </div>
-                    </div>
-                  </Card>
-                );
-                  })}
-            </div>}
-        </TabsContent>
-
-        {/* Visualização em Grid */}
-        <TabsContent value="grid" className="mt-6 animate-in fade-in-50 duration-300">
-          {sortedClientes.length === 0 ? <Card className="p-12 rounded-xl">
-              <div className="text-center text-muted-foreground">
-                <p>Nenhum cliente encontrado.</p>
-                <p className="text-sm mt-1">Clique em "Novo Cliente" para começar.</p>
-              </div>
-            </Card> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sortedClientes.map(cliente => <Card key={cliente.id} className="rounded-xl hover:shadow-lg transition-shadow">
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1 flex-1">
-                        <h3 className="font-semibold text-lg line-clamp-1">{cliente.nome}</h3>
+                      <div className="flex flex-col items-end gap-2">
                         <Badge variant="outline" className={`rounded-full text-xs ${getLTVColor(cliente.ltv, maxLTV)}`}>
                           {getLTVLabel(cliente.ltv)}
                         </Badge>
-                      </div>
-                      <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 text-destructive" onClick={() => handleDelete(cliente.id)}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="font-medium min-w-[60px]">Email:</span>
-                        <span className="text-muted-foreground truncate">{cliente.email}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="font-medium min-w-[60px]">Telefone:</span>
-                        <span className="text-muted-foreground">{cliente.telefone}</span>
+                        <span className="text-sm font-semibold text-success">R$ {cliente.ltv.toFixed(2)}</span>
                       </div>
                     </div>
 
-                      <div className="space-y-2 pt-2 border-t">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">LTV</span>
-                          <span className="font-semibold text-primary">R$ {cliente.ltv.toFixed(2)}</span>
-                        </div>
-                        <div className="flex gap-3 text-xs text-muted-foreground">
+                    {!isEditing && (
+                      <div className="space-y-2">
+                        <div className="flex gap-4 text-xs text-muted-foreground">
                           <span>{cliente.projetos_count} projeto(s)</span>
                           <span>•</span>
                           <span>{cliente.transacoes_count} transação(ões)</span>
                         </div>
                       </div>
+                    )}
+                  </div>
 
-                    <Button variant="outline" className="w-full rounded-xl gap-2" onClick={() => navigate(`/projetos?cliente=${cliente.id}`)}>
-                      <FolderOpen className="w-4 h-4" />
-                      Ver Projetos
-                    </Button>
-                  </CardContent>
-                </Card>)}
-            </div>}
-        </TabsContent>
+                  <div className="flex gap-2">
+                    {isEditing ? (
+                      <>
+                        <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 text-success" onClick={() => saveEdit(cliente.id)} title="Salvar">
+                          <Check className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8" onClick={() => cancelEditing(cliente.id)} title="Cancelar">
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8" onClick={() => navigate(`/projetos?cliente=${cliente.id}`)}>
+                          <FolderOpen className="w-3 h-3" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 text-destructive" onClick={() => handleDelete(cliente.id)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>}
+      </TabsContent>
 
-        {/* Visualização em Tabela com Edição Inline */}
-        <TabsContent value="table" className="mt-6 animate-in fade-in-50 duration-300">
-          <div className="space-y-4">
+      {/* Visualização em Grid */}
+      <TabsContent value="grid" className="mt-6 animate-in fade-in-50 duration-300">
+        {sortedClientes.length === 0 ? <Card className="p-12 rounded-xl">
+          <div className="text-center text-muted-foreground">
+            <p>Nenhum cliente encontrado.</p>
+            <p className="text-sm mt-1">Clique em "Novo Cliente" para começar.</p>
+          </div>
+        </Card> : <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {sortedClientes.map(cliente => <Card key={cliente.id} className="rounded-xl hover:shadow-lg transition-shadow">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1 flex-1">
+                  <h3 className="font-semibold text-lg line-clamp-1">{cliente.nome}</h3>
+                  <Badge variant="outline" className={`rounded-full text-xs ${getLTVColor(cliente.ltv, maxLTV)}`}>
+                    {getLTVLabel(cliente.ltv)}
+                  </Badge>
+                </div>
+                <Button variant="ghost" size="icon" className="rounded-xl h-8 w-8 text-destructive" onClick={() => handleDelete(cliente.id)}>
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
 
-                {/* Formulário de Criação - Aparece com animação */}
-                 {isTableFormOpen && <Card className="p-6 rounded-xl animate-fade-in">
-                     <h3 className="font-semibold text-lg mb-4">Novo Cliente</h3>
-                     <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                       <div className="space-y-2">
-                       <Label htmlFor="table-nome">Nome</Label>
-                       <Input id="table-nome" className="rounded-xl" value={formData.nome} onChange={e => setFormData({
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium min-w-[60px]">Email:</span>
+                  <span className="text-muted-foreground truncate">{cliente.email}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium min-w-[60px]">Telefone:</span>
+                  <span className="text-muted-foreground">{cliente.telefone}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">LTV</span>
+                  <span className="font-semibold text-primary">R$ {cliente.ltv.toFixed(2)}</span>
+                </div>
+                <div className="flex gap-3 text-xs text-muted-foreground">
+                  <span>{cliente.projetos_count} projeto(s)</span>
+                  <span>•</span>
+                  <span>{cliente.transacoes_count} transação(ões)</span>
+                </div>
+              </div>
+
+              <Button variant="outline" className="w-full rounded-xl gap-2" onClick={() => navigate(`/projetos?cliente=${cliente.id}`)}>
+                <FolderOpen className="w-4 h-4" />
+                Ver Projetos
+              </Button>
+            </CardContent>
+          </Card>)}
+        </div>}
+      </TabsContent>
+
+      {/* Visualização em Tabela com Edição Inline */}
+      <TabsContent value="table" className="mt-6 animate-in fade-in-50 duration-300">
+        <div className="space-y-4">
+
+          {/* Formulário de Criação - Aparece com animação */}
+          {isTableFormOpen && <Card className="p-6 rounded-xl animate-fade-in">
+            <h3 className="font-semibold text-lg mb-4">Novo Cliente</h3>
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="table-nome">Nome</Label>
+                <Input id="table-nome" className="rounded-xl" value={formData.nome} onChange={e => setFormData({
                   ...formData,
                   nome: e.target.value
                 })} required />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="table-email">Email</Label>
-                         <Input id="table-email" type="email" className="rounded-xl" value={formData.email} onChange={e => setFormData({
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="table-email">Email</Label>
+                <Input id="table-email" type="email" className="rounded-xl" value={formData.email} onChange={e => setFormData({
                   ...formData,
                   email: e.target.value
                 })} />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="table-telefone">Telefone</Label>
-                         <Input id="table-telefone" className="rounded-xl" value={formData.telefone} onChange={e => setFormData({
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="table-telefone">Telefone</Label>
+                <Input id="table-telefone" className="rounded-xl" value={formData.telefone} onChange={e => setFormData({
                   ...formData,
                   telefone: e.target.value
                 })} />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="table-instagram">Instagram</Label>
-                         <Input id="table-instagram" placeholder="https://instagram.com/usuario" className="rounded-xl" value={formData.instagram} onChange={e => setFormData({
-                 ...formData,
-                 instagram: e.target.value
-               })} />
-                       </div>
-                       <div className="space-y-2">
-                         <Label htmlFor="table-cidade">Cidade</Label>
-                         <Input id="table-cidade" className="rounded-xl" value={formData.cidade} onChange={e => setFormData({
-                 ...formData,
-                 cidade: e.target.value
-               })} />
-                       </div>
-                       <div className="flex items-end">
-                         <Button type="submit" className="w-full rounded-xl gap-2">
-                           <Plus className="w-4 h-4" />
-                           Salvar
-                         </Button>
-                       </div>
-                     </form>
-                   </Card>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="table-instagram">Instagram</Label>
+                <Input id="table-instagram" placeholder="https://instagram.com/usuario" className="rounded-xl" value={formData.instagram} onChange={e => setFormData({
+                  ...formData,
+                  instagram: e.target.value
+                })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="table-cidade">Cidade</Label>
+                <Input id="table-cidade" className="rounded-xl" value={formData.cidade} onChange={e => setFormData({
+                  ...formData,
+                  cidade: e.target.value
+                })} />
+              </div>
+              <div className="flex items-end">
+                <Button type="submit" className="w-full rounded-xl gap-2">
+                  <Plus className="w-4 h-4" />
+                  Salvar
+                </Button>
+              </div>
+            </form>
+          </Card>}
 
-                 {editingRows.size > 0 && <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-xl">
-                     <p className="text-sm flex-1">
-                       {editingRows.size} linha(s) em edição
-                     </p>
-                     <Button size="sm" className="rounded-xl gap-2" onClick={saveAllEdits}>
-                       <Save className="w-4 h-4" />
-                       Salvar Todas
-                     </Button>
-                   </div>}
+          {editingRows.size > 0 && <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-xl">
+            <p className="text-sm flex-1">
+              {editingRows.size} linha(s) em edição
+            </p>
+            <Button size="sm" className="rounded-xl gap-2" onClick={saveAllEdits}>
+              <Save className="w-4 h-4" />
+              Salvar Todas
+            </Button>
+          </div>}
 
-                 {sortedClientes.length === 0 ? <Card className="p-12 rounded-xl">
-                     <div className="text-center text-muted-foreground">
-                       <p>Nenhum cliente encontrado.</p>
-                       <p className="text-sm mt-1">Clique em "Adicionar Cliente" para começar.</p>
-                     </div>
-                  </Card> : <Card className="rounded-xl overflow-hidden relative" ref={tableContainerRef}>
-                     <div className="overflow-x-auto scroll-smooth" ref={tableScrollRef}>
-                       <div className="min-w-[1600px]">
-                         <Table>
-                         <TableHeader>
-                           <TableRow>
-                             {visibleCols.nome && <TableHead className="min-w-[200px]">Nome</TableHead>}
-                             {visibleCols.email && <TableHead className="min-w-[250px]">Email</TableHead>}
-                             {visibleCols.telefone && <TableHead className="min-w-[150px]">Telefone</TableHead>}
-                             {visibleCols.instagram && <TableHead className="min-w-[200px]">Instagram</TableHead>}
-                             {visibleCols.cidade && <TableHead className="min-w-[150px]">Cidade</TableHead>}
-                             {visibleCols.ltv && <TableHead className="min-w-[150px]">LTV</TableHead>}
-                             {visibleCols.categoria && <TableHead className="min-w-[120px]">Categoria</TableHead>}
-                             {visibleCols.indicado_por && <TableHead className="min-w-[180px]">Indicado por</TableHead>}
-                             {visibleCols.indicados && <TableHead className="min-w-[200px]">Indicados</TableHead>}
-                             {visibleCols.projetos && <TableHead className="min-w-[120px]">Projetos</TableHead>}
-                             {visibleCols.acoes && <TableHead className="text-right min-w-[190px] sticky right-0 bg-background z-10">Ações</TableHead>}
-                           </TableRow>
-                         </TableHeader>
-                         <TableBody>
-                           {sortedClientes.map(cliente => {
-                    const isEditing = editingRows.has(cliente.id);
-                    const editData = editedData[cliente.id] || cliente;
-                    return <TableRow
-                              key={cliente.id}
-                              className={(isEditing ? "bg-muted/50 " : "") + `cursor-pointer ${(["ocean","sunset","forest","purple","rose"] as const).includes(colorTheme as any) ? "hover:bg-muted/20" : "hover:bg-muted/30"} transition-colors`}
-                              onDoubleClick={() => startEditing(cliente.id, cliente)}
-                            >
-                                 {visibleCols.nome && <TableCell>
-                                   {isEditing ? <Input value={editData.nome} onChange={e => updateEditedData(cliente.id, 'nome', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : <span className="font-medium">{cliente.nome}</span>}
-                                 </TableCell>}
-                                 {visibleCols.email && <TableCell>
-                                   {isEditing ? <Input type="email" value={editData.email} onChange={e => updateEditedData(cliente.id, 'email', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : <span className="text-muted-foreground">{cliente.email}</span>}
-                                 </TableCell>}
-                                 {visibleCols.telefone && <TableCell>
-                                   {isEditing ? <Input value={editData.telefone} onChange={e => updateEditedData(cliente.id, 'telefone', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : <span className="text-muted-foreground">{cliente.telefone}</span>}
-                                 </TableCell>}
-                                 {visibleCols.instagram && <TableCell>
-                                   {isEditing ? <Input value={(editData as any).instagram || ''} onChange={e => updateEditedData(cliente.id, 'instagram' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : cliente.instagram ? <a href={cliente.instagram} target="_blank" rel="noreferrer" className="text-primary underline text-sm">{cliente.instagram}</a> : <span className="text-xs text-muted-foreground italic">Não informado</span>}
-                                 </TableCell>}
-                                 {visibleCols.cidade && <TableCell>
-                                  {isEditing ? <Input value={(editData as any).cidade || ''} onChange={e => updateEditedData(cliente.id, 'cidade' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : ((cliente as any).cidades && (cliente as any).cidades.length > 0) ? <span className="text-muted-foreground">{(cliente as any).cidades.join(', ')}</span> : cliente.cidade ? <span className="text-muted-foreground">{cliente.cidade}</span> : <span className="text-xs text-muted-foreground italic">Não informado</span>}
-                                 </TableCell>}
-                                  {visibleCols.ltv && <TableCell>
-                                    <div className="space-y-1">
-                                      <span className="font-semibold text-success">
-                                        R$ {cliente.ltv.toFixed(2)}
-                                      </span>
-                                    </div>
-                                  </TableCell>}
-                                 {visibleCols.categoria && <TableCell>
-                                   <Badge variant="outline" className={`rounded-full text-xs ${getLTVColor(cliente.ltv, maxLTV)}`}>
-                                     {getLTVLabel(cliente.ltv)}
-                                   </Badge>
-                                 </TableCell>}
-                                 {visibleCols.indicado_por && <TableCell>
-                                   {isEditing ? <Select value={editData.indicado_por || "none"} onValueChange={value => updateEditedData(cliente.id, 'indicado_por', value === "none" ? "" : value)}>
-                                       <SelectTrigger className="rounded-xl h-8 text-xs" onKeyDown={handleKeyDownSaveDefer(cliente.id)}>
-                                         <SelectValue placeholder="Selecionar indicador" />
-                                       </SelectTrigger>
-                                       <SelectContent className="rounded-xl" onKeyDown={handleKeyDownSaveDefer(cliente.id)}>
-                                         <SelectItem value="none">Nenhum (cliente direto)</SelectItem>
-                                         {clientes.filter(c => c.id !== cliente.id) // Não pode indicar a si mesmo
-                                            .map(c => <SelectItem key={c.id} value={c.id}>
-                                               {c.nome}
-                                             </SelectItem>)}
-                                       </SelectContent>
-                                     </Select> : cliente.indicado_por ? <div className="flex items-center gap-2">
-                                         <Badge variant="secondary" className="rounded-full text-xs">
-                                           {clientes.find(c => c.id === cliente.indicado_por)?.nome || 'Cliente não encontrado'}
-                                         </Badge>
-                                       </div> : <span className="text-xs text-muted-foreground italic">Cliente direto</span>}
-                                 </TableCell>}
-                                 {visibleCols.indicados && <TableCell>
-                                   {/* Quem este cliente já indicou */}
-                                   {(() => {
-                                     const indicados = clientes.filter(c => c.indicado_por === cliente.id);
-                                     if (indicados.length === 0) return <span className="text-xs text-muted-foreground italic">Nenhum</span>;
-                                     const nomes = indicados.map(i => i.nome).join(', ');
-                                     return <span className="text-sm" title={nomes}>{indicados.length} cliente(s)</span>;
-                                   })()}
-                                 </TableCell>}
-                                 {visibleCols.projetos && <TableCell>
-                                   <div className="text-sm text-muted-foreground">
-                                     <div>{cliente.projetos_count} projeto(s)</div>
-                                     <div className="text-xs">{cliente.transacoes_count} transação(ões)</div>
-                                   </div>
-                                 </TableCell>}
-                               {visibleCols.acoes && <TableCell className="text-right sticky right-0 bg-background z-10 min-w-[190px]">
-                                  <div className="flex gap-1 justify-end relative z-20">
-                                    {isEditing ? <>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-success hover:bg-success/10" onClick={() => saveEdit(cliente.id)} title="Salvar">
-                                          <Check className="w-4 h-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40" onClick={() => cancelEditing(cliente.id)} title="Cancelar">
-                                          <X className="w-4 h-4" />
-                                        </Button>
-                                      </> : <>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40 hover:text-foreground" onClick={() => navigate(`/projetos?cliente=${cliente.id}`)} title="Ver projetos">
-                                          <FolderOpen className="w-4 h-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40 hover:text-foreground" onClick={() => navigate(`/clientes/${cliente.id}`)} title="Ver perfil">
-                                          <User className="w-4 h-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40 hover:text-foreground" onClick={() => startEditing(cliente.id, cliente)} title="Editar">
-                                          <Pencil className="w-4 h-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-destructive hover:bg-destructive/10" onClick={() => handleDelete(cliente.id)} title="Deletar">
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                      </>}
-                                  </div>
-                                </TableCell>}
-                              </TableRow>;
-                  })}
-                         </TableBody>
-                         </Table>
-                       </div>
-                     </div>
-                     {/* Setas transparentes para navegação horizontal (overlay fixo) */}
-                   </Card>}
-                </div>
-        </TabsContent>
-        {/* Overlay de setas visível apenas na visualização de tabela */}
-        {viewMode === 'table' && isTableVisible50 && (
-          <>
-            {showLeftArrow && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="fixed left-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
-                onClick={() => tableScrollRef.current?.scrollBy({ left: -480, behavior: 'smooth' })}
-                title="Rolar para a esquerda"
-                aria-label="Rolar para a esquerda"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </Button>
-            )}
-            {showRightArrow && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="fixed right-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
-                onClick={() => tableScrollRef.current?.scrollBy({ left: 480, behavior: 'smooth' })}
-                title="Rolar para a direita"
-                aria-label="Rolar para a direita"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </Button>
-            )}
-          </>
-        )}
+          {sortedClientes.length === 0 ? <Card className="p-12 rounded-xl">
+            <div className="text-center text-muted-foreground">
+              <p>Nenhum cliente encontrado.</p>
+              <p className="text-sm mt-1">Clique em "Adicionar Cliente" para começar.</p>
+            </div>
+          </Card> : <Card className="rounded-xl overflow-hidden relative" ref={tableContainerRef}>
+            <div className="overflow-x-auto scroll-smooth" ref={tableScrollRef}>
+              <div className="min-w-[1600px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {visibleCols.nome && <TableHead className="min-w-[200px]">Nome</TableHead>}
+                      {visibleCols.email && <TableHead className="min-w-[250px]">Email</TableHead>}
+                      {visibleCols.telefone && <TableHead className="min-w-[150px]">Telefone</TableHead>}
+                      {visibleCols.instagram && <TableHead className="min-w-[200px]">Instagram</TableHead>}
+                      {visibleCols.cidade && <TableHead className="min-w-[150px]">Cidade</TableHead>}
+                      {visibleCols.ltv && <TableHead className="min-w-[150px]">LTV</TableHead>}
+                      {visibleCols.categoria && <TableHead className="min-w-[120px]">Categoria</TableHead>}
+                      {visibleCols.indicado_por && <TableHead className="min-w-[180px]">Indicado por</TableHead>}
+                      {visibleCols.indicados && <TableHead className="min-w-[200px]">Indicados</TableHead>}
+                      {visibleCols.projetos && <TableHead className="min-w-[120px]">Projetos</TableHead>}
+                      {visibleCols.acoes && <TableHead className="text-right min-w-[190px] sticky right-0 bg-background z-10">Ações</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sortedClientes.map(cliente => {
+                      const isEditing = editingRows.has(cliente.id);
+                      const editData = editedData[cliente.id] || cliente;
+                      return <TableRow
+                        key={cliente.id}
+                        className={(isEditing ? "bg-muted/50 " : "") + `cursor-pointer ${(["ocean", "sunset", "forest", "purple", "rose"] as const).includes(colorTheme as any) ? "hover:bg-muted/20" : "hover:bg-muted/30"} transition-colors`}
+                        onDoubleClick={() => startEditing(cliente.id, cliente)}
+                      >
+                        {visibleCols.nome && <TableCell>
+                          {isEditing ? <Input value={editData.nome} onChange={e => updateEditedData(cliente.id, 'nome', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : <span className="font-medium">{cliente.nome}</span>}
+                        </TableCell>}
+                        {visibleCols.email && <TableCell>
+                          {isEditing ? <Input type="email" value={editData.email} onChange={e => updateEditedData(cliente.id, 'email', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : <span className="text-muted-foreground">{cliente.email}</span>}
+                        </TableCell>}
+                        {visibleCols.telefone && <TableCell>
+                          {isEditing ? <Input value={editData.telefone} onChange={e => updateEditedData(cliente.id, 'telefone', e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : <span className="text-muted-foreground">{cliente.telefone}</span>}
+                        </TableCell>}
+                        {visibleCols.instagram && <TableCell>
+                          {isEditing ? <Input value={(editData as any).instagram || ''} onChange={e => updateEditedData(cliente.id, 'instagram' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : cliente.instagram ? <a href={cliente.instagram} target="_blank" rel="noreferrer" className="text-primary underline text-sm">{cliente.instagram}</a> : <span className="text-xs text-muted-foreground italic">Não informado</span>}
+                        </TableCell>}
+                        {visibleCols.cidade && <TableCell>
+                          {isEditing ? <Input value={(editData as any).cidade || ''} onChange={e => updateEditedData(cliente.id, 'cidade' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : ((cliente as any).cidades && (cliente as any).cidades.length > 0) ? <span className="text-muted-foreground">{(cliente as any).cidades.join(', ')}</span> : cliente.cidade ? <span className="text-muted-foreground">{cliente.cidade}</span> : <span className="text-xs text-muted-foreground italic">Não informado</span>}
+                        </TableCell>}
+                        {visibleCols.ltv && <TableCell>
+                          <div className="space-y-1">
+                            <span className="font-semibold text-success">
+                              R$ {cliente.ltv.toFixed(2)}
+                            </span>
+                          </div>
+                        </TableCell>}
+                        {visibleCols.categoria && <TableCell>
+                          <Badge variant="outline" className={`rounded-full text-xs ${getLTVColor(cliente.ltv, maxLTV)}`}>
+                            {getLTVLabel(cliente.ltv)}
+                          </Badge>
+                        </TableCell>}
+                        {visibleCols.indicado_por && <TableCell>
+                          {isEditing ? <Select value={editData.indicado_por || "none"} onValueChange={value => updateEditedData(cliente.id, 'indicado_por', value === "none" ? "" : value)}>
+                            <SelectTrigger className="rounded-xl h-8 text-xs" onKeyDown={handleKeyDownSaveDefer(cliente.id)}>
+                              <SelectValue placeholder="Selecionar indicador" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl" onKeyDown={handleKeyDownSaveDefer(cliente.id)}>
+                              <SelectItem value="none">Nenhum (cliente direto)</SelectItem>
+                              {clientes.filter(c => c.id !== cliente.id) // Não pode indicar a si mesmo
+                                .map(c => <SelectItem key={c.id} value={c.id}>
+                                  {c.nome}
+                                </SelectItem>)}
+                            </SelectContent>
+                          </Select> : cliente.indicado_por ? <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="rounded-full text-xs">
+                              {clientes.find(c => c.id === cliente.indicado_por)?.nome || 'Cliente não encontrado'}
+                            </Badge>
+                          </div> : <span className="text-xs text-muted-foreground italic">Cliente direto</span>}
+                        </TableCell>}
+                        {visibleCols.indicados && <TableCell>
+                          {/* Quem este cliente já indicou */}
+                          {(() => {
+                            const indicados = clientes.filter(c => c.indicado_por === cliente.id);
+                            if (indicados.length === 0) return <span className="text-xs text-muted-foreground italic">Nenhum</span>;
+                            const nomes = indicados.map(i => i.nome).join(', ');
+                            return <span className="text-sm" title={nomes}>{indicados.length} cliente(s)</span>;
+                          })()}
+                        </TableCell>}
+                        {visibleCols.projetos && <TableCell>
+                          <div className="text-sm text-muted-foreground">
+                            <div>{cliente.projetos_count} projeto(s)</div>
+                            <div className="text-xs">{cliente.transacoes_count} transação(ões)</div>
+                          </div>
+                        </TableCell>}
+                        {visibleCols.acoes && <TableCell className="text-right sticky right-0 bg-background z-10 min-w-[190px]">
+                          <div className="flex gap-1 justify-end relative z-20">
+                            {isEditing ? <>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-success hover:bg-success/10" onClick={() => saveEdit(cliente.id)} title="Salvar">
+                                <Check className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40" onClick={() => cancelEditing(cliente.id)} title="Cancelar">
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </> : <>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40 hover:text-foreground" onClick={() => navigate(`/projetos?cliente=${cliente.id}`)} title="Ver projetos">
+                                <FolderOpen className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40 hover:text-foreground" onClick={() => navigate(`/clientes/${cliente.id}`)} title="Ver perfil">
+                                <User className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl hover:bg-muted/40 hover:text-foreground" onClick={() => startEditing(cliente.id, cliente)} title="Editar">
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-destructive hover:bg-destructive/10" onClick={() => handleDelete(cliente.id)} title="Deletar">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </>}
+                          </div>
+                        </TableCell>}
+                      </TableRow>;
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+            {/* Setas transparentes para navegação horizontal (overlay fixo) */}
+          </Card>}
+        </div>
+      </TabsContent>
+      {/* Overlay de setas visível apenas na visualização de tabela */}
+      {viewMode === 'table' && isTableVisible50 && (
+        <>
+          {showLeftArrow && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="fixed left-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
+              onClick={() => tableScrollRef.current?.scrollBy({ left: -480, behavior: 'smooth' })}
+              title="Rolar para a esquerda"
+              aria-label="Rolar para a esquerda"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+          )}
+          {showRightArrow && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="fixed right-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
+              onClick={() => tableScrollRef.current?.scrollBy({ left: 480, behavior: 'smooth' })}
+              title="Rolar para a direita"
+              aria-label="Rolar para a direita"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </Button>
+          )}
+        </>
+      )}
 
-        {/* Visualização em Rede */}
-        <TabsContent value="network" className="mt-6 animate-in fade-in-50 duration-300">
-          <ReferralNetwork clientes={clientes} />
-        </TabsContent>
-      </Tabs>
-    </div>;
+      {/* Visualização em Rede */}
+      <TabsContent value="network" className="mt-6 animate-in fade-in-50 duration-300">
+        <ReferralNetwork clientes={clientes} />
+      </TabsContent>
+    </Tabs>
+  </div>;
 };
 export default Clientes;

@@ -1,409 +1,246 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { 
+import {
   Brain,
   AlertTriangle,
   TrendingUp,
-  Calendar,
   DollarSign,
   Target,
   Lightbulb,
   Users,
   ArrowRight,
-  Phone,
-  Mail,
-  MapPin,
-  Star,
+  RefreshCw,
+  Package,
   Clock,
-  RefreshCw
+  MessageCircle,
+  ExternalLink,
+  Calendar
 } from "lucide-react";
-import { chat as geminiChat, ChatMessage } from "@/integrations/gemini/client";
+import { useInsightsData } from "@/hooks/useInsightsData";
+import { generateDataDrivenInsights, Insight } from "@/lib/insightsEngine";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface SmartInsightsProps {
-  transacoes: any[];
-  clientes: any[];
-  projetos: any[];
-  agendamentos: any[];
+  transacoes?: any[];
+  clientes?: any[];
+  projetos?: any[];
+  agendamentos?: any[];
 }
-
-interface Insight {
-  id: string;
-  type: 'warning' | 'opportunity' | 'trend' | 'recommendation';
-  title: string;
-  description: string;
-  impact: 'high' | 'medium' | 'low';
-  action?: string;
-  icon: any;
-  color: string;
-  bgColor: string;
-}
-
-// Dados mockados de clientes para demonstração
-const mockClients = [
-  {
-    id: 1,
-    name: "João Silva",
-    email: "joao@empresa.com",
-    phone: "(11) 99999-9999",
-    company: "Tech Solutions Ltda",
-    value: 15000,
-    status: "Ativo",
-    lastContact: "2024-01-15",
-    opportunity: "Upgrade para plano Premium"
-  },
-  {
-    id: 2,
-    name: "Maria Santos",
-    email: "maria@startup.com",
-    phone: "(11) 88888-8888",
-    company: "Startup Inovadora",
-    value: 8500,
-    status: "Potencial",
-    lastContact: "2024-01-12",
-    opportunity: "Serviços de consultoria adicional"
-  },
-  {
-    id: 3,
-    name: "Carlos Oliveira",
-    email: "carlos@comercio.com",
-    phone: "(11) 77777-7777",
-    company: "Comércio Digital",
-    value: 22000,
-    status: "Negociação",
-    lastContact: "2024-01-10",
-    opportunity: "Expansão para novos módulos"
-  }
-];
 
 export function SmartInsights({ transacoes, clientes, projetos, agendamentos }: SmartInsightsProps) {
-  const [selectedInsight, setSelectedInsight] = useState<any>(null);
+  const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastRefreshAt, setLastRefreshAt] = useState<number>(Date.now());
-  const [aiError, setAiError] = useState<string | null>(null);
 
-  const [insights, setInsights] = useState<Insight[]>([
-    // Base inicial (fallback) — será substituída por IA quando disponível
-    {
-      id: '1',
-      type: 'warning',
-      title: 'Clientes Inativos Detectados',
-      description: 'Parte dos clientes está inativa há mais de 60 dias. Risco de churn alto.',
-      impact: 'high',
-      action: 'Enviar campanha de reativação',
-      icon: AlertTriangle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-500/10'
-    },
-    {
-      id: '2',
-      type: 'opportunity',
-      title: 'Oportunidade de Upsell',
-      description: 'Clientes com histórico de pequenos serviços podem aceitar projetos maiores.',
-      impact: 'high',
-      action: 'Criar proposta personalizada',
-      icon: TrendingUp,
-      color: 'text-green-600',
-      bgColor: 'bg-green-500/10'
-    },
-  ]);
+  // Usar o hook centralizado para garantir que temos todos os dados necessários
+  // Mesmo que alguns venham via props, o hook busca o resto (estoque, metas, campanhas)
+  const {
+    clientes: dataClientes,
+    projetos: dataProjetos,
+    transacoes: dataTransacoes,
+    agendamentos: dataAgendamentos,
+    campanhas,
+    estoque,
+    metas,
+    financeiroGeral,
+    isLoading
+  } = useInsightsData("30d");
+
+  const [insights, setInsights] = useState<Insight[]>([]);
+
+  // Combinar dados das props (se existirem) com dados do hook
+  // Isso permite que o componente funcione tanto isolado quanto com dados passados pelo pai
+  const allData = {
+    clientes: clientes || dataClientes,
+    projetos: projetos || dataProjetos,
+    transacoes: transacoes || dataTransacoes,
+    agendamentos: agendamentos || dataAgendamentos,
+    campanhas,
+    estoque,
+    metas,
+    financeiroGeral
+  };
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    // Simular um pequeno delay para UX de "processando"
+    setTimeout(() => {
+      const generated = generateDataDrivenInsights(allData);
+      setInsights(generated);
+      setLastRefreshAt(Date.now());
+      setIsRefreshing(false);
+    }, 800);
+  };
+
+  // Gerar insights iniciais quando os dados estiverem carregados
+  useEffect(() => {
+    if (!isLoading) {
+      const generated = generateDataDrivenInsights(allData);
+      setInsights(generated);
+    }
+  }, [isLoading, dataClientes, dataProjetos, dataTransacoes, dataAgendamentos, campanhas, estoque, metas]);
 
   const handleInsightClick = (insight: Insight) => {
     setSelectedInsight(insight);
     setIsModalOpen(true);
   };
 
-  const contextSummary = useMemo(() => {
-    try {
-      const norm = (v: any) => String(v || '').toLowerCase();
+  const getImpactBadge = (impact: string) => {
+    const label = impact === 'high' ? 'Alto Impacto' : impact === 'medium' ? 'Médio Impacto' : 'Baixo Impacto';
+    const color = impact === 'high' ? 'bg-red-100 text-red-700 border-red-200' : impact === 'medium' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' : 'bg-blue-100 text-blue-700 border-blue-200';
+    return <Badge variant="outline" className={`rounded-full text-xs border ${color}`}>{label}</Badge>;
+  };
 
-      const clientesCount = clientes?.length || 0;
-      const projetosCount = projetos?.length || 0;
-      const agendamentosCount = agendamentos?.length || 0;
-      const transacoesCount = transacoes?.length || 0;
+  const formatPhone = (phone: string) => {
+    return phone.replace(/\D/g, '');
+  };
 
-      // Ticket médio (somente RECEITA)
-      const receitas = (transacoes || []).filter((t: any) => norm(t?.tipo) === 'receita');
-      const totalReceitas = receitas.reduce((sum: number, t: any) => sum + Number(t?.valor || 0), 0);
-      const ticketMedio = receitas.length ? totalReceitas / receitas.length : 0;
-
-      // Recorrência de clientes (clientes com 2+ agendamentos não cancelados)
-      const validAg = (agendamentos || []).filter((a: any) => norm(a?.status) !== 'cancelado');
-      const porCliente: Record<string, number> = {};
-      for (const a of validAg) {
-        const cid = String(a?.cliente_id || a?.clienteId || a?.cliente || '');
-        if (!cid) continue;
-        porCliente[cid] = (porCliente[cid] || 0) + 1;
-      }
-      const clientesUnicos = Object.keys(porCliente).length;
-      const clientesRecorrentes = Object.values(porCliente).filter((n) => n >= 2).length;
-      const taxaRecorrencia = clientesUnicos ? Math.round((clientesRecorrentes / clientesUnicos) * 100) : 0;
-
-      // Cancelamentos
-      const cancelados = (agendamentos || []).filter((a: any) => norm(a?.status) === 'cancelado').length;
-      const taxaCancelamento = agendamentosCount ? Math.round((cancelados / agendamentosCount) * 100) : 0;
-
-      const clientesTop = (clientes || [])
-        .map((c: any) => c?.nome)
-        .filter((n: any) => typeof n === 'string' && n.trim().length)
-        .slice(0, 5);
-      const projetosTop = (projetos || [])
-        .map((p: any) => p?.titulo)
-        .filter((t: any) => typeof t === 'string' && t.trim().length)
-        .slice(0, 5);
-
-      return [
-        `Clientes(30d): ${clientesCount}`,
-        `Projetos(30d): ${projetosCount}`,
-        `Agendamentos(30d): ${agendamentosCount}`,
-        `Transações(30d): ${transacoesCount}`,
-        `Ticket médio: R$ ${Math.round(ticketMedio).toLocaleString('pt-BR')}`,
-        `Recorrência: ${taxaRecorrencia}% (${clientesRecorrentes}/${clientesUnicos})`,
-        `Cancelamentos: ${cancelados} (${taxaCancelamento}%)`,
-        clientesTop.length ? `Clientes foco: ${clientesTop.join(', ')}` : '',
-        projetosTop.length ? `Projetos destaque: ${projetosTop.join(', ')}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
-    } catch {
-      return '';
+  const handleWhatsApp = (phone: string) => {
+    const formatted = formatPhone(phone);
+    if (formatted) {
+      window.open(`https://wa.me/${formatted}`, '_blank');
     }
-  }, [clientes, projetos, agendamentos, transacoes]);
+  };
 
-  function mapTypeToIcon(type: Insight['type']) {
-    switch (type) {
-      case 'warning':
-        return AlertTriangle;
-      case 'opportunity':
-        return Lightbulb;
-      case 'trend':
-        return TrendingUp;
-      case 'recommendation':
-        return Brain;
-      default:
-        return Brain;
-    }
-  }
+  // Contadores para cards de topo
+  const totalInsights = insights.length;
+  const oportunidadesAtivas = insights.filter(i => i.type === 'opportunity').length;
+  // const alertasAtivos = insights.filter(i => i.type === 'warning').length; // This variable was not used, removed for consistency
 
-  async function generateAiInsights() {
-    setIsRefreshing(true);
-    setAiError(null);
-    try {
-      const sys: ChatMessage = {
-        role: 'system',
-        content:
-          'Você é uma IA de estratégia de negócios. Gere insights práticos baseados nos dados do sistema. Retorne APENAS JSON válido no formato: {"insights":[{"id":"string","type":"warning|opportunity|trend|recommendation","title":"string","description":"string","impact":"high|medium|low","action":"string"}]}.'
-      };
-      const userPrompt = `Contexto (30d):\n${contextSummary}\n\nRegras:\n- Foque em recomendações acionáveis e sucintas.\n- Use títulos objetivos.\n- Não inclua dados sensíveis.\n- Priorize 4-6 itens.`;
-      const response = await geminiChat([sys, { role: 'user', content: userPrompt }]);
+  // Calcular potencial de receita (soma de oportunidades ou projetos em aberto)
+  const potencialReceita = (allData.projetos || [])
+    .filter((p: any) => p.status === 'Em Andamento' || p.status === 'Aprovado')
+    .reduce((sum: number, p: any) => sum + Number(p.valor || 0), 0);
 
-      let parsed: any = null;
-      try {
-        parsed = JSON.parse(response.content);
-      } catch {
-        // Se não vier JSON, tenta extrair bloco JSON simples
-        const match = response.content.match(/\{[\s\S]*\}/);
-        parsed = match ? JSON.parse(match[0]) : null;
-      }
-
-      const items: Insight[] = (parsed?.insights || []).map((i: any, idx: number) => {
-        const icon = mapTypeToIcon(i.type);
-        const colorMap: Record<string, string> = {
-          warning: 'text-red-600',
-          opportunity: 'text-green-600',
-          trend: 'text-blue-600',
-          recommendation: 'text-purple-600',
-        };
-        const bgMap: Record<string, string> = {
-          warning: 'bg-red-500/10',
-          opportunity: 'bg-green-500/10',
-          trend: 'bg-blue-500/10',
-          recommendation: 'bg-purple-500/10',
-        };
-        return {
-          id: i.id || String(idx + 1),
-          type: i.type,
-          title: i.title,
-          description: i.description,
-          impact: i.impact,
-          action: i.action,
-          icon,
-          color: colorMap[i.type] || 'text-muted-foreground',
-          bgColor: bgMap[i.type] || 'bg-muted/20',
-        } as Insight;
-      });
-
-      if (items.length) {
-        setInsights(items);
-        setLastRefreshAt(Date.now());
-      } else {
-        setAiError('A IA não retornou insights válidos. Mantendo base padrão.');
-      }
-    } catch (e: any) {
-      setAiError(e?.message || 'Falha ao gerar insights com a IA');
-    } finally {
-      setIsRefreshing(false);
-    }
-  }
+  const clientesImpactados = new Set(
+    insights.flatMap(i => i.data?.clients?.map((c: any) => c.id) || [])
+  ).size;
 
   const renderDetailedContent = () => {
     if (!selectedInsight) return null;
 
-    switch (selectedInsight.type) {
-      case 'Oportunidade':
-        return (
-          <div className="space-y-6">
-            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-              <h4 className="font-semibold text-green-800 mb-2">Detalhes da Oportunidade</h4>
-              <p className="text-green-700 text-sm">{selectedInsight.description}</p>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-3 flex items-center gap-2">
-                <Users className="w-4 h-4" />
-                Clientes Relevantes ({mockClients.length})
-              </h4>
-              <div className="space-y-3">
-                {mockClients.map((client) => (
-                  <Card key={client.id} className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <h5 className="font-medium">{client.name}</h5>
-                          <Badge variant={client.status === 'Ativo' ? 'default' : client.status === 'Potencial' ? 'secondary' : 'outline'}>
-                            {client.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">{client.company}</p>
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {client.email}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Phone className="w-3 h-3" />
-                            {client.phone}
-                          </span>
-                        </div>
-                        <p className="text-sm font-medium text-green-600">{client.opportunity}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-lg">R$ {client.value.toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">Potencial</p>
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          </div>
-        );
+    return (
+      <div className="space-y-6">
+        <div className={`p-4 rounded-lg border ${selectedInsight.bgColor.replace('/10', '/20')} border-opacity-50`}>
+          <h4 className={`font-semibold mb-2 ${selectedInsight.color}`}>Análise Detalhada</h4>
+          <p className="text-sm text-foreground/80">{selectedInsight.description}</p>
+        </div>
 
-      case 'Alerta':
-        return (
-          <div className="space-y-6">
-            <div className="p-4 bg-red-50 rounded-lg border border-red-200">
-              <h4 className="font-semibold text-red-800 mb-2">Detalhes do Alerta</h4>
-              <p className="text-red-700 text-sm">{selectedInsight.description}</p>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-500" />
-                Ações Recomendadas
-              </h4>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <Clock className="w-4 h-4 text-orange-500" />
-                  <span className="text-sm">Entrar em contato com clientes em até 24h</span>
+        {/* Renderizar lista de itens afetados se houver */}
+        {selectedInsight.data?.clients && (
+          <div>
+            <h4 className="font-semibold mb-3 flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Clientes Relacionados ({selectedInsight.data.clients.length})
+            </h4>
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+              {selectedInsight.data.clients.map((c: any) => (
+                <div key={c.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg text-sm hover:bg-muted/50 transition-colors">
+                  <div>
+                    <span className="font-medium block">{c.nome}</span>
+                    <span className="text-muted-foreground text-xs">{c.email || c.telefone || 'Sem contato'}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {c.telefone && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                        onClick={() => handleWhatsApp(c.telefone)}
+                        title="Enviar WhatsApp"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </Button>
+                    )}
+                    <Button size="icon" variant="ghost" className="h-8 w-8" title="Ver Perfil">
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <Target className="w-4 h-4 text-blue-500" />
-                  <span className="text-sm">Revisar estratégia de retenção</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {selectedInsight.data?.projects && (
+          <div>
+            <h4 className="font-semibold mb-3 flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              Projetos Afetados ({selectedInsight.data.projects.length})
+            </h4>
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+              {selectedInsight.data.projects.map((p: any) => (
+                <div key={p.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg text-sm hover:bg-muted/50 transition-colors">
+                  <div>
+                    <span className="font-medium block">{p.titulo}</span>
+                    <span className="text-muted-foreground text-xs flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Venceu em: {new Date(p.data_fim).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-8 text-xs">
+                    Ver Projeto
+                  </Button>
                 </div>
-                <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-                  <Star className="w-4 h-4 text-yellow-500" />
-                  <span className="text-sm">Oferecer benefícios exclusivos</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {selectedInsight.data?.items && (
+          <div>
+            <h4 className="font-semibold mb-3 flex items-center gap-2">
+              <Package className="w-4 h-4" />
+              Materiais em Baixa ({selectedInsight.data.items.length})
+            </h4>
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+              {selectedInsight.data.items.map((i: any) => (
+                <div key={i.id} className="flex justify-between items-center p-3 bg-muted/30 rounded-lg text-sm hover:bg-muted/50 transition-colors">
+                  <div>
+                    <span className="font-medium block">{i.nome}</span>
+                    <span className="text-red-600 font-bold text-xs">{i.quantidade} {i.unidade} restantes</span>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-8 text-xs">
+                    Repor
+                  </Button>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
-        );
+        )}
 
-      case 'Tendência':
-        return (
-          <div className="space-y-6">
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="font-semibold text-blue-800 mb-2">Análise de Tendência</h4>
-              <p className="text-blue-700 text-sm">{selectedInsight.description}</p>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold mb-3 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-blue-500" />
-                Métricas de Crescimento
-              </h4>
-              <div className="grid grid-cols-2 gap-4">
-                <Card className="p-4 text-center">
-                  <div className="text-2xl font-bold text-green-600">+23%</div>
-                  <div className="text-sm text-muted-foreground">Crescimento mensal</div>
-                </Card>
-                <Card className="p-4 text-center">
-                  <div className="text-2xl font-bold text-blue-600">R$ 45K</div>
-                  <div className="text-sm text-muted-foreground">Receita projetada</div>
-                </Card>
-              </div>
-            </div>
+        {/* Ação Recomendada */}
+        {selectedInsight.action && (
+          <div className="pt-4 border-t">
+            <h4 className="font-semibold mb-3 flex items-center gap-2">
+              <Target className="w-4 h-4 text-primary" />
+              Ação Recomendada
+            </h4>
+            <Button className="w-full sm:w-auto" onClick={() => setIsModalOpen(false)}>
+              {selectedInsight.action}
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
           </div>
-        );
-
-      default:
-        return (
-          <div className="space-y-4">
-            <p className="text-muted-foreground">{selectedInsight.description}</p>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">
-                Mais detalhes sobre este insight estarão disponíveis em breve.
-              </p>
-            </div>
-          </div>
-        );
-    }
-  };
-  
-  useEffect(() => {
-    // Gera automaticamente ao abrir, mas mantém fallback se quota estiver zerada
-    generateAiInsights();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Contadores para cards de topo padronizados
-  const totalInsights = insights.length;
-  const oportunidadesAtivas = insights.filter(i => i.type === 'opportunity').length;
-  const recomendacoesAtivas = insights.filter(i => i.type === 'recommendation').length;
-
-  const getImpactBadge = (impact: string) => {
-    const label = impact === 'high' ? 'Alto Impacto' : impact === 'medium' ? 'Médio Impacto' : 'Baixo Impacto';
-    return <Badge variant="outline" className="rounded-full text-xs">{label}</Badge>;
+        )}
+      </div>
+    );
   };
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'warning':
-        return AlertTriangle;
-      case 'opportunity':
-        return Lightbulb;
-      case 'trend':
-        return TrendingUp;
-      case 'recommendation':
-        return Brain;
-      default:
-        return Brain;
-    }
-  };
+  if (isLoading && insights.length === 0) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-32 w-full rounded-xl" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Skeleton className="h-40 w-full rounded-xl" />
+          <Skeleton className="h-40 w-full rounded-xl" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -418,7 +255,7 @@ export function SmartInsights({ transacoes, clientes, projetos, agendamentos }: 
               <div>
                 <CardTitle className="text-lg">Insights Inteligentes</CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Análises baseadas em IA para otimizar seu negócio
+                  Análises automáticas baseadas nos dados do seu negócio
                 </p>
               </div>
             </div>
@@ -426,22 +263,21 @@ export function SmartInsights({ transacoes, clientes, projetos, agendamentos }: 
               variant="outline"
               size="sm"
               className="gap-2"
-              onClick={generateAiInsights}
-              data-clickable="true"
+              onClick={handleRefresh}
               disabled={isRefreshing}
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? 'Atualizando…' : 'Gerar com IA'}
+              {isRefreshing ? 'Atualizando…' : 'Atualizar Análise'}
             </Button>
           </div>
         </CardHeader>
       </Card>
 
-      {/* Chat embutido removido – utilizar apenas o chat flutuante global */}
+      {/* Marcador de última atualização */}
+      <div className="text-xs text-muted-foreground pl-1">
+        Última análise: {new Date(lastRefreshAt).toLocaleTimeString()}
+      </div>
 
-      {/* Cards de resumo no topo - padrão das outras páginas */}
-      {/* Marcador de última atualização (sutil) */}
-      <div className="text-xs text-muted-foreground pl-1">Última atualização: {new Date(lastRefreshAt).toLocaleTimeString()}</div>
       {/* Cards de Estatísticas no topo */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-4 rounded-xl">
@@ -451,9 +287,7 @@ export function SmartInsights({ transacoes, clientes, projetos, agendamentos }: 
             </div>
             <p className="text-xs text-muted-foreground">Insights Ativos</p>
           </div>
-          <p className="text-xl font-semibold">
-            {totalInsights}
-          </p>
+          <p className="text-xl font-semibold">{totalInsights}</p>
         </Card>
 
         <Card className="p-4 rounded-xl">
@@ -461,10 +295,10 @@ export function SmartInsights({ transacoes, clientes, projetos, agendamentos }: 
             <div className="p-1.5 rounded-lg bg-primary/20">
               <DollarSign className="w-4 h-4 text-primary" />
             </div>
-            <p className="text-xs text-muted-foreground">Potencial de Receita</p>
+            <p className="text-xs text-muted-foreground">Potencial em Aberto</p>
           </div>
           <p className="text-xl font-semibold">
-            R$ 15K
+            R$ {potencialReceita > 1000 ? `${(potencialReceita / 1000).toFixed(1)}K` : potencialReceita}
           </p>
         </Card>
 
@@ -475,9 +309,7 @@ export function SmartInsights({ transacoes, clientes, projetos, agendamentos }: 
             </div>
             <p className="text-xs text-muted-foreground">Clientes Impactados</p>
           </div>
-          <p className="text-xl font-semibold">
-            20
-          </p>
+          <p className="text-xl font-semibold">{clientesImpactados}</p>
         </Card>
 
         <Card className="p-4 rounded-xl">
@@ -485,86 +317,89 @@ export function SmartInsights({ transacoes, clientes, projetos, agendamentos }: 
             <div className="p-1.5 rounded-lg bg-primary/20">
               <Target className="w-4 h-4 text-primary" />
             </div>
-            <p className="text-xs text-muted-foreground">Oportunidades Ativas</p>
+            <p className="text-xs text-muted-foreground">Oportunidades</p>
           </div>
-          <p className="text-xl font-semibold">
-            {oportunidadesAtivas}
-          </p>
+          <p className="text-xl font-semibold">{oportunidadesAtivas}</p>
         </Card>
       </div>
 
-      {/* Insights Grid minimalista */}
-      <div className="grid gap-3 md:grid-cols-1 lg:grid-cols-2">
-        {insights.map((insight) => {
-          const IconComponent = insight.icon;
-          const TypeIcon = getTypeIcon(insight.type);
-          
-          return (
-            <Card 
-              key={insight.id} 
-              className="rounded-2xl border border-border/40 bg-background shadow-sm hover:shadow-md transition-all duration-200 group cursor-pointer"
-              onClick={() => handleInsightClick(insight)}
-            >
-              <CardContent className="p-4">
-                <div className="space-y-3">
-                  {/* Header */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-xl bg-primary/10">
-                        <IconComponent className="w-5 h-5 text-primary" />
+      {/* Insights Grid */}
+      {insights.length > 0 ? (
+        <div className="grid gap-3 md:grid-cols-1 lg:grid-cols-2">
+          {insights.map((insight) => {
+            const IconComponent = insight.icon;
+
+            return (
+              <Card
+                key={insight.id}
+                className="rounded-2xl border border-border/40 bg-background shadow-sm hover:shadow-md transition-all duration-200 group cursor-pointer"
+                onClick={() => handleInsightClick(insight)}
+              >
+                <CardContent className="p-4">
+                  <div className="space-y-3">
+                    {/* Header */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-xl ${insight.bgColor}`}>
+                          <IconComponent className={`w-5 h-5 ${insight.color}`} />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            {insight.type === 'warning' ? 'Alerta' :
+                              insight.type === 'opportunity' ? 'Oportunidade' :
+                                insight.type === 'trend' ? 'Tendência' : 'Recomendação'}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <TypeIcon className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          {insight.type}
-                        </span>
-                      </div>
+                      {getImpactBadge(insight.impact)}
                     </div>
-                    {getImpactBadge(insight.impact)}
-                  </div>
 
-                  {/* Content compacto */}
-                  <div className="space-y-1.5">
-                    <h3 className="font-semibold text-sm text-foreground">{insight.title}</h3>
-                    <p className="text-xs text-muted-foreground">
-                      {insight.description}
-                    </p>
-                  </div>
+                    {/* Content compacto */}
+                    <div className="space-y-1.5">
+                      <h3 className="font-semibold text-sm text-foreground">{insight.title}</h3>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {insight.description}
+                      </p>
+                    </div>
 
-                  {/* Indicador de clique */}
-                  <div className="flex items-center justify-end pt-2">
-                    <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    {/* Indicador de clique */}
+                    <div className="flex items-center justify-end pt-2">
+                      <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="text-center py-12 bg-muted/10 rounded-2xl border border-dashed">
+          <div className="p-3 bg-muted/20 rounded-full w-fit mx-auto mb-4">
+            <Brain className="w-6 h-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-medium">Tudo parece em ordem!</h3>
+          <p className="text-muted-foreground text-sm max-w-md mx-auto mt-2">
+            Não encontramos alertas críticos ou anomalias nos seus dados no momento. Continue assim!
+          </p>
+        </div>
+      )}
 
       {/* Modal de Detalhes */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selectedInsight && (
                 <>
-                  <div className="p-2 rounded-xl bg-primary/10">
+                  <div className={`p-2 rounded-xl ${selectedInsight.bgColor}`}>
                     {(() => {
                       const IconComponent = selectedInsight.icon;
-                      return <IconComponent className="w-5 h-5 text-primary" />;
+                      return <IconComponent className={`w-5 h-5 ${selectedInsight.color}`} />;
                     })()}
                   </div>
                   <div>
                     <span className="text-lg font-semibold">{selectedInsight.title}</span>
                     <div className="flex items-center gap-2 mt-1">
-                      {(() => {
-                        const TypeIcon = getTypeIcon(selectedInsight.type);
-                        return <TypeIcon className="w-4 h-4 text-muted-foreground" />;
-                      })()}
-                      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        {selectedInsight.type}
-                      </span>
                       {getImpactBadge(selectedInsight.impact)}
                     </div>
                   </div>
@@ -572,13 +407,12 @@ export function SmartInsights({ transacoes, clientes, projetos, agendamentos }: 
               )}
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="mt-6">
             {renderDetailedContent()}
           </div>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

@@ -11,6 +11,21 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recha
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { usePatrimonio, PatrimonioItem, patrimonioItemSchema, calcularValorAtual } from "@/hooks/usePatrimonio";
+import {
+  Calendar,
+  DollarSign,
+  Tag,
+  Activity,
+  MapPin,
+  FileText,
+  AlertCircle,
+  Clock,
+  Calculator,
+  Package,
+  TrendingDown,
+  Hash,
+  ShieldCheck
+} from "lucide-react";
 
 const CATEGORIAS = [
   "Roupas",
@@ -159,14 +174,14 @@ export default function TabelaPatrimonio() {
     filtrados
       .filter((row) => filtroStatusGrafico === "todos" ? true : String(row.status || "") === filtroStatusGrafico)
       .forEach((row) => {
-      const k = String(row.categoria || "Outro");
-      const v = Number(row.valor_atual_cache ?? calcularValorAtual(row));
-      m[k] = (m[k] || 0) + v;
-    });
+        const k = String(row.categoria || "Outro");
+        const v = Number(row.valor_atual_cache ?? calcularValorAtual(row));
+        m[k] = (m[k] || 0) + v;
+      });
     return Object.entries(m).map(([categoria, valor]) => ({ categoria, valor }));
   }, [filtrados, filtroStatusGrafico]);
 
-  const cores = ["#6366F1","#10B981","#F59E0B","#EF4444","#8B5CF6","#14B8A6","#F97316","#22C55E","#EAB308","#06B6D4"];
+  const cores = ["#6366F1", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#14B8A6", "#F97316", "#22C55E", "#EAB308", "#06B6D4"];
 
   return (
     <Card className="rounded-3xl border border-border/40">
@@ -177,100 +192,190 @@ export default function TabelaPatrimonio() {
             <DialogTrigger asChild>
               <Button variant="default" onClick={openCreate} aria-label="Adicionar item">Adicionar</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editing ? "Editar item" : "Novo item de patrimônio"}</DialogTitle>
+                <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+                  {editing ? <Package className="w-5 h-5" /> : <Package className="w-5 h-5" />}
+                  {editing ? "Editar Item" : "Novo Item de Patrimônio"}
+                </DialogTitle>
               </DialogHeader>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="nome">Nome</Label>
-                    <Input id="nome" {...form.register("nome")} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Categoria</Label>
-                    <Select value={form.watch("categoria")} onValueChange={(v) => {
-                      form.setValue("categoria", v);
-                      const def = VIDA_UTIL_DEFAULTS[v] ?? 36;
-                      form.setValue("vida_util_meses", def, { shouldDirty: true, shouldValidate: true });
-                    }}>
-                      <SelectTrigger aria-label="Selecionar categoria">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CATEGORIAS.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="data_aquisicao">Aquisição</Label>
-                    <Input id="data_aquisicao" type="date" {...form.register("data_aquisicao")} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="custo_inicial">Custo inicial</Label>
-                    <Input id="custo_inicial" type="number" step="0.01" {...form.register("custo_inicial", { valueAsNumber: true })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="valor_residual">Valor atual</Label>
-                    <Input id="valor_residual" type="number" step="0.01" {...form.register("valor_residual", { valueAsNumber: true })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Método</Label>
-                    <Select value={form.watch("metodo_depreciacao")} onValueChange={(v) => form.setValue("metodo_depreciacao", v as any)}>
-                      <SelectTrigger aria-label="Selecionar método">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="linha_reta">Linha reta</SelectItem>
-                        <SelectItem value="declinante">Declinante</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="vida_util_meses">Vida útil (meses)</Label>
-                    <Input id="vida_util_meses" type="number" min={1} step={1} {...form.register("vida_util_meses", { valueAsNumber: true })} />
-                  </div>
-                  {form.watch("metodo_depreciacao") === "declinante" && (
+
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 mt-4">
+
+                {/* Seção 1: Informações Principais */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <FileText className="w-4 h-4" /> Informações Básicas
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="taxa_declinante_anual">Taxa declinante (% anual)</Label>
-                      <Input id="taxa_declinante_anual" type="number" step="0.01" {...form.register("taxa_declinante_anual", { valueAsNumber: true })} />
+                      <Label htmlFor="nome">Nome do Item</Label>
+                      <Input id="nome" placeholder="Ex: MacBook Pro M1" {...form.register("nome")} />
                     </div>
-                  )}
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select value={form.watch("status") as any} onValueChange={(v) => form.setValue("status", v as any)}>
-                      <SelectTrigger aria-label="Selecionar status">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ativo">Ativo</SelectItem>
-                        <SelectItem value="vendido">Vendido</SelectItem>
-                        <SelectItem value="descartado">Descartado</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="space-y-2">
+                      <Label>Categoria</Label>
+                      <Select value={form.watch("categoria")} onValueChange={(v) => {
+                        form.setValue("categoria", v);
+                        const def = VIDA_UTIL_DEFAULTS[v] ?? 36;
+                        form.setValue("vida_util_meses", def, { shouldDirty: true, shouldValidate: true });
+                      }}>
+                        <SelectTrigger>
+                          <div className="flex items-center gap-2">
+                            <Tag className="w-4 h-4 text-muted-foreground" />
+                            <SelectValue />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CATEGORIAS.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="data_aquisicao">Data de Aquisição</Label>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input id="data_aquisicao" type="date" className="pl-9" {...form.register("data_aquisicao")} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Status Atual</Label>
+                      <Select value={form.watch("status") as any} onValueChange={(v) => form.setValue("status", v as any)}>
+                        <SelectTrigger>
+                          <div className="flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-muted-foreground" />
+                            <SelectValue />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ativo">Ativo</SelectItem>
+                          <SelectItem value="vendido">Vendido</SelectItem>
+                          <SelectItem value="descartado">Descartado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="valor_atual_cache">Valor atual (manual)</Label>
-                    <Input id="valor_atual_cache" type="number" step="0.01" {...form.register("valor_atual_cache", { valueAsNumber: true })} />
-                  </div>
-                  <div className="space-y-2 flex items-center gap-2">
-                    <Checkbox
-                      checked={Boolean(form.watch("metrificar_roi"))}
-                      onCheckedChange={(checked) => form.setValue("metrificar_roi" as any, Boolean(checked) as any)}
-                      id="metrificar_roi"
-                    />
-                    <Label htmlFor="metrificar_roi">Metrificar ROI</Label>
+
+                <div className="h-px bg-border/50" />
+
+                {/* Seção 2: Financeiro */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" /> Detalhes Financeiros
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="custo_inicial">Custo Inicial</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-muted-foreground text-sm">R$</span>
+                        <Input id="custo_inicial" type="number" step="0.01" className="pl-9" {...form.register("custo_inicial", { valueAsNumber: true })} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="valor_atual_cache">Valor Atual (Manual)</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-muted-foreground text-sm">R$</span>
+                        <Input id="valor_atual_cache" type="number" step="0.01" className="pl-9" placeholder="Auto" {...form.register("valor_atual_cache", { valueAsNumber: true })} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="valor_residual">Valor Residual Estimado</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-2.5 text-muted-foreground text-sm">R$</span>
+                        <Input id="valor_residual" type="number" step="0.01" className="pl-9" {...form.register("valor_residual", { valueAsNumber: true })} />
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="flex justify-end gap-2">
+
+                <div className="h-px bg-border/50" />
+
+                {/* Seção 3: Depreciação */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <TrendingDown className="w-4 h-4" /> Depreciação
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label>Método</Label>
+                      <Select value={form.watch("metodo_depreciacao")} onValueChange={(v) => form.setValue("metodo_depreciacao", v as any)}>
+                        <SelectTrigger>
+                          <div className="flex items-center gap-2">
+                            <Calculator className="w-4 h-4 text-muted-foreground" />
+                            <SelectValue />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="linha_reta">Linha Reta</SelectItem>
+                          <SelectItem value="declinante">Declinante</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vida_util_meses">Vida Útil (Meses)</Label>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input id="vida_util_meses" type="number" min={1} step={1} className="pl-9" {...form.register("vida_util_meses", { valueAsNumber: true })} />
+                      </div>
+                    </div>
+                    {form.watch("metodo_depreciacao") === "declinante" && (
+                      <div className="space-y-2">
+                        <Label htmlFor="taxa_declinante_anual">Taxa Anual (%)</Label>
+                        <Input id="taxa_declinante_anual" type="number" step="0.01" {...form.register("taxa_declinante_anual", { valueAsNumber: true })} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="h-px bg-border/50" />
+
+                {/* Seção 4: Detalhes Adicionais */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4" /> Outros Detalhes
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="localizacao">Localização</Label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input id="localizacao" className="pl-9" placeholder="Ex: Escritório SP" {...form.register("localizacao")} />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="serial_nota">Serial / Nota Fiscal</Label>
+                      <div className="relative">
+                        <Hash className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input id="serial_nota" className="pl-9" {...form.register("serial_nota")} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="garantia_fim">Fim da Garantia</Label>
+                      <div className="relative">
+                        <ShieldCheck className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input id="garantia_fim" type="date" className="pl-9" {...form.register("garantia_fim")} />
+                      </div>
+                    </div>
+                    <div className="flex items-end pb-2">
+                      <div className="flex items-center gap-2 p-3 border rounded-lg w-full bg-muted/20">
+                        <Checkbox
+                          checked={Boolean(form.watch("metrificar_roi"))}
+                          onCheckedChange={(checked) => form.setValue("metrificar_roi" as any, Boolean(checked) as any)}
+                          id="metrificar_roi"
+                        />
+                        <Label htmlFor="metrificar_roi" className="cursor-pointer">Metrificar ROI deste item</Label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
                   <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>Cancelar</Button>
-                  <Button type="submit">Salvar</Button>
+                  <Button type="submit" className="px-8">Salvar Item</Button>
                 </div>
               </form>
             </DialogContent>

@@ -2,8 +2,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import CampanhaStats from "@/components/marketing/campanha/CampanhaStats";
 import CampanhaTable from "@/components/marketing/campanha/CampanhaTable";
+import BrandingStats from "@/components/marketing/branding/BrandingStats";
+import BrandingGallery from "@/components/marketing/branding/BrandingGallery";
+import BrandingFormModal from "@/components/marketing/branding/BrandingFormModal";
+import { useBranding } from "@/hooks/useBranding";
+import ConteudoStats from "@/components/marketing/conteudo/ConteudoStats";
+import ConteudoTable from "@/components/marketing/conteudo/ConteudoTable";
+import ConteudoFormModal from "@/components/marketing/conteudo/ConteudoFormModal";
+import { useConteudo } from "@/hooks/useConteudo";
+import AnuncioStats from "@/components/marketing/anuncio/AnuncioStats";
+import AnuncioTable from "@/components/marketing/anuncio/AnuncioTable";
+import AnuncioFormModal from "@/components/marketing/anuncio/AnuncioFormModal";
+import { useAnuncios } from "@/hooks/useAnuncios";
 
 export default function Marketing() {
+  const { assets, loading: loadingBranding, addAsset, deleteAsset } = useBranding();
+  const { items, loading: loadingConteudo, addItem, updateItem, deleteItem } = useConteudo();
+  const { items: anuncios, loading: loadingAnuncios, addItem: addAnuncio, updateItem: updateAnuncio, deleteItem: deleteAnuncio } = useAnuncios();
+
   return (
     <div className="space-y-6">
       <Card className="rounded-3xl border border-border/40 bg-gradient-to-br from-primary/5 to-accent/5">
@@ -32,20 +48,61 @@ export default function Marketing() {
             </TabsContent>
 
             <TabsContent value="branding">
-              <div className="mt-4">
-                {/* conteúdo futuro da aba Branding */}
+              <div className="mt-4 space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Ativos da Marca</h3>
+                  <BrandingFormModal onSave={addAsset} />
+                </div>
+                {loadingBranding ? (
+                  <div className="text-center py-10">Carregando...</div>
+                ) : (
+                  <>
+                    <BrandingStats assets={assets} />
+                    <BrandingGallery assets={assets} onDelete={deleteAsset} />
+                  </>
+                )}
               </div>
             </TabsContent>
 
             <TabsContent value="producao">
-              <div className="mt-4">
-                {/* conteúdo futuro da aba Produção de conteúdo */}
+              <div className="mt-4 space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Calendário de Conteúdo</h3>
+                  <ConteudoFormModal onSave={addItem} />
+                </div>
+                {loadingConteudo ? (
+                  <div className="text-center py-10">Carregando...</div>
+                ) : (
+                  <>
+                    <ConteudoStats items={items} />
+                    <ConteudoTable
+                      items={items}
+                      onDelete={deleteItem}
+                      onStatusChange={(id, status) => updateItem(id, { status })}
+                    />
+                  </>
+                )}
               </div>
             </TabsContent>
 
             <TabsContent value="anuncio">
-              <div className="mt-4">
-                {/* conteúdo futuro da aba Anúncio */}
+              <div className="mt-4 space-y-6">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Gerenciamento de Anúncios</h3>
+                  <AnuncioFormModal onSave={addAnuncio} />
+                </div>
+                {loadingAnuncios ? (
+                  <div className="text-center py-10">Carregando...</div>
+                ) : (
+                  <>
+                    <AnuncioStats items={anuncios} />
+                    <AnuncioTable
+                      items={anuncios}
+                      onDelete={deleteAnuncio}
+                      onStatusChange={(id, status) => updateAnuncio(id, { status })}
+                    />
+                  </>
+                )}
               </div>
             </TabsContent>
           </Tabs>

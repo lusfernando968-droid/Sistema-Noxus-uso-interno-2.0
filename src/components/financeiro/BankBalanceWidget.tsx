@@ -4,8 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { ContaBancariaRecord } from "@/hooks/useContasBancarias";
 import { calcularSaldoConta } from "@/utils/saldoPorConta";
-import { Banknote, TrendingUp, TrendingDown, Building2, Wallet } from "lucide-react";
- 
+import { Banknote, TrendingUp, TrendingDown, Building2, Wallet, Coins } from "lucide-react";
 
 type Props = {
   contas: ContaBancariaRecord[];
@@ -81,14 +80,14 @@ const BankBalanceWidget = ({ contas, transacoes }: Props) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-xl bg-primary/10">
-                <Wallet className="w-6 h-6 text-primary" />
+                <Coins className="w-6 h-6 text-primary" />
               </div>
               <div>
                 <CardTitle className="text-xl font-bold">Caixa Atual</CardTitle>
                 <p className="text-sm text-muted-foreground">Visão geral dos seus bancos</p>
               </div>
             </div>
-            
+
           </div>
         </CardHeader>
         <CardContent>
@@ -146,10 +145,10 @@ const BankBalanceWidget = ({ contas, transacoes }: Props) => {
                   {/* Header do Card */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div 
+                      <div
                         className="w-6 h-6 rounded-md flex items-center justify-center overflow-hidden"
                         style={{
-                          background: b.banco_detalhes 
+                          background: b.banco_detalhes
                             ? `linear-gradient(135deg, ${b.banco_detalhes.cor_primaria}20, ${b.banco_detalhes.cor_secundaria}10)`
                             : 'linear-gradient(135deg, rgba(var(--primary), 0.2), rgba(var(--primary), 0.1))'
                         }}
@@ -165,10 +164,10 @@ const BankBalanceWidget = ({ contas, transacoes }: Props) => {
                             }}
                           />
                         ) : (
-                          <Building2 
-                            className="w-3.5 h-3.5" 
-                            style={{ 
-                              color: b.banco_detalhes?.cor_primaria || 'var(--primary)' 
+                          <Building2
+                            className="w-3.5 h-3.5"
+                            style={{
+                              color: b.banco_detalhes?.cor_primaria || 'var(--primary)'
                             }}
                           />
                         )}
@@ -176,8 +175,8 @@ const BankBalanceWidget = ({ contas, transacoes }: Props) => {
                       <div>
                         <h3 className="font-semibold text-xs">{b.nome}</h3>
                         {!!b.banco_detalhes && (
-                          <Badge 
-                            variant="secondary" 
+                          <Badge
+                            variant="secondary"
                             className="rounded-full text-[10px]"
                             style={{
                               backgroundColor: `${b.banco_detalhes.cor_primaria}20`,
@@ -203,8 +202,8 @@ const BankBalanceWidget = ({ contas, transacoes }: Props) => {
                   {/* Variação do Mês */}
                   <div className="flex items-center justify-between pt-1.5 border-t border-border/50">
                     <span className="text-[11px] text-muted-foreground">Variação mês</span>
-                    <Badge 
-                      variant={isPos ? "default" : "destructive"} 
+                    <Badge
+                      variant={isPos ? "default" : "destructive"}
                       className="rounded-full text-[11px] flex items-center gap-1"
                     >
                       {isPos ? (
@@ -218,9 +217,8 @@ const BankBalanceWidget = ({ contas, transacoes }: Props) => {
 
                   {/* Percentual */}
                   <div className="text-right">
-                    <span className={`text-[11px] font-medium ${
-                      b.variacaoPct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                    }`}>
+                    <span className={`text-[11px] font-medium ${b.variacaoPct >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}>
                       {b.variacaoPct >= 0 ? '+' : ''}{b.variacaoPct}%
                     </span>
                   </div>

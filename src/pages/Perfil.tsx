@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useNavigation } from "@/contexts/NavigationContext";
+import { useSoundEffects } from "@/hooks/useSoundEffects";
 import { profileUpdateSchema, type ProfileUpdateInput } from "@/lib/validations/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { UserAvatar } from "@/components/profile/UserAvatar";
-import { Camera, Loader2, Menu, Eye, EyeOff } from "lucide-react";
+import { Camera, Loader2, Menu, Volume2, VolumeX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 // import removed: ColorInput (tema personalizado removido)
@@ -23,6 +24,7 @@ export default function Perfil() {
   const { profile, userRole, updateProfile, user } = useAuth();
   const { colorTheme, setColorTheme } = useTheme();
   const { navigationType, setNavigationType, isNavigationVisible, setIsNavigationVisible } = useNavigation();
+  const { soundEnabled, toggleSound, playSound } = useSoundEffects();
   const [isLoading, setIsLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
@@ -58,7 +60,7 @@ export default function Perfil() {
     }
 
     const file = event.target.files[0];
-    
+
     if (file.size > 2 * 1024 * 1024) {
       toast({
         variant: "destructive",
@@ -234,11 +236,10 @@ export default function Perfil() {
                 <button
                   key={theme.id}
                   onClick={() => setColorTheme(theme.id)}
-                  className={`relative group rounded-xl p-4 border-2 transition-all ${
-                    colorTheme === theme.id
+                  className={`relative group rounded-xl p-4 border-2 transition-all ${colorTheme === theme.id
                       ? "border-primary scale-105"
                       : "border-border hover:border-primary/50"
-                  }`}
+                    }`}
                 >
                   <div className={`w-full h-20 rounded-lg ${theme.colors} mb-3`} />
                   <p className="font-medium text-sm text-center">{theme.name}</p>
@@ -300,6 +301,32 @@ export default function Perfil() {
             </div>
 
             <Separator />
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base">Efeitos Sonoros</Label>
+                <p className="text-sm text-muted-foreground">
+                  Reproduzir sons ao interagir com o sistema
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {soundEnabled ? (
+                  <Volume2 className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <VolumeX className="w-4 h-4 text-muted-foreground" />
+                )}
+                <Switch
+                  checked={soundEnabled}
+                  onCheckedChange={() => {
+                    toggleSound();
+                    // Tocar som de demonstração ao habilitar
+                    if (!soundEnabled) {
+                      setTimeout(() => playSound('success'), 100);
+                    }
+                  }}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

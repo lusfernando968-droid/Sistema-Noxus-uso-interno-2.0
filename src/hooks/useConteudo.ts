@@ -2,17 +2,26 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type ConteudoPlatform = 'instagram' | 'youtube' | 'tiktok' | 'linkedin' | 'blog';
-export type ConteudoStatus = 'ideia' | 'roteiro' | 'gravacao' | 'edicao' | 'postado';
+export type ConteudoPlatform = 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'LINKEDIN' | 'EMAIL' | 'BLOG' | 'CURSO_NOXUS_MVP';
+export type ConteudoStatus = 'IDEIA' | 'EM_PRODUCAO' | 'REVISAO' | 'AGENDADO' | 'PUBLICADO' | 'ARQUIVADO';
+export type ConteudoTipo = 'POST' | 'STORY' | 'REEL' | 'VIDEO' | 'ARTIGO' | 'EMAIL';
 
 export interface ConteudoItem {
     id: string;
-    title: string;
-    platform: ConteudoPlatform;
+    user_id: string;
+    titulo: string;
+    descricao?: string;
+    tipo: ConteudoTipo;
+    plataforma: ConteudoPlatform;
     status: ConteudoStatus;
-    scheduled_date?: string;
-    description?: string;
+    data_agendamento?: string;
+    data_publicacao?: string;
     link?: string;
+    visualizacoes?: number;
+    engajamento?: number;
+    cliques?: number;
+    tags?: string[];
+    notas?: string;
     created_at: string;
 }
 
@@ -30,7 +39,7 @@ export function useConteudo() {
             const { data, error } = await supabase
                 .from('conteudo_producao')
                 .select('*')
-                .order('scheduled_date', { ascending: true });
+                .order('data_agendamento', { ascending: true });
 
             if (error) throw error;
             setItems(data || []);
@@ -42,11 +51,18 @@ export function useConteudo() {
         }
     }
 
-    async function addItem(item: Omit<ConteudoItem, 'id' | 'created_at'>) {
+    async function addItem(item: Omit<ConteudoItem, 'id' | 'created_at' | 'user_id'>) {
         try {
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (!user) {
+                toast.error('Você precisa estar logado para adicionar conteúdo');
+                return;
+            }
+
             const { data, error } = await supabase
                 .from('conteudo_producao')
-                .insert([item])
+                .insert([{ ...item, user_id: user.id }])
                 .select()
                 .single();
 
@@ -55,9 +71,9 @@ export function useConteudo() {
             setItems([...items, data]);
             toast.success('Conteúdo adicionado com sucesso!');
             return data;
-        } catch (error) {
+        } catch (error: any) {
             console.error('Erro ao adicionar conteúdo:', error);
-            toast.error('Erro ao adicionar conteúdo');
+            toast.error(`Erro ao adicionar conteúdo: ${error.message || 'Erro desconhecido'}`);
             throw error;
         }
     }

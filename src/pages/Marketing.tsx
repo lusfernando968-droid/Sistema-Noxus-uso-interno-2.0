@@ -10,19 +10,39 @@ import ConteudoStats from "@/components/marketing/conteudo/ConteudoStats";
 import ConteudoTable from "@/components/marketing/conteudo/ConteudoTable";
 import ConteudoFormModal from "@/components/marketing/conteudo/ConteudoFormModal";
 import { useConteudo } from "@/hooks/useConteudo";
+import ConteudoKanban from "@/components/marketing/conteudo/ConteudoKanban";
+import ConteudoCalendar from "@/components/marketing/conteudo/ConteudoCalendar";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import AnuncioStats from "@/components/marketing/anuncio/AnuncioStats";
 import AnuncioTable from "@/components/marketing/anuncio/AnuncioTable";
 import AnuncioFormModal from "@/components/marketing/anuncio/AnuncioFormModal";
 import { useAnuncios } from "@/hooks/useAnuncios";
 
+import { ConteudoItem } from "@/hooks/useConteudo";
+import { Plus } from "lucide-react";
+
 export default function Marketing() {
+  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar'>('list');
   const { assets, loading: loadingBranding, addAsset, deleteAsset } = useBranding();
   const { items, loading: loadingConteudo, addItem, updateItem, deleteItem } = useConteudo();
   const { items: anuncios, loading: loadingAnuncios, addItem: addAnuncio, updateItem: updateAnuncio, deleteItem: deleteAnuncio } = useAnuncios();
 
+  const [editingConteudo, setEditingConteudo] = useState<ConteudoItem | null>(null);
+  const [isConteudoModalOpen, setIsConteudoModalOpen] = useState(false);
+
+  const handleSaveConteudo = async (data: any) => {
+    if (editingConteudo) {
+      await updateItem(editingConteudo.id, data);
+    } else {
+      await addItem(data);
+    }
+    setIsConteudoModalOpen(false);
+  };
+
   return (
     <div className="space-y-6">
-      <Card className="rounded-3xl border border-border/40 bg-gradient-to-br from-primary/5 to-accent/5">
+      <Card className="rounded-3xl border border-border/40">
         <CardHeader>
           <div className="flex items-center gap-3">
             <div>
@@ -67,19 +87,91 @@ export default function Marketing() {
             <TabsContent value="producao">
               <div className="mt-4 space-y-6">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Calendário de Conteúdo</h3>
-                  <ConteudoFormModal onSave={addItem} />
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-lg font-medium">Conteúdo</h3>
+                    <div className="flex items-center p-1 bg-muted rounded-lg border">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-7 px-3 text-xs hover:bg-transparent ${viewMode === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        onClick={() => setViewMode('list')}
+                      >
+                        Lista
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-7 px-3 text-xs hover:bg-transparent ${viewMode === 'kanban' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        onClick={() => setViewMode('kanban')}
+                      >
+                        Kanban
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-7 px-3 text-xs hover:bg-transparent ${viewMode === 'calendar' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        onClick={() => setViewMode('calendar')}
+                      >
+                        Calendário
+                      </Button>
+                    </div>
+                  </div>
+                  <Button onClick={() => {
+                    setEditingConteudo(null);
+                    setIsConteudoModalOpen(true);
+                  }} className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Novo Conteúdo
+                  </Button>
                 </div>
+
+                <ConteudoFormModal
+                  open={isConteudoModalOpen}
+                  onOpenChange={setIsConteudoModalOpen}
+                  itemToEdit={editingConteudo}
+                  onSave={handleSaveConteudo}
+                />
+
                 {loadingConteudo ? (
                   <div className="text-center py-10">Carregando...</div>
                 ) : (
                   <>
                     <ConteudoStats items={items} />
-                    <ConteudoTable
-                      items={items}
-                      onDelete={deleteItem}
-                      onStatusChange={(id, status) => updateItem(id, { status })}
-                    />
+
+                    {viewMode === 'list' && (
+                      <ConteudoTable
+                        items={items}
+                        onDelete={deleteItem}
+                        onStatusChange={(id, status) => updateItem(id, { status })}
+                        onEdit={(item) => {
+                          setEditingConteudo(item);
+                          setIsConteudoModalOpen(true);
+                        }}
+                      />
+                    )}
+
+                    {viewMode === 'kanban' && (
+                      <ConteudoKanban
+                        items={items}
+                        onDelete={deleteItem}
+                        onStatusChange={(id, status) => updateItem(id, { status })}
+                        onEdit={(item) => {
+                          setEditingConteudo(item);
+                          setIsConteudoModalOpen(true);
+                        }}
+                      />
+                    )}
+
+                    {viewMode === 'calendar' && (
+                      <ConteudoCalendar
+                        items={items}
+                        onDateChange={(id, date) => updateItem(id, { data_agendamento: date.toISOString() })}
+                        onEdit={(item) => {
+                          setEditingConteudo(item);
+                          setIsConteudoModalOpen(true);
+                        }}
+                      />
+                    )}
                   </>
                 )}
               </div>

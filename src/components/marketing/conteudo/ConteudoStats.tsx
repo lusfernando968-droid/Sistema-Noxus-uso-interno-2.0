@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Video, Instagram, Linkedin, FileText, Youtube } from "lucide-react";
+import { Video, Instagram, FileText, Youtube } from "lucide-react";
 import { ConteudoItem } from "@/hooks/useConteudo";
 
 interface ConteudoStatsProps {
@@ -7,13 +7,13 @@ interface ConteudoStatsProps {
 }
 
 export default function ConteudoStats({ items }: ConteudoStatsProps) {
-    const totalIdeas = items.filter(i => i.status === 'ideia').length;
-    const totalScheduled = items.filter(i => i.status === 'roteiro' || i.status === 'gravacao' || i.status === 'edicao').length;
-    const totalPosted = items.filter(i => i.status === 'postado').length;
+    const totalIdeas = items.filter(i => i.status === 'IDEIA').length;
+    const totalScheduled = items.filter(i => i.status === 'EM_PRODUCAO' || i.status === 'REVISAO' || i.status === 'AGENDADO').length;
+    const totalPosted = items.filter(i => i.status === 'PUBLICADO').length;
 
     // Contagem por plataforma (exemplo simples)
-    const instagramCount = items.filter(i => i.platform === 'instagram').length;
-    const youtubeCount = items.filter(i => i.platform === 'youtube').length;
+    const instagramCount = items.filter(i => i.plataforma === 'INSTAGRAM').length;
+    const youtubeCount = items.filter(i => i.plataforma === 'YOUTUBE').length;
 
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -39,7 +39,7 @@ export default function ConteudoStats({ items }: ConteudoStatsProps) {
             </Card>
             <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Postados</CardTitle>
+                    <CardTitle className="text-sm font-medium">Publicados</CardTitle>
                     <Instagram className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>

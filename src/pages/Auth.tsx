@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { useBrandingContext } from "@/contexts/BrandingContext";
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
@@ -20,6 +21,7 @@ export default function Auth() {
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
   const prevThemeRef = useRef(theme);
+  const { studioName, logoUrl, studioNameUrl } = useBrandingContext();
 
   // Força tema claro (fundo branco) durante a tela de login
   useEffect(() => {
@@ -65,7 +67,7 @@ export default function Auth() {
   const onLogin = async (data: LoginInput) => {
     setIsLoading(true);
     const { error } = await signIn(data.email, data.password);
-    
+
     if (error) {
       toast({
         variant: "destructive",
@@ -73,14 +75,14 @@ export default function Auth() {
         description: error.message,
       });
     }
-    
+
     setIsLoading(false);
   };
 
   const onSignup = async (data: SignupInput) => {
     setIsLoading(true);
     const { error } = await signUp(data.email, data.password, data.nome_completo);
-    
+
     if (error) {
       toast({
         variant: "destructive",
@@ -97,7 +99,7 @@ export default function Auth() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     const { error } = await signInWithGoogle();
-    
+
     if (error) {
       toast({
         variant: "destructive",
@@ -116,9 +118,19 @@ export default function Auth() {
       </div>
       <Card className="relative z-10 w-full max-w-md rounded-2xl border-border shadow-xl">
         <CardHeader className="space-y-1 text-center">
-          <div className="flex items-center justify-center gap-2">
-            <Loader2 className="w-8 h-8 text-primary" />
-            <CardTitle className="text-3xl font-bold">Noxus</CardTitle>
+          <div className="flex items-center justify-center gap-2 flex-col">
+            <div className="flex items-center gap-2">
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="w-12 h-12 object-contain" />
+              ) : (
+                <Loader2 className="w-8 h-8 text-primary" />
+              )}
+              {studioNameUrl ? (
+                <img src={studioNameUrl} alt={studioName} className="h-8 w-auto object-contain" />
+              ) : (
+                <CardTitle className="text-3xl font-bold">{studioName}</CardTitle>
+              )}
+            </div>
           </div>
           <CardDescription>De tatuador para tatuador</CardDescription>
         </CardHeader>
@@ -187,7 +199,7 @@ export default function Auth() {
                   </Button>
                 </form>
               </Form>
-              
+
               <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t" />

@@ -2,6 +2,7 @@ import { Home, Users, Briefcase, DollarSign, Calendar, Package, Moon, Sun, Loade
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
+import { useBrandingContext } from "@/contexts/BrandingContext";
 
 const menuItems = [
   { icon: Home, label: "Dashboard", path: "/" },
@@ -16,13 +17,22 @@ const menuItems = [
 export function Sidebar() {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { studioName, logoUrl, studioNameUrl } = useBrandingContext();
 
   return (
     <aside className="w-52 h-screen bg-card border-r border-border flex flex-col">
       <div className="p-6 border-b border-border flex items-center gap-3">
-        <Loader2 className="w-10 h-10 text-primary" />
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" className="w-10 h-10 object-contain" />
+        ) : (
+          <Loader2 className="w-10 h-10 text-primary" />
+        )}
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Sistema Noxus</h1>
+          {studioNameUrl ? (
+            <img src={studioNameUrl} alt={studioName} className="h-6 w-auto object-contain max-w-[120px]" />
+          ) : (
+            <h1 className="text-xl font-semibold tracking-tight">{studioName}</h1>
+          )}
           <p className="text-sm text-muted-foreground">Gestor para Tatuadores</p>
         </div>
       </div>
@@ -34,11 +44,10 @@ export function Sidebar() {
           return (
             <Link key={item.path} to={item.path}>
               <div
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-secondary text-foreground"
-                }`}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-secondary text-foreground"
+                  }`}
               >
                 <Icon className="w-5 h-5" />
                 <span className="font-medium">{item.label}</span>

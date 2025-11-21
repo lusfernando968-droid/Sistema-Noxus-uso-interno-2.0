@@ -13,6 +13,7 @@ import { BrandingAssetType } from "@/hooks/useBranding";
 
 interface BrandingFormModalProps {
     onSave: (asset: { title: string; type: BrandingAssetType; value?: string; asset_url?: string; description?: string }) => Promise<void>;
+    onUpload: (file: File) => Promise<string>;
 }
 
 const brandingSchema = z.object({
@@ -24,9 +25,10 @@ const brandingSchema = z.object({
 
 type BrandingFormData = z.infer<typeof brandingSchema>;
 
-export default function BrandingFormModal({ onSave }: BrandingFormModalProps) {
+export default function BrandingFormModal({ onSave, onUpload }: BrandingFormModalProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     const form = useForm<BrandingFormData>({
         resolver: zodResolver(brandingSchema),
@@ -43,21 +45,29 @@ export default function BrandingFormModal({ onSave }: BrandingFormModalProps) {
     useEffect(() => {
         if (!open) {
             form.reset();
+            setSelectedFile(null);
         }
     }, [open, form]);
 
     const handleSubmit = async (values: BrandingFormData) => {
         setLoading(true);
         try {
+            let assetUrl = values.type === 'logo' || values.type === 'manual' ? values.value : undefined;
+
+            if (selectedFile) {
+                assetUrl = await onUpload(selectedFile);
+            }
+
             await onSave({
                 title: values.title,
                 type: values.type,
                 value: values.type === 'color' || values.type === 'font' ? values.value : undefined,
-                asset_url: values.type === 'logo' || values.type === 'manual' ? values.value : undefined,
+                asset_url: assetUrl,
                 description: values.description
             });
             setOpen(false);
             form.reset();
+            setSelectedFile(null);
         } catch (error) {
             // Erro já tratado no hook
         } finally {
@@ -157,9 +167,35 @@ export default function BrandingFormModal({ onSave }: BrandingFormModalProps) {
                                 <FormItem>
                                     <FormLabel>{getValueLabel()}</FormLabel>
                                     <FormControl>
-                                        <div className="relative">
-                                            <ValueIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                            <Input placeholder={getValuePlaceholder()} className="pl-9" {...field} />
+                                        <div className="space-y-2">
+                                            {(watchType === 'logo' || watchType === 'manual') && (
+                                                <div className="flex items-center gap-2">
+                                                    <Input
+                                                        type="file"
+                                                        accept={watchType === 'logo' ? "image/*" : ".pdf,.doc,.docx"}
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) setSelectedFile(file);
+                                                        }}
+                                                        className="cursor-pointer"
+                                                    />
+                                                </div>
+                                            )}
+                                            <div className="relative">
+                                                <ValueIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                <Input
+                                                    placeholder={getValuePlaceholder()}
+                                                    className="pl-9"
+                                                    {...field}
+                                                    disabled={!!selectedFile}
+                                                    value={selectedFile ? (selectedFile.name) : field.value}
+                                                />
+                                            </div>
+                                            {selectedFile && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Arquivo selecionado: {selectedFile.name} (O URL será gerado após salvar)
+                                                </p>
+                                            )}
                                         </div>
                                     </FormControl>
                                     <FormMessage />

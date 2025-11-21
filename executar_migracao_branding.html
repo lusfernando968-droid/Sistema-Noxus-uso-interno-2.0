@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Executar Migração - Branding</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        .danger {
+            background: #f44336;
+        }
+
+        .danger:hover {
+            background: #da190b;
+        }
+
+        #resultado {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            background: #f9f9f9;
+            border-left: 4px solid #2196F3;
+        }
+
+        .success {
+            border-left-color: #4CAF50;
+            background: #e8f5e9;
+        }
+
+        .error {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+
+        pre {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 Executar Migração - Tabela Branding (Ativos da Marca)</h1>
+        <p>Este script irá criar a tabela <code>ativos_marca</code> no banco de dados Supabase.</p>
+
+        <button onclick="executarMigracao()">✅ Executar Migração</button>
+        <button onclick="verificarTabela()">🔍 Verificar se Tabela Existe</button>
+
+        <div id="resultado"></div>
+    </div>
+
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+        // Credenciais públicas (anon key)
+        const SUPABASE_URL = 'https://kkmnhpbbkkrkwbgnqxfy.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrbW5ocGJia2tya3diZ25xeGZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE0NTQxMzUsImV4cCI6MjA0NzAzMDEzNX0.1WQ3LVALE3q2W3fN3XaQhL3Xb3xZ3Y3Z3Y3Z3Y3Z3Y3Z';
+
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        window.resultado = document.getElementById('resultado');
+
+        const migrationSQL = `
+create table if not exists public.ativos_marca (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  nome text not null,
+  descricao text,
+  tipo text not null check (tipo in ('LOGO','PALETA_CORES','TIPOGRAFIA','DIRETRIZ','TEMPLATE')),
+  arquivo_url text,
+  dados_json jsonb,
+  tags text[],
+  notas text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists idx_ativos_marca_user on public.ativos_marca(user_id);
+create index if not exists idx_ativos_marca_tipo on public.ativos_marca(tipo);
+
+alter table public.ativos_marca enable row level security;
+
+create policy ativos_marca_select on public.ativos_marca for select using (user_id = auth.uid());
+create policy ativos_marca_insert on public.ativos_marca for insert with check (user_id = auth.uid());
+create policy ativos_marca_update on public.ativos_marca for update using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy ativos_marca_delete on public.ativos_marca for delete using (user_id = auth.uid());
+
+drop trigger if exists trg_ativos_marca_updated on public.ativos_marca;
+create trigger trg_ativos_marca_updated before update on public.ativos_marca
+for each row execute function public.set_updated_at();
+`;
+
+        window.executarMigracao = async function () {
+            resultado.innerHTML = `
+                <div class="error">
+                    <h3>⚠️ Execução Manual Necessária</h3>
+                    <p>Por razões de segurança, o Supabase não permite executar SQL arbitrário via API REST.</p>
+                    <p><strong>Siga um destes métodos:</strong></p>
+                    <ol>
+                        <li><strong>Via Interface Web:</strong>
+                            <ul>
+                                <li>Acesse: <a href="https://supabase.com/dashboard/project/kkmnhpbbkkrkwbgnqxfy/editor" target="_blank">Supabase SQL Editor</a></li>
+                                <li>Copie o SQL abaixo</li>
+                                <li>Cole no editor e clique em "Run"</li>
+                            </ul>
+                        </li>
+                    </ol>
+                    <h4>📋 SQL para copiar:</h4>
+                    <pre>${migrationSQL}</pre>
+                    <p>Após executar o SQL, clique em "Verificar se Tabela Existe" para confirmar.</p>
+                </div>
+            `;
+        };
+
+        window.verificarTabela = async function () {
+            resultado.innerHTML = '<p>🔍 Verificando se a tabela ativos_marca existe...</p>';
+
+            try {
+                const { data, error } = await supabase
+                    .from('ativos_marca')
+                    .select('id')
+                    .limit(1);
+
+                if (error) {
+                    if (error.code === '42P01' || error.code === 'PGRST204') {
+                        resultado.innerHTML = `
+                            <div class="error">
+                                <p>❌ Tabela <strong>ativos_marca</strong> NÃO existe ainda.</p>
+                                <p>Execute a migração primeiro clicando no botão "Executar Migração".</p>
+                            </div>
+                        `;
+                    } else {
+                        resultado.innerHTML = `<div class="error"><p>❌ Erro: ${error.message} (Código: ${error.code})</p></div>`;
+                    }
+                } else {
+                    resultado.innerHTML = `
+                        <div class="success">
+                            <p>✅ Tabela <strong>ativos_marca</strong> existe e está acessível!</p>
+                            <p>Registros encontrados: ${data ? data.length : 0}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultado.innerHTML = `<div class="error"><p>❌ Erro ao verificar: ${error.message}</p></div>`;
+            }
+        };
+    </script>
+</body>
+
+</html>

@@ -24,7 +24,7 @@ import { Plus } from "lucide-react";
 
 export default function Marketing() {
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar'>('list');
-  const { assets, loading: loadingBranding, addAsset, deleteAsset } = useBranding();
+  const { assets, loading: loadingBranding, addAsset, deleteAsset, uploadImage } = useBranding();
   const { items, loading: loadingConteudo, addItem, updateItem, deleteItem } = useConteudo();
   const { items: anuncios, loading: loadingAnuncios, addItem: addAnuncio, updateItem: updateAnuncio, deleteItem: deleteAnuncio } = useAnuncios();
 
@@ -71,7 +71,7 @@ export default function Marketing() {
               <div className="mt-4 space-y-6">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-medium">Ativos da Marca</h3>
-                  <BrandingFormModal onSave={addAsset} />
+                  <BrandingFormModal onSave={addAsset} onUpload={uploadImage} />
                 </div>
                 {loadingBranding ? (
                   <div className="text-center py-10">Carregando...</div>

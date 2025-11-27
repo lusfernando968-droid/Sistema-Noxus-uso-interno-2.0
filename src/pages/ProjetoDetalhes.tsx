@@ -26,7 +26,7 @@ interface Projeto {
   descricao: string;
   cliente_nome: string;
   cliente_id: string;
-  status: 'planejamento' | 'em_andamento' | 'pausado' | 'concluido' | 'cancelado';
+  status: 'planejamento' | 'andamento' | 'pausado' | 'concluido' | 'cancelado';
   data_inicio: string;
   data_fim?: string;
   valor_total: number;
@@ -74,7 +74,7 @@ export default function ProjetoDetalhes() {
   const [agendamentoToCancel, setAgendamentoToCancel] = useState<AgendamentoProjeto | null>(null);
   const [editingAgendamento, setEditingAgendamento] = useState<AgendamentoProjeto | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editForm, setEditForm] = useState<{ titulo: string; descricao: string; data: string; hora: string; status: AgendamentoProjeto['status']}>({
+  const [editForm, setEditForm] = useState<{ titulo: string; descricao: string; data: string; hora: string; status: AgendamentoProjeto['status'] }>({
     titulo: '',
     descricao: '',
     data: '',
@@ -165,6 +165,13 @@ export default function ProjetoDetalhes() {
       setEditSessaoDialogOpen(false);
       setEditingSessao(null);
       toast({ title: 'Sessão atualizada', description: 'As alterações foram salvas.' });
+
+      // Atualizar status automaticamente
+      if (projeto) {
+        const sessoesCompletas = sessoes.filter(s => s.status === 'concluida').length;
+        const totalPlanejadas = projeto.quantidade_sessoes || sessoes.length || 0;
+        await atualizarStatusAutomatico(sessoesCompletas, totalPlanejadas);
+      }
     } catch (err) {
       console.error('Erro ao salvar edição da sessão:', err);
       toast({ title: 'Erro ao salvar sessão', description: String(err), variant: 'destructive' });
@@ -204,9 +211,46 @@ export default function ProjetoDetalhes() {
       setManualSessaoDialogOpen(false);
       setManualSessaoForm({ data: '', valor: 0, descricao: '', status: 'concluida' });
       toast({ title: 'Sessão registrada', description: 'Sessão adicionada ao histórico.' });
+
+      // Atualizar status automaticamente
+      if (projeto) {
+        const sessoesCompletas = [...sessoes, { status: manualSessaoForm.status }].filter(s => s.status === 'concluida').length;
+        const totalPlanejadas = projeto.quantidade_sessoes || sessoes.length + 1 || 0;
+        await atualizarStatusAutomatico(sessoesCompletas, totalPlanejadas);
+      }
     } catch (err) {
       toast({ title: 'Erro ao registrar sessão', description: String(err), variant: 'destructive' });
     }
+  };
+
+  // Atualiza automaticamente o status do projeto baseado no progresso
+  const atualizarStatusAutomatico = async (sessoesCompletas: number, totalPlanejadas: number) => {
+    if (!id || totalPlanejadas === 0) return;
+
+    const progresso = (sessoesCompletas / totalPlanejadas) * 100;
+    let novoStatus: Projeto['status'];
+
+    if (progresso === 0) {
+      novoStatus = 'planejamento';
+    } else if (progresso >= 100) {
+      novoStatus = 'concluido';
+    } else {
+      novoStatus = 'andamento';
+    }
+
+    // Atualiza o status no banco de dados
+    const { error } = await supabase
+      .from('projetos')
+      .update({ status: novoStatus })
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao atualizar status do projeto:', error);
+      return;
+    }
+
+    // Atualiza o estado local
+    setProjeto(prev => prev ? { ...prev, status: novoStatus } : null);
   };
 
   // Exclusão de sessão
@@ -231,6 +275,13 @@ export default function ProjetoDetalhes() {
       setDeleteSessaoDialogOpen(false);
       setSessaoToDelete(null);
       toast({ title: 'Sessão excluída', description: 'O histórico foi removido.' });
+
+      // Atualizar status automaticamente
+      if (projeto) {
+        const sessoesCompletas = sessoes.filter(s => s.id !== sessaoToDelete.id && s.status === 'concluida').length;
+        const totalPlanejadas = projeto.quantidade_sessoes || (sessoes.length - 1) || 0;
+        await atualizarStatusAutomatico(sessoesCompletas, totalPlanejadas);
+      }
     } catch (err) {
       console.error('Erro ao excluir sessão:', err);
       toast({ title: 'Erro ao excluir', description: String(err), variant: 'destructive' });
@@ -241,29 +292,34 @@ export default function ProjetoDetalhes() {
 
   const loadSessoes = async () => {
     if (!id) return;
-    
+
     try {
       const { data: sessoesData, error } = await supabase
         .from('projeto_sessoes')
         .select('*')
         .eq('projeto_id', id)
         .order('numero_sessao', { ascending: true });
-      
+
       if (error) throw error;
 
-      const sessoesFormatadas: Sessao[] = (sessoesData || []).map(sessao => ({
-        id: sessao.id,
-        data: sessao.data_sessao,
-        duracao: 120,
-        descricao: sessao.observacoes_tecnicas || `Sessão ${sessao.numero_sessao}`,
-        valor: sessao.valor_sessao || 0,
-        status: sessao.status_pagamento === 'pago' ? 'concluida' : 'agendada',
-        feedback_cliente: sessao.feedback_cliente,
-        observacoes_tecnicas: sessao.observacoes_tecnicas,
-        avaliacao: sessao.avaliacao,
-        agendamento_id: sessao.agendamento_id || null,
-        numero_sessao: sessao.numero_sessao
-      }));
+      const sessoesFormatadas: Sessao[] = (sessoesData || []).map(sessao => {
+        const isPastOrToday = new Date(sessao.data_sessao) <= new Date();
+        const isConcluida = sessao.status_pagamento === 'pago' || (sessao.status_pagamento === 'pendente' && isPastOrToday);
+
+        return {
+          id: sessao.id,
+          data: sessao.data_sessao,
+          duracao: 120,
+          descricao: sessao.observacoes_tecnicas || `Sessão ${sessao.numero_sessao}`,
+          valor: sessao.valor_sessao || 0,
+          status: sessao.status_pagamento === 'cancelado' ? 'cancelada' : (isConcluida ? 'concluida' : 'agendada'),
+          feedback_cliente: sessao.feedback_cliente,
+          observacoes_tecnicas: sessao.observacoes_tecnicas,
+          avaliacao: sessao.avaliacao,
+          agendamento_id: sessao.agendamento_id || null,
+          numero_sessao: sessao.numero_sessao
+        };
+      });
       setSessoes(sessoesFormatadas);
     } catch (error) {
       console.error('Erro ao carregar sessões:', error);
@@ -287,7 +343,7 @@ export default function ProjetoDetalhes() {
         id: a.id,
         titulo: a.titulo || 'Agendamento',
         data: a.data,
-        hora: typeof a.hora === 'string' ? a.hora.slice(0,5) : '',
+        hora: typeof a.hora === 'string' ? a.hora.slice(0, 5) : '',
         status: a.status || 'agendado',
         descricao: a.descricao || '',
       }));
@@ -443,7 +499,7 @@ export default function ProjetoDetalhes() {
           .select('valor_sessao')
           .eq('projeto_id', id)
           .eq('status_pagamento', 'pago');
-        
+
         const valorPago = (sessoes || []).reduce((sum, s) => sum + (s.valor_sessao || 0), 0);
 
         // Montar dados do projeto
@@ -465,7 +521,7 @@ export default function ProjetoDetalhes() {
         };
 
         setProjeto(projetoCompleto);
-        
+
         // Carregar sessões
         await loadSessoes();
         // Carregar agendamentos do projeto
@@ -711,61 +767,61 @@ export default function ProjetoDetalhes() {
           {/* Aba Sessões */}
           <TabsContent value="sessoes" className="space-y-6">
             <Card className="rounded-2xl">
-            <CardHeader>
-            <CardTitle>Histórico de Sessões</CardTitle>
-            <CardDescription>
-              {sessoesCompletas} de {totalPlanejadas} sessões concluídas
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {sessoes.map((sessao, index) => (
-                  <ContextMenu key={sessao.id}>
-                    <ContextMenuTrigger asChild>
-                      <div className="flex items-start justify-between gap-4 p-4 border rounded-xl">
-                        <div className="flex items-start gap-4 flex-1">
-                          <div className="flex-shrink-0">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                              <span className="text-sm font-medium">{sessao.numero_sessao ?? (index + 1)}</span>
+              <CardHeader>
+                <CardTitle>Histórico de Sessões</CardTitle>
+                <CardDescription>
+                  {sessoesCompletas} de {totalPlanejadas} sessões concluídas
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {sessoes.map((sessao, index) => (
+                    <ContextMenu key={sessao.id}>
+                      <ContextMenuTrigger asChild>
+                        <div className="flex items-start justify-between gap-4 p-4 border rounded-xl">
+                          <div className="flex items-start gap-4 flex-1">
+                            <div className="flex-shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                <span className="text-sm font-medium">{sessao.numero_sessao ?? (index + 1)}</span>
+                              </div>
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Calendar className="w-4 h-4 text-muted-foreground" />
+                                <span className="text-sm text-muted-foreground">{new Date(sessao.data).toLocaleDateString()}</span>
+                                <Badge variant="outline" className={`rounded-xl ${getSessaoStatusColor(sessao.status)}`}>
+                                  {sessao.status}
+                                </Badge>
+                              </div>
+                              <p className="font-medium">{getSessaoDescricao(sessao)}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {sessao.duracao} min • R$ {sessao.valor.toFixed(2)}
+                              </p>
+                              {/* ID do agendamento ocultado conforme preferência do usuário */}
                             </div>
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Calendar className="w-4 h-4 text-muted-foreground" />
-                              <span className="text-sm text-muted-foreground">{new Date(sessao.data).toLocaleDateString()}</span>
-                              <Badge variant="outline" className={`rounded-xl ${getSessaoStatusColor(sessao.status)}`}>
-                                {sessao.status}
-                              </Badge>
-                            </div>
-                            <p className="font-medium">{getSessaoDescricao(sessao)}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {sessao.duracao} min • R$ {sessao.valor.toFixed(2)}
-                            </p>
-                            {/* ID do agendamento ocultado conforme preferência do usuário */}
+                          <div className="flex items-center gap-2">
+                            <Button size="sm" variant="outline" className="rounded-xl" onClick={() => abrirEdicaoSessao(sessao)}>
+                              Editar
+                            </Button>
+                            <Button size="sm" variant="destructive" className="rounded-xl" onClick={() => solicitarExclusaoSessao(sessao)}>
+                              Excluir
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Button size="sm" variant="outline" className="rounded-xl" onClick={() => abrirEdicaoSessao(sessao)}>
-                            Editar
-                          </Button>
-                          <Button size="sm" variant="destructive" className="rounded-xl" onClick={() => solicitarExclusaoSessao(sessao)}>
-                            Excluir
-                          </Button>
-                        </div>
-                      </div>
-                    </ContextMenuTrigger>
-                    <ContextMenuContent>
-                      <ContextMenuItem onClick={() => abrirEdicaoSessao(sessao)}>Editar</ContextMenuItem>
-                      <ContextMenuSeparator />
-                      <ContextMenuItem className="text-destructive" onClick={() => solicitarExclusaoSessao(sessao)}>Excluir</ContextMenuItem>
-                    </ContextMenuContent>
-                  </ContextMenu>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem onClick={() => abrirEdicaoSessao(sessao)}>Editar</ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem className="text-destructive" onClick={() => solicitarExclusaoSessao(sessao)}>Excluir</ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
-          
+
 
           {/* Dialog de edição de agendamento */}
           <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -896,8 +952,8 @@ export default function ProjetoDetalhes() {
 
           {/* Aba Feedbacks */}
           <TabsContent value="feedbacks" className="space-y-6">
-            <FeedbackManager 
-              projetoId={projeto.id} 
+            <FeedbackManager
+              projetoId={projeto.id}
               onFeedbackUpdate={() => {
                 // Recarregar dados quando feedback for atualizado
                 setSessoes([]);
@@ -927,14 +983,14 @@ export default function ProjetoDetalhes() {
                     <p className="text-sm text-muted-foreground">Saldo Restante</p>
                   </div>
                 </div>
-                
+
                 <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span>Progresso do Pagamento</span>
                     <span>{Math.round(progressoPagamento)}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-primary h-2 rounded-full transition-all duration-300"
                       style={{ width: `${progressoPagamento}%` }}
                     ></div>
@@ -970,7 +1026,7 @@ export default function ProjetoDetalhes() {
         </Tabs>
 
         {/* Ações */}
-          <Card className="rounded-2xl">
+        <Card className="rounded-2xl">
           <CardContent className="p-6">
             <div className="flex gap-4">
               <Button

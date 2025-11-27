@@ -403,6 +403,40 @@ export default function Agendamentos() {
         }
       }
 
+      // Resolver nome do cliente
+      let clienteNome = agendamento.cliente_nome || clientes.find(c => c.id === agendamento.cliente_id)?.nome;
+
+      if (!clienteNome && isUUID(agendamento.id)) {
+        // Tentar buscar do banco se não tivermos localmente
+        const { data: agData } = await supabase
+          .from('agendamentos')
+          .select('projeto_id')
+          .eq('id', agendamento.id)
+          .maybeSingle();
+
+        if (agData?.projeto_id) {
+          const { data: projData } = await supabase
+            .from('projetos')
+            .select('cliente_id')
+            .eq('id', agData.projeto_id)
+            .maybeSingle();
+
+          if (projData?.cliente_id) {
+            const { data: cliData } = await supabase
+              .from('clientes')
+              .select('nome')
+              .eq('id', projData.cliente_id)
+              .maybeSingle();
+
+            if (cliData?.nome) {
+              clienteNome = cliData.nome;
+            }
+          }
+        }
+      }
+
+      clienteNome = clienteNome || "Cliente";
+
       // Registrar/atualizar transação (receita) referente à sessão
       // Evita duplicidade: se já existir uma transação vinculada ao agendamento, apenas atualiza a descrição
       if (agendamento.valor_estimado && agendamento.valor_estimado > 0) {
@@ -423,7 +457,7 @@ export default function Agendamentos() {
             const { error: updateErro } = await supabase
               .from('transacoes')
               .update({
-                descricao: `Sessão realizada: ${agendamento.servico}`,
+                descricao: `Sessão realizada: ${agendamento.servico} - ${clienteNome}`,
               })
               .eq('id', existingTransacao.id);
             if (updateErro) throw updateErro;
@@ -436,7 +470,7 @@ export default function Agendamentos() {
                 categoria: 'Serviços',
                 valor: agendamento.valor_estimado,
                 data_vencimento: agendamento.data_agendamento,
-                descricao: `Sessão realizada: ${agendamento.servico}`,
+                descricao: `Sessão realizada: ${agendamento.servico} - ${clienteNome}`,
                 agendamento_id: agendamentoUUID,
               });
             if (transacaoError) throw transacaoError;
@@ -630,6 +664,9 @@ export default function Agendamentos() {
 
           if (error) throw error;
 
+          // Resolver nome do cliente para o novo agendamento
+          const clienteNomeNovo = formData.cliente_nome || clientes.find(c => c.id === formData.cliente_id)?.nome || "Cliente";
+
           // Criar transação vinculada ao agendamento, se houver valor
           if (formData.valor_estimado && formData.valor_estimado > 0) {
             await supabase
@@ -640,7 +677,7 @@ export default function Agendamentos() {
                 categoria: 'Serviços',
                 valor: formData.valor_estimado,
                 data_vencimento: formData.data_agendamento,
-                descricao: `Sessão: ${formData.servico}`,
+                descricao: `Sessão: ${formData.servico} - ${clienteNomeNovo}`,
                 agendamento_id: inserted.id,
               });
           }

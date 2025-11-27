@@ -24,6 +24,8 @@ export type FinanceiroGeralRecord = {
   setor?: string | null;
   readOnly?: boolean;
   editLink?: string | null;
+  agendamento_id?: string | null;
+  cliente_nome?: string;
 };
 
 export const financeiroGeralSchema = z.object({
@@ -51,24 +53,24 @@ export type FinanceiroStats = {
 function calcularStats(rows: FinanceiroGeralRecord[]): FinanceiroStats {
   const entradas = rows.filter(r => r.tipo === 'entrada');
   const saidas = rows.filter(r => r.tipo === 'saida');
-  
+
   const totalEntradas = entradas.reduce((sum, r) => sum + (Number(r.valor) || 0), 0);
   const totalSaidas = saidas.reduce((sum, r) => sum + (Number(r.valor) || 0), 0);
   const saldo = totalEntradas - totalSaidas;
-  
+
   const porCategoriaEntradas: Record<string, number> = {};
   const porCategoriaSaidas: Record<string, number> = {};
-  
+
   for (const r of entradas) {
     const cat = r.categoria || "Outros";
     porCategoriaEntradas[cat] = (porCategoriaEntradas[cat] || 0) + (Number(r.valor) || 0);
   }
-  
+
   for (const r of saidas) {
     const cat = r.categoria || "Outros";
     porCategoriaSaidas[cat] = (porCategoriaSaidas[cat] || 0) + (Number(r.valor) || 0);
   }
-  
+
   return { totalEntradas, totalSaidas, saldo, porCategoriaEntradas, porCategoriaSaidas };
 }
 
@@ -111,7 +113,59 @@ export function useFinanceiroGeral() {
         setor: item.setor,
         readOnly: !!item.origem,
         editLink: item.origem === 'financeiro_tattoo' && item.origem_id ? `/tattoo-financeiro?id=${item.origem_id}` : null,
+        agendamento_id: item.agendamento_id,
       }));
+
+      // Resolve client names for records with agendamento_id
+      const agendamentoIds = converted
+        .filter((i: any) => i.agendamento_id)
+        .map((i: any) => i.agendamento_id);
+
+      if (agendamentoIds.length > 0) {
+        const { data: agendamentosData } = await sb
+          .from('agendamentos')
+          .select('id, projeto_id')
+          .in('id', agendamentoIds);
+
+        if (agendamentosData && agendamentosData.length > 0) {
+          const projetoIds = agendamentosData.map((a: any) => a.projeto_id).filter(Boolean);
+
+          if (projetoIds.length > 0) {
+            const { data: projetosData } = await sb
+              .from('projetos')
+              .select('id, cliente_id')
+              .in('id', projetoIds);
+
+            if (projetosData && projetosData.length > 0) {
+              const clienteIds = projetosData.map((p: any) => p.cliente_id).filter(Boolean);
+
+              if (clienteIds.length > 0) {
+                const { data: clientesData } = await sb
+                  .from('clientes')
+                  .select('id, nome')
+                  .in('id', clienteIds);
+
+                // Map everything back
+                const clienteMap = new Map(clientesData?.map((c: any) => [c.id, c.nome]));
+                const projetoMap = new Map(projetosData?.map((p: any) => [p.id, p.cliente_id]));
+                const agendamentoMap = new Map(agendamentosData?.map((a: any) => [a.id, a.projeto_id]));
+
+                converted.forEach((item: any) => {
+                  if (item.agendamento_id) {
+                    const projId = agendamentoMap.get(item.agendamento_id);
+                    if (projId) {
+                      const cliId = projetoMap.get(projId);
+                      if (cliId) {
+                        item.cliente_nome = clienteMap.get(cliId);
+                      }
+                    }
+                  }
+                });
+              }
+            }
+          }
+        }
+      }
 
       setItems(converted);
       setError(null);
@@ -156,13 +210,13 @@ export function useFinanceiroGeral() {
           descricao: r.descricao,
           valor: Number(r.valor),
           categoria: r.categoria,
-        forma_pagamento: r.forma_pagamento,
-        tipo: r.tipo,
-        comprovante: r.comprovante,
-        observacoes: r.observacoes,
-        conta_id: r.conta_id,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
+          forma_pagamento: r.forma_pagamento,
+          tipo: r.tipo,
+          comprovante: r.comprovante,
+          observacoes: r.observacoes,
+          conta_id: r.conta_id,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
           origem: r.origem,
           origem_id: r.origem_id,
           setor: r.setor,
@@ -204,7 +258,7 @@ export function useFinanceiroGeral() {
         .eq("user_id", user.id)
         .is("origem", null);
       if (error) throw error;
-      
+
       if (rows && rows.length) {
         const r: any = rows[0];
         const updated: FinanceiroGeralRecord = {
@@ -214,13 +268,13 @@ export function useFinanceiroGeral() {
           descricao: r.descricao,
           valor: Number(r.valor),
           categoria: r.categoria,
-        forma_pagamento: r.forma_pagamento,
-        tipo: r.tipo,
-        comprovante: r.comprovante,
-        observacoes: r.observacoes,
-        conta_id: r.conta_id,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
+          forma_pagamento: r.forma_pagamento,
+          tipo: r.tipo,
+          comprovante: r.comprovante,
+          observacoes: r.observacoes,
+          conta_id: r.conta_id,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
           origem: r.origem,
           origem_id: r.origem_id,
           setor: r.setor,
@@ -321,7 +375,7 @@ export function useFinanceiroGeral() {
     return () => {
       sb.removeChannel(channel);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   return {

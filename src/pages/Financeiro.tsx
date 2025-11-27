@@ -71,6 +71,11 @@ interface Agendamento {
   id: string;
   titulo: string;
   data: string;
+  projetos?: {
+    clientes?: {
+      nome: string;
+    } | null;
+  } | null;
 }
 
 const CATEGORIAS_RECEITA = [
@@ -88,6 +93,7 @@ const CATEGORIAS_DESPESA = [
   "Infraestrutura",
   "Marketing",
   "Equipamento",
+  "Material",
   "Outros"
 ];
 
@@ -211,14 +217,23 @@ const Financeiro = () => {
             });
           }
         }
-      } catch (_) {}
+      } catch (_) { }
     }
   };
 
   const fetchAgendamentos = async () => {
     const { data, error } = await supabase
       .from("agendamentos")
-      .select("id, titulo, data")
+      .select(`
+        id, 
+        titulo, 
+        data,
+        projetos (
+          clientes (
+            nome
+          )
+        )
+      `)
       .order("data", { ascending: false });
 
     if (error) {
@@ -266,12 +281,12 @@ const Financeiro = () => {
         conta_id: t.conta_id,
       };
       await sb.from("financeiro_tattoo").insert(payload);
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!user) {
       toast.error("Você precisa estar logado");
       return;
@@ -454,11 +469,11 @@ const Financeiro = () => {
         toast.success("Transação criada com sucesso!");
       }
 
-      setFormData({ 
-        tipo: "RECEITA", 
+      setFormData({
+        tipo: "RECEITA",
         categoria: "",
-        valor: "", 
-        data_vencimento: "", 
+        valor: "",
+        data_vencimento: "",
         descricao: "",
         agendamento_id: "",
         liquidarFuturo: true,
@@ -570,11 +585,11 @@ const Financeiro = () => {
   const openNewDialog = () => {
     setIsEditMode(false);
     setEditingId(null);
-    setFormData({ 
-      tipo: "RECEITA", 
+    setFormData({
+      tipo: "RECEITA",
       categoria: "",
-      valor: "", 
-      data_vencimento: "", 
+      valor: "",
+      data_vencimento: "",
       descricao: "",
       agendamento_id: "",
       liquidarFuturo: true,
@@ -665,7 +680,7 @@ const Financeiro = () => {
     ...CATEGORIAS_RECEITA.map(cat => ({ key: `receita-${cat}`, value: cat, label: cat })),
     ...CATEGORIAS_DESPESA.map(cat => ({ key: `despesa-${cat}`, value: cat, label: cat }))
   ];
-  const categoriasParaFiltro = categoriasComPrefixo.filter((cat, index, self) => 
+  const categoriasParaFiltro = categoriasComPrefixo.filter((cat, index, self) =>
     self.findIndex(c => c.value === cat.value) === index
   );
 
@@ -679,7 +694,7 @@ const Financeiro = () => {
           </p>
         </div>
       </div>
-      
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-6 rounded-xl bg-gradient-to-br from-success/10 to-success/5">
@@ -1001,11 +1016,18 @@ const Financeiro = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhum agendamento</SelectItem>
-                      {agendamentos.map((agendamento) => (
-                        <SelectItem key={agendamento.id} value={agendamento.id}>
-                          {agendamento.titulo} - {new Date(agendamento.data).toLocaleDateString()}
-                        </SelectItem>
-                      ))}
+                      {agendamentos.map((agendamento) => {
+                        const clienteNome = agendamento.projetos?.clientes?.nome;
+                        const label = clienteNome
+                          ? `${clienteNome} - ${agendamento.titulo} - ${new Date(agendamento.data).toLocaleDateString()}`
+                          : `${agendamento.titulo} - ${new Date(agendamento.data).toLocaleDateString()}`;
+
+                        return (
+                          <SelectItem key={agendamento.id} value={agendamento.id}>
+                            {label}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1033,10 +1055,10 @@ const Financeiro = () => {
                         <Calendar className="mr-2 h-4 w-4" />
                         {formData.data_vencimento
                           ? format(
-                              parse(formData.data_vencimento, "yyyy-MM-dd", new Date()),
-                              "dd/MM/yyyy",
-                              { locale: ptBR }
-                            )
+                            parse(formData.data_vencimento, "yyyy-MM-dd", new Date()),
+                            "dd/MM/yyyy",
+                            { locale: ptBR }
+                          )
                           : "dd/mm/aaaa"}
                       </Button>
                     </PopoverTrigger>
@@ -1098,11 +1120,10 @@ const Financeiro = () => {
                   <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-3 flex-wrap">
                       <Badge
-                        className={`rounded-full ${
-                          transacao.tipo === "RECEITA"
-                            ? "bg-success/10 text-success"
-                            : "bg-destructive/10 text-destructive"
-                        }`}
+                        className={`rounded-full ${transacao.tipo === "RECEITA"
+                          ? "bg-success/10 text-success"
+                          : "bg-destructive/10 text-destructive"
+                          }`}
                       >
                         {transacao.tipo}
                       </Badge>
@@ -1214,11 +1235,10 @@ const Financeiro = () => {
                       <TableCell className="font-medium">{t.descricao}</TableCell>
                       <TableCell>
                         <Badge
-                          className={`rounded-full ${
-                            t.tipo === "RECEITA"
-                              ? "bg-success/10 text-success"
-                              : "bg-destructive/10 text-destructive"
-                          }`}
+                          className={`rounded-full ${t.tipo === "RECEITA"
+                            ? "bg-success/10 text-success"
+                            : "bg-destructive/10 text-destructive"
+                            }`}
                         >
                           {t.tipo}
                         </Badge>
@@ -1288,6 +1308,38 @@ const Financeiro = () => {
                       <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                         Nenhuma transação encontrada.
                       </TableCell>
+                    </TableRow>
+                  )}
+                  {transacoesFiltradas.length > 0 && (
+                    <TableRow className="bg-muted/30 font-semibold border-t-2">
+                      <TableCell colSpan={3} className="text-right">Total:</TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="text-success">
+                            + R$ {transacoesFiltradas
+                              .filter(t => t.tipo === "RECEITA")
+                              .reduce((acc, t) => acc + Number(t.valor), 0)
+                              .toFixed(2)}
+                          </div>
+                          <div className="text-destructive">
+                            - R$ {transacoesFiltradas
+                              .filter(t => t.tipo === "DESPESA")
+                              .reduce((acc, t) => acc + Number(t.valor), 0)
+                              .toFixed(2)}
+                          </div>
+                          <div className="border-t pt-1">
+                            R$ {(
+                              transacoesFiltradas
+                                .filter(t => t.tipo === "RECEITA")
+                                .reduce((acc, t) => acc + Number(t.valor), 0) -
+                              transacoesFiltradas
+                                .filter(t => t.tipo === "DESPESA")
+                                .reduce((acc, t) => acc + Number(t.valor), 0)
+                            ).toFixed(2)}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell colSpan={4}></TableCell>
                     </TableRow>
                   )}
                 </TableBody>

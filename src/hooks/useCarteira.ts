@@ -18,6 +18,13 @@ export type CarteiraRecord = {
   conta_id?: string | null;
   created_at?: string;
   updated_at?: string;
+  agendamento?: {
+    projeto?: {
+      cliente?: {
+        nome: string;
+      } | null;
+    } | null;
+  } | null;
 };
 
 export const carteiraSchema = z.object({
@@ -53,7 +60,7 @@ export function useCarteira() {
       const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
       const { data, error } = await sb
         .from("financeiro_tattoo")
-        .select("*")
+        .select(`*`)
         .eq("user_id", user.id)
         .order("data_vencimento", { ascending: false });
       if (error) throw error;
@@ -163,7 +170,7 @@ export function useCarteira() {
     return () => {
       sb.removeChannel(channel);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   return {

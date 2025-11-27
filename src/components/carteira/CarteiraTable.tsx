@@ -1,7 +1,9 @@
 import { useCarteira, CarteiraRecord, carteiraSchema } from "@/hooks/useCarteira";
+import { useDividas } from "@/hooks/useDividas";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, useEffect } from "react";
+import { z } from "zod";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
@@ -9,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useContasBancarias } from "@/hooks/useContasBancarias";
 import { calcularSaldoConta, saldoPosTransacao } from "@/utils/saldoPorConta";
@@ -22,6 +25,7 @@ type FormValues = {
   data_liquidacao?: string | null;
   conta_id?: string;
   conta_destino_id?: string;
+  divida_id?: string;
 };
 
 const CATEGORIAS_RECEITA = [
@@ -38,11 +42,17 @@ const CATEGORIAS_DESPESA = [
   "Transferência (Saída)",
   "Saque",
   "Ajuste de Saldo",
+  "Pagamento de Dívida",
   "Outros",
 ];
 
+const formSchema = carteiraSchema.extend({
+  divida_id: z.string().optional(),
+});
+
 export default function CarteiraTable() {
   const { items: carteiraItems, insert, update, remove } = useCarteira();
+  const { items: dividas, update: updateDivida } = useDividas();
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [editing, setEditing] = useState<CarteiraRecord | null>(null);
@@ -52,6 +62,7 @@ export default function CarteiraTable() {
   const [filtroContaId, setFiltroContaId] = useState<string>('TODAS');
   const [filtroInicio, setFiltroInicio] = useState<string>('');
   const [filtroFim, setFiltroFim] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const calcPreviewSafe = () => {
     try {
@@ -75,24 +86,25 @@ export default function CarteiraTable() {
   }, []);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(carteiraSchema as any),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       tipo: 'RECEITA',
       categoria: CATEGORIAS_RECEITA[0],
       valor: 0,
       data_vencimento: new Date().toISOString().slice(0, 10),
       descricao: "",
-      data_liquidacao: null,
+      data_liquidacao: new Date().toISOString().slice(0, 10),
       conta_id: "",
       conta_destino_id: "",
+      divida_id: "",
     },
   });
 
   useEffect(() => {
     form.register("conta_id");
     form.register("conta_destino_id");
-    return () => {};
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -113,6 +125,20 @@ export default function CarteiraTable() {
     }
   }, [tipoSelecionado]);
 
+  // Monitorar seleção de dívida para preencher campos
+  const dividaSelecionada = form.watch("divida_id");
+  useEffect(() => {
+    if (dividaSelecionada && dividaSelecionada !== "none") {
+      const divida = dividas.find(d => d.id === dividaSelecionada);
+      if (divida) {
+        form.setValue("descricao", `Pagamento: ${divida.credor}`);
+        form.setValue("valor", Number(divida.valor));
+        // Opcional: definir data de vencimento da transação como hoje ou vencimento da dívida
+        // form.setValue("data_vencimento", new Date().toISOString().slice(0, 10));
+      }
+    }
+  }, [dividaSelecionada, dividas, form]);
+
   const openCreate = () => {
     setEditing(null);
     form.reset({
@@ -121,9 +147,10 @@ export default function CarteiraTable() {
       valor: 0,
       data_vencimento: new Date().toISOString().slice(0, 10),
       descricao: "",
-      data_liquidacao: null,
+      data_liquidacao: new Date().toISOString().slice(0, 10),
       conta_id: "",
       conta_destino_id: "",
+      divida_id: "",
     });
     setIsOpen(true);
   };
@@ -138,6 +165,7 @@ export default function CarteiraTable() {
       descricao: row.descricao || "",
       data_liquidacao: row.data_liquidacao || null,
       conta_id: row.conta_id || "",
+      divida_id: "", // Não editamos o vínculo com dívida em transações existentes por enquanto
     });
     setIsOpen(true);
   };
@@ -193,11 +221,21 @@ export default function CarteiraTable() {
           toast({ title: "Atualizado", description: "Registro alterado com sucesso." });
         } else {
           await insert(payload);
+
+          // Se houver dívida vinculada, marcar como paga
+          if (data.divida_id && data.divida_id !== "none") {
+            await updateDivida(data.divida_id, {
+              status: 'PAGA',
+              data_pagamento: data.data_vencimento // Usando a data da transação como data de pagamento
+            });
+            toast({ title: "Dívida quitada", description: "A dívida foi marcada como paga." });
+          }
+
           toast({ title: "Criado", description: "Registro adicionado com sucesso." });
         }
       }
       setIsOpen(false);
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const inRange = (dateStr?: string | null) => {
@@ -213,6 +251,10 @@ export default function CarteiraTable() {
     if (filtroContaId !== 'TODAS' && String(row.conta_id || '') !== filtroContaId) return false;
     if (!inRange(row.data_vencimento)) return false;
     return true;
+  }).sort((a, b) => {
+    const dateA = new Date(a.data_vencimento).getTime();
+    const dateB = new Date(b.data_vencimento).getTime();
+    return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
   });
 
   const filteredContasSaldo = (Array.isArray(contas) ? contas : [])
@@ -333,6 +375,34 @@ export default function CarteiraTable() {
                       <Input id="descricao" {...form.register("descricao")} />
                     </div>
                   </div>
+                  {form.watch("categoria") === 'Pagamento de Dívida' && (
+                    <div className="space-y-2">
+                      <Label>Dívida a pagar</Label>
+                      <Controller
+                        name="divida_id"
+                        control={form.control}
+                        defaultValue=""
+                        render={({ field }) => (
+                          <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione a dívida" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Selecione...</SelectItem>
+                              {dividas
+                                .filter(d => d.status === 'ABERTA')
+                                .map(d => (
+                                  <SelectItem key={d.id} value={d.id || ""}>
+                                    {d.credor} - R$ {Number(d.valor).toFixed(2)} - Venc: {new Date(d.data_vencimento).toLocaleDateString('pt-BR')}
+                                  </SelectItem>
+                                ))
+                              }
+                            </SelectContent>
+                          </Select>
+                        )}
+                      />
+                    </div>
+                  )}
                   {form.watch("tipo") === 'APORTE' && (
                     <div className="space-y-2">
                       <Label>Banco destino</Label>
@@ -455,6 +525,18 @@ export default function CarteiraTable() {
               <Label>Fim</Label>
               <Input type="date" value={filtroFim} onChange={(e) => setFiltroFim(e.target.value)} />
             </div>
+            <div className="space-y-1">
+              <Label>Ordem</Label>
+              <Select value={sortOrder} onValueChange={(v) => setSortOrder(v as 'asc' | 'desc')}>
+                <SelectTrigger aria-label="Ordenar por data">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Mais recentes</SelectItem>
+                  <SelectItem value="asc">Mais antigos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -467,6 +549,7 @@ export default function CarteiraTable() {
                   <TableHead className="text-right">Valor</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Categoria</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Banco</TableHead>
                   <TableHead>Ações</TableHead>
                 </TableRow>
@@ -481,6 +564,11 @@ export default function CarteiraTable() {
                     </TableCell>
                     <TableCell>Receita</TableCell>
                     <TableCell>Saldo inicial</TableCell>
+                    <TableCell>
+                      <Badge variant="default" className="rounded-full bg-green-600 text-white">
+                        Liquidada
+                      </Badge>
+                    </TableCell>
                     <TableCell>{c.nome}</TableCell>
                     <TableCell>
                       <div className="flex gap-2"></div>
@@ -489,8 +577,17 @@ export default function CarteiraTable() {
                 ))}
                 {filteredItems.map((row) => (
                   <TableRow key={row.id}>
-                    <TableCell>{row.data_vencimento}</TableCell>
-                    <TableCell className="max-w-[320px] truncate" title={row.descricao}>{row.descricao}</TableCell>
+                    <TableCell>
+                      {row.data_vencimento ? row.data_vencimento.split('-').reverse().join('/') : '-'}
+                    </TableCell>
+                    <TableCell className="max-w-[320px] truncate" title={row.descricao}>
+                      {row.descricao}
+                      {row.agendamento?.projeto?.cliente?.nome && (
+                        <span className="text-muted-foreground ml-1">
+                          - {row.agendamento.projeto.cliente.nome}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <span className={row.tipo === 'RECEITA' ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
                         R$ {Number(row.valor).toFixed(2)}
@@ -498,6 +595,17 @@ export default function CarteiraTable() {
                     </TableCell>
                     <TableCell>{row.tipo === 'RECEITA' ? 'Receita' : 'Despesa'}</TableCell>
                     <TableCell>{row.categoria}</TableCell>
+                    <TableCell>
+                      {row.data_liquidacao ? (
+                        <Badge variant="default" className="rounded-full bg-green-600 text-white">
+                          Liquidada
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="rounded-full bg-yellow-500 text-white">
+                          Pendente
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell>{(() => {
                       const conta = (Array.isArray(contas) ? contas : []).find((c) => String(c.id) === String(row.conta_id || ''));
                       return conta ? conta.nome : '-';
@@ -510,6 +618,41 @@ export default function CarteiraTable() {
                     </TableCell>
                   </TableRow>
                 ))}
+                {(filteredItems.length > 0 || filteredContasSaldo.length > 0) && (
+                  <TableRow className="bg-muted/30 font-semibold border-t-2">
+                    <TableCell colSpan={2} className="text-right">Total:</TableCell>
+                    <TableCell className="text-right">
+                      <div className="space-y-1">
+                        <div className="text-green-600">
+                          + R$ {(
+                            filteredContasSaldo.reduce((acc, c) => acc + Number(c.saldo_inicial || 0), 0) +
+                            filteredItems
+                              .filter(t => t.tipo === "RECEITA")
+                              .reduce((acc, t) => acc + Number(t.valor), 0)
+                          ).toFixed(2)}
+                        </div>
+                        <div className="text-red-600">
+                          - R$ {filteredItems
+                            .filter(t => t.tipo === "DESPESA")
+                            .reduce((acc, t) => acc + Number(t.valor), 0)
+                            .toFixed(2)}
+                        </div>
+                        <div className="border-t pt-1">
+                          R$ {(
+                            filteredContasSaldo.reduce((acc, c) => acc + Number(c.saldo_inicial || 0), 0) +
+                            filteredItems
+                              .filter(t => t.tipo === "RECEITA")
+                              .reduce((acc, t) => acc + Number(t.valor), 0) -
+                            filteredItems
+                              .filter(t => t.tipo === "DESPESA")
+                              .reduce((acc, t) => acc + Number(t.valor), 0)
+                          ).toFixed(2)}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell colSpan={5}></TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </div>

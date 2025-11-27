@@ -1,4 +1,5 @@
 import { useFinanceiroGeral, CATEGORIAS_GERAIS, FORMAS_PAGAMENTO, FinanceiroGeralRecord, financeiroGeralSchema } from "@/hooks/useFinanceiroGeral";
+import { supabase } from "@/integrations/supabase/client";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
@@ -31,7 +32,6 @@ export default function FinanceiroGeralTable() {
   const { toast } = useToast();
   const { items: contas } = useContasBancarias();
   const [isOpen, setIsOpen] = useState(false);
-  const [editing, setEditing] = useState<FinanceiroGeralRecord | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(financeiroGeralSchema as any),
@@ -91,7 +91,7 @@ export default function FinanceiroGeralTable() {
         comprovante: data.comprovante || undefined,
         conta_id: data.conta_id || null,
       };
-    
+
       if (editing?.id) {
         await update(editing.id, payload);
         toast({ title: "Atualizado", description: "Registro alterado com sucesso." });
@@ -100,7 +100,7 @@ export default function FinanceiroGeralTable() {
         toast({ title: "Criado", description: "Registro adicionado com sucesso." });
       }
       setIsOpen(false);
-    } catch (_) {}
+    } catch (_) { }
   };
 
   return (
@@ -115,6 +115,14 @@ export default function FinanceiroGeralTable() {
                   Adicionar
                 </Button>
               </DialogTrigger>
+              <Button
+                variant="outline"
+                onClick={handleMigrateDescriptions}
+                disabled={migrating}
+                className="ml-2"
+              >
+                {migrating ? "Atualizando..." : "Atualizar Descrições"}
+              </Button>
               <DialogContent className="max-w-xl">
                 <DialogHeader>
                   <DialogTitle>{editing ? "Editar transação" : "Nova transação"}</DialogTitle>
@@ -245,48 +253,6 @@ export default function FinanceiroGeralTable() {
                   <TableHead>Forma</TableHead>
                   <TableHead>Ações</TableHead>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {items.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{new Date(row.data).toLocaleString()}</TableCell>
-                    <TableCell className="max-w-[320px] truncate" title={row.descricao}>{row.descricao}</TableCell>
-                    <TableCell className="text-right">
-                      <span className={row.tipo === 'entrada' ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
-                        R$ {Number(row.valor).toFixed(2)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        row.tipo === 'entrada' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {row.tipo === 'entrada' ? 'Entrada' : 'Saída'}
-                      </span>
-                    </TableCell>
-                    <TableCell>{row.categoria}</TableCell>
-                    <TableCell>{row.forma_pagamento}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        {row.readOnly ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => { if (row.editLink) window.location.href = row.editLink; }}
-                            aria-label={`Editar no Tattoo ${row.descricao}`}
-                          >
-                            Editar no Tattoo
-                          </Button>
-                        ) : (
-                          <>
-                            <Button variant="outline" size="sm" onClick={() => openEdit(row)} aria-label={`Editar ${row.descricao}`}>Editar</Button>
-                            <Button variant="destructive" size="sm" onClick={() => remove(row.id!)} aria-label={`Excluir ${row.descricao}`}>Excluir</Button>
-                          </>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
                 ))}
               </TableBody>
             </Table>
@@ -313,9 +279,8 @@ export default function FinanceiroGeralTable() {
                 <CardTitle className="text-base">Saldo</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className={`text-xl font-semibold ${
-                  stats.saldo >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}>
+                <p className={`text-xl font-semibold ${stats.saldo >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
                   R$ {stats.saldo.toFixed(2)}
                 </p>
               </CardContent>

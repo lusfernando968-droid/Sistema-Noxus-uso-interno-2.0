@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export type CampanhaStatus = 'RASCUNHO' | 'ATIVA' | 'PAUSADA' | 'ENCERRADA';
 export type CampanhaCanal = 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'GOOGLE_ADS' | 'ORGANICO' | 'EMAIL';
+export type CampanhaEstagioFunil = 'TOPO' | 'MEIO' | 'FUNDO';
 
 export type CampanhaRecord = {
   id?: string;
@@ -15,6 +16,7 @@ export type CampanhaRecord = {
   objetivo?: string | null;
   publico_alvo?: string | null;
   canal: CampanhaCanal;
+  estagio_funil?: CampanhaEstagioFunil | null;
   orcamento?: number | null;
   data_inicio?: string | null; // yyyy-MM-dd
   data_fim?: string | null;    // yyyy-MM-dd
@@ -29,11 +31,12 @@ export const campanhaSchema = z.object({
   titulo: z.string().min(2),
   objetivo: z.string().optional().nullable(),
   publico_alvo: z.string().optional().nullable(),
-  canal: z.enum(['INSTAGRAM','FACEBOOK','TIKTOK','GOOGLE_ADS','ORGANICO','EMAIL']),
+  canal: z.enum(['INSTAGRAM', 'FACEBOOK', 'TIKTOK', 'GOOGLE_ADS', 'ORGANICO', 'EMAIL']),
+  estagio_funil: z.enum(['TOPO', 'MEIO', 'FUNDO']).optional().nullable(),
   orcamento: z.number().nonnegative().optional().nullable(),
   data_inicio: z.string().optional().nullable(),
   data_fim: z.string().optional().nullable(),
-  status: z.enum(['RASCUNHO','ATIVA','PAUSADA','ENCERRADA']).default('RASCUNHO'),
+  status: z.enum(['RASCUNHO', 'ATIVA', 'PAUSADA', 'ENCERRADA']).default('RASCUNHO'),
   tags: z.array(z.string()).optional().nullable(),
   notas: z.string().optional().nullable(),
 });
@@ -113,6 +116,7 @@ export function useCampanhas() {
         objetivo: parsed.objetivo ?? null,
         publico_alvo: parsed.publico_alvo ?? null,
         canal: parsed.canal,
+        estagio_funil: parsed.estagio_funil ?? null,
         orcamento: parsed.orcamento ?? null,
         data_inicio: parsed.data_inicio ?? null,
         data_fim: parsed.data_fim ?? null,
@@ -240,7 +244,7 @@ export function useCampanhas() {
     return () => {
       sb.removeChannel(channel);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   return {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { 
-  Plus, Trash2, Edit, Calendar as CalendarIcon, LayoutGrid, List, Table2, 
+import {
+  Plus, Trash2, Edit, Calendar as CalendarIcon, LayoutGrid, List, Table2,
   Search, DollarSign, Clock, Camera, MessageSquare, TrendingUp, Users,
   Eye, FileText, CheckCircle, AlertCircle, XCircle, PlayCircle
 } from "lucide-react";
@@ -75,7 +75,7 @@ const statusIcons: Record<Status, any> = {
 export default function Projetos() {
   const [searchParams] = useSearchParams();
   const clienteIdFilter = searchParams.get("cliente");
-  
+
   const [projetos, setProjetos] = useState<Projeto[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [builderOpen, setBuilderOpen] = useState(false);
@@ -173,7 +173,7 @@ export default function Projetos() {
             .eq('projeto_id', projetoId)
             .eq('status_pagamento', 'pago');
           valorPago = (sessoesPagas || []).reduce((sum, s: any) => sum + (s.valor_sessao || 0), 0);
-        } catch (_) {}
+        } catch (_) { }
 
         // Contagem de sessões realizadas
         let sessoesRealizadas = 0;
@@ -185,7 +185,7 @@ export default function Projetos() {
           if (typeof count === 'number') {
             sessoesRealizadas = count;
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // Total de sessões planejadas
         const sessoesTotal = item.quantidade_sessoes || 0;
@@ -207,7 +207,7 @@ export default function Projetos() {
           if (typeof count === 'number') {
             fotosCount = count;
           }
-        } catch (_) {}
+        } catch (_) { }
 
         // Contagem de feedbacks (sessões com feedback_cliente não nulo)
         let feedbackCount = 0;
@@ -220,7 +220,7 @@ export default function Projetos() {
           if (typeof count === 'number') {
             feedbackCount = count;
           }
-        } catch (_) {}
+        } catch (_) { }
 
         return {
           ...item,
@@ -285,10 +285,10 @@ export default function Projetos() {
   const filteredProjetos = projetos.filter(projeto => {
     const matchesStatus = statusFilter === "all" || projeto.status === statusFilter;
     const matchesCliente = clienteFilter === "all" || projeto.cliente_id === clienteFilter;
-    const matchesSearch = searchTerm === "" || 
+    const matchesSearch = searchTerm === "" ||
       projeto.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       projeto.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     return matchesStatus && matchesCliente && matchesSearch;
   });
 
@@ -315,7 +315,9 @@ export default function Projetos() {
   const kanbanStatuses: Status[] = ["planejamento", "andamento", "concluido", "cancelado"];
 
   const renderKanbanCard = (projeto: Projeto) => {
-    const StatusIcon = statusIcons[projeto.status];
+    const StatusIcon = statusIcons[projeto.status] || AlertCircle;
+    const statusColor = statusColors[projeto.status] || "bg-muted text-foreground";
+    const statusLabel = statusLabels[projeto.status] || projeto.status;
     const valorPendente = (projeto.valor_total || 0) - (projeto.valor_pago || 0);
     return (
       <Card
@@ -333,8 +335,8 @@ export default function Projetos() {
               <StatusIcon className="w-4 h-4 text-muted-foreground shrink-0" />
               <CardTitle className="text-sm font-semibold truncate">{projeto.titulo}</CardTitle>
             </div>
-            <Badge variant="outline" className={statusColors[projeto.status]}>
-              {statusLabels[projeto.status]}
+            <Badge variant="outline" className={statusColor}>
+              {statusLabel}
             </Badge>
           </div>
         </CardHeader>
@@ -422,9 +424,11 @@ export default function Projetos() {
   };
 
   const renderProjectCard = (projeto: Projeto) => {
-    const StatusIcon = statusIcons[projeto.status];
+    const StatusIcon = statusIcons[projeto.status] || AlertCircle;
+    const statusColor = statusColors[projeto.status] || "bg-muted text-foreground";
+    const statusLabel = statusLabels[projeto.status] || projeto.status;
     const valorPendente = (projeto.valor_total || 0) - (projeto.valor_pago || 0);
-    
+
     return (
       <Card key={projeto.id} className="rounded-xl hover:shadow-lg transition-all duration-300 group">
         <CardHeader className="pb-3">
@@ -435,8 +439,8 @@ export default function Projetos() {
                 <CardTitle className="text-lg line-clamp-1">{projeto.titulo}</CardTitle>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className={statusColors[projeto.status]}>
-                  {statusLabels[projeto.status]}
+                <Badge variant="outline" className={statusColor}>
+                  {statusLabel}
                 </Badge>
                 <span className="text-sm text-muted-foreground">
                   {projeto.clientes?.nome}
@@ -471,7 +475,7 @@ export default function Projetos() {
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent className="space-y-4">
           {/* Progresso */}
           <div className="space-y-2">
@@ -498,7 +502,7 @@ export default function Projetos() {
                 </div>
               </div>
             </div>
-            
+
             <div className="space-y-1">
               <div className="flex items-center gap-1">
                 <CalendarIcon className="w-3 h-3 text-muted-foreground" />
@@ -534,18 +538,18 @@ export default function Projetos() {
 
           {/* Ações */}
           <div className="flex gap-2 pt-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex-1 rounded-lg"
               onClick={() => navigate(`/agendamentos?projeto=${projeto.id}`)}
             >
               <CalendarIcon className="w-3 h-3 mr-1" />
               Agendar
             </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="flex-1 rounded-lg"
               onClick={() => navigate(`/projetos/${projeto.id}`)}
             >
@@ -566,7 +570,7 @@ export default function Projetos() {
           <h1 className="text-3xl font-bold tracking-tight">Projetos</h1>
           <p className="text-muted-foreground">Gerencie os projetos dos seus clientes</p>
         </div>
-        
+
         <Dialog open={builderOpen} onOpenChange={setBuilderOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => handleOpenBuilder()} className="gap-2 rounded-xl">
@@ -676,7 +680,7 @@ export default function Projetos() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
+
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status | "all")}>
             <SelectTrigger className="w-full sm:w-48 rounded-lg">
               <SelectValue placeholder="Status" />
@@ -740,7 +744,7 @@ export default function Projetos() {
             <FileText className="w-12 h-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground text-lg mb-2">Nenhum projeto encontrado</p>
             <p className="text-sm text-muted-foreground mb-4">
-              {searchTerm || statusFilter !== "all" || clienteFilter !== "all" 
+              {searchTerm || statusFilter !== "all" || clienteFilter !== "all"
                 ? "Tente ajustar os filtros ou criar um novo projeto"
                 : "Comece criando seu primeiro projeto"
               }
@@ -779,7 +783,9 @@ export default function Projetos() {
               </TableHeader>
               <TableBody>
                 {filteredProjetos.map((projeto) => {
-                  const StatusIcon = statusIcons[projeto.status];
+                  const StatusIcon = statusIcons[projeto.status] || AlertCircle;
+                  const statusColor = statusColors[projeto.status] || "bg-muted text-foreground";
+                  const statusLabel = statusLabels[projeto.status] || projeto.status;
                   return (
                     <TableRow key={projeto.id}>
                       <TableCell>
@@ -795,8 +801,8 @@ export default function Projetos() {
                       </TableCell>
                       <TableCell>{projeto.clientes?.nome}</TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={statusColors[projeto.status]}>
-                          {statusLabels[projeto.status]}
+                        <Badge variant="outline" className={statusColor}>
+                          {statusLabel}
                         </Badge>
                       </TableCell>
                       <TableCell>

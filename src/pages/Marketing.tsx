@@ -6,6 +6,9 @@ import BrandingStats from "@/components/marketing/branding/BrandingStats";
 import BrandingGallery from "@/components/marketing/branding/BrandingGallery";
 import BrandingFormModal from "@/components/marketing/branding/BrandingFormModal";
 import { useBranding } from "@/hooks/useBranding";
+import MarcaFormModal from "@/components/marketing/branding/MarcaFormModal";
+import MarcasTable from "@/components/marketing/branding/MarcasTable";
+import { useMarcas } from "@/hooks/useMarcas";
 import ConteudoStats from "@/components/marketing/conteudo/ConteudoStats";
 import ConteudoTable from "@/components/marketing/conteudo/ConteudoTable";
 import ConteudoFormModal from "@/components/marketing/conteudo/ConteudoFormModal";
@@ -20,16 +23,21 @@ import AnuncioFormModal from "@/components/marketing/anuncio/AnuncioFormModal";
 import { useAnuncios } from "@/hooks/useAnuncios";
 
 import { ConteudoItem } from "@/hooks/useConteudo";
+import { Marca } from "@/hooks/useMarcas";
 import { Plus } from "lucide-react";
 
 export default function Marketing() {
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'calendar'>('list');
   const { assets, loading: loadingBranding, addAsset, deleteAsset, uploadImage } = useBranding();
+  const { marcas, loading: loadingMarcas, addMarca, updateMarca, deleteMarca } = useMarcas();
   const { items, loading: loadingConteudo, addItem, updateItem, deleteItem } = useConteudo();
   const { items: anuncios, loading: loadingAnuncios, addItem: addAnuncio, updateItem: updateAnuncio, deleteItem: deleteAnuncio } = useAnuncios();
 
   const [editingConteudo, setEditingConteudo] = useState<ConteudoItem | null>(null);
   const [isConteudoModalOpen, setIsConteudoModalOpen] = useState(false);
+
+  const [editingMarca, setEditingMarca] = useState<Marca | null>(null);
+  const [isMarcaModalOpen, setIsMarcaModalOpen] = useState(false);
 
   const handleSaveConteudo = async (data: any) => {
     if (editingConteudo) {
@@ -38,6 +46,16 @@ export default function Marketing() {
       await addItem(data);
     }
     setIsConteudoModalOpen(false);
+  };
+
+  const handleSaveMarca = async (data: any) => {
+    if (editingMarca) {
+      await updateMarca(editingMarca.id, data);
+    } else {
+      await addMarca(data);
+    }
+    setIsMarcaModalOpen(false);
+    setEditingMarca(null);
   };
 
   return (
@@ -68,19 +86,55 @@ export default function Marketing() {
             </TabsContent>
 
             <TabsContent value="branding">
-              <div className="mt-4 space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Ativos da Marca</h3>
-                  <BrandingFormModal onSave={addAsset} onUpload={uploadImage} />
+              <div className="mt-4 space-y-8">
+                {/* Seção de Marcas */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">Marcas</h3>
+                    <Button onClick={() => {
+                      setEditingMarca(null);
+                      setIsMarcaModalOpen(true);
+                    }} className="gap-2">
+                      <Plus className="h-4 w-4" />
+                      Nova Marca
+                    </Button>
+                  </div>
+                  {loadingMarcas ? (
+                    <div className="text-center py-10">Carregando...</div>
+                  ) : (
+                    <MarcasTable
+                      marcas={marcas}
+                      onEdit={(marca) => {
+                        setEditingMarca(marca);
+                        setIsMarcaModalOpen(true);
+                      }}
+                      onDelete={deleteMarca}
+                    />
+                  )}
                 </div>
-                {loadingBranding ? (
-                  <div className="text-center py-10">Carregando...</div>
-                ) : (
-                  <>
-                    <BrandingStats assets={assets} />
-                    <BrandingGallery assets={assets} onDelete={deleteAsset} />
-                  </>
-                )}
+
+                <MarcaFormModal
+                  open={isMarcaModalOpen}
+                  onOpenChange={setIsMarcaModalOpen}
+                  onSave={handleSaveMarca}
+                  editing={editingMarca}
+                />
+
+                {/* Seção de Ativos da Marca */}
+                <div className="space-y-4 pt-6 border-t">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-medium">Ativos da Marca</h3>
+                    <BrandingFormModal onSave={addAsset} onUpload={uploadImage} />
+                  </div>
+                  {loadingBranding ? (
+                    <div className="text-center py-10">Carregando...</div>
+                  ) : (
+                    <>
+                      <BrandingStats assets={assets} />
+                      <BrandingGallery assets={assets} onDelete={deleteAsset} />
+                    </>
+                  )}
+                </div>
               </div>
             </TabsContent>
 

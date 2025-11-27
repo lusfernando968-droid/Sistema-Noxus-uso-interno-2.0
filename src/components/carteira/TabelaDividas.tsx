@@ -249,7 +249,7 @@ export default function TabelaDividas() {
                   <TableCell>{row.status === 'ABERTA' ? 'Aberta' : 'Paga'}</TableCell>
                   <TableCell>{(() => {
                     const conta = (Array.isArray(contas) ? contas : []).find((c) => String(c.id) === String(row.conta_id || ''));
-                    return conta ? conta.nome : '-';
+                    return conta ? `${conta.nome}${conta.banco_detalhes?.nome ? ` - ${conta.banco_detalhes.nome}` : ''}` : '-';
                   })()}</TableCell>
                   <TableCell>{`${Number(row.parcela_atual || 1)}/${Number(row.total_parcelas || 1)}`}</TableCell>
                   <TableCell>{(() => {

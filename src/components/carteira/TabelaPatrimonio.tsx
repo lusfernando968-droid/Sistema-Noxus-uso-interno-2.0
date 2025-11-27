@@ -32,7 +32,9 @@ const CATEGORIAS = [
   "Acessórios",
   "Tecnologia",
   "Produtos",
+  "Ferramenta",
   "Imóvel",
+  "Móvel",
   "Veículo",
   "Empresa",
   "Colecionável",
@@ -45,6 +47,14 @@ const VIDA_UTIL_DEFAULTS: Record<string, number> = {
   Veículo: 60,
   Roupas: 24,
   Marca: 36,
+};
+
+// Função para formatar valores em reais no padrão brasileiro
+const formatCurrency = (value: number): string => {
+  return value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
 };
 
 type FormValues = Omit<PatrimonioItem, "id" | "user_id" | "created_at" | "updated_at">;
@@ -149,7 +159,7 @@ export default function TabelaPatrimonio() {
       rendimento_mensal_estimado: data.rendimento_mensal_estimado ? Number(data.rendimento_mensal_estimado) : null,
       tags: (() => {
         const arr = (data.tags || []).filter((t) => t !== 'no_roi');
-        const metric = (data as any).metrificar_roi !== false;
+        const metric = (data as any).metrificar_roi === true;
         return metric ? arr : [...arr, 'no_roi'];
       })(),
       status: data.status as any,
@@ -404,11 +414,11 @@ export default function TabelaPatrimonio() {
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           <div className="text-center p-4 border rounded-xl">
-            <p className="text-2xl font-bold text-primary">R$ {stats.valorAtualTotal.toFixed(2)}</p>
+            <p className="text-2xl font-bold text-primary">R$ {formatCurrency(stats.valorAtualTotal)}</p>
             <p className="text-sm text-muted-foreground">Valor Atual</p>
           </div>
           <div className="text-center p-4 border rounded-xl">
-            <p className="text-2xl font-bold">R$ {stats.custoTotal.toFixed(2)}</p>
+            <p className="text-2xl font-bold">R$ {formatCurrency(stats.custoTotal)}</p>
             <p className="text-sm text-muted-foreground">Custo Total</p>
           </div>
           <div className="text-center p-4 border rounded-xl">
@@ -475,8 +485,8 @@ export default function TabelaPatrimonio() {
                 <TableRow key={row.id}>
                   <TableCell className="max-w-[320px] truncate" title={row.nome}>{row.nome}</TableCell>
                   <TableCell>{row.categoria}</TableCell>
-                  <TableCell className="text-right">R$ {Number(row.custo_inicial).toFixed(2)}</TableCell>
-                  <TableCell className="text-right">R$ {Number(row.valor_atual_cache ?? calcularValorAtual(row)).toFixed(2)}</TableCell>
+                  <TableCell className="text-right">R$ {formatCurrency(Number(row.custo_inicial))}</TableCell>
+                  <TableCell className="text-right">R$ {formatCurrency(Number(row.valor_atual_cache ?? calcularValorAtual(row)))}</TableCell>
                   <TableCell>{row.status === "ativo" ? "Ativo" : (row.status === "vendido" ? "Vendido" : "Descartado")}</TableCell>
                   <TableCell>
                     <div className="flex gap-2">

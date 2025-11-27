@@ -49,27 +49,27 @@ export default function Carteira() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="w-full justify-start h-auto p-2 bg-muted/30 backdrop-blur-sm rounded-2xl border border-border/50 overflow-x-auto flex-nowrap">
-          <TabsTrigger value="despesas" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="despesas" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm">
             <ArrowRightLeft className="w-4 h-4" />
             Fluxo
           </TabsTrigger>
-          <TabsTrigger value="relatorios" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="relatorios" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm">
             <BarChart3 className="w-4 h-4" />
             Relatórios
           </TabsTrigger>
-          <TabsTrigger value="bancos" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="bancos" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm">
             <Landmark className="w-4 h-4" />
             Bancos
           </TabsTrigger>
-          <TabsTrigger value="creditos" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="creditos" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm">
             <CreditCard className="w-4 h-4" />
             Crédito
           </TabsTrigger>
-          <TabsTrigger value="dividas" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="dividas" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm">
             <AlertCircle className="w-4 h-4" />
             Dívidas
           </TabsTrigger>
-          <TabsTrigger value="patrimonio" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger value="patrimonio" className="gap-2 rounded-xl py-2.5 px-4 data-[state=active]:bg-white data-[state=active]:text-foreground data-[state=active]:shadow-sm">
             <Building2 className="w-4 h-4" />
             Patrimônio
           </TabsTrigger>

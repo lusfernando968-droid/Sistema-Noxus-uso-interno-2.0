@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useTemporaryReferrals } from "@/hooks/useTemporaryReferrals";
+import { formatCurrency } from "@/utils/formatters";
 interface Cliente {
   id: string;
   nome: string;
@@ -292,6 +293,20 @@ const Clientes = () => {
       } = await supabase.from("projetos").select("id, cliente_id");
       if (projetosError) throw projetosError;
 
+      // Buscar todas as sessões de projetos para incluir no LTV
+      const {
+        data: sessoesData,
+        error: sessoesError
+      } = await supabase.from("projeto_sessoes").select(`
+          id,
+          projeto_id,
+          valor_sessao,
+          projetos (
+            cliente_id
+          )
+        `);
+      if (sessoesError) throw sessoesError;
+
       // Buscar cidades vinculadas (se a tabela existir)
       let cidadesPorCliente: Record<string, string[]> = {};
       try {
@@ -314,9 +329,11 @@ const Clientes = () => {
         // Contar projetos do cliente
         const projetos_count = (projetosData || []).filter(p => p.cliente_id === cliente.id).length;
 
-        // Calcular LTV através das transações
+        // Calcular LTV através das transações E sessões de projetos
         let ltv = 0;
         let transacoes_count = 0;
+
+        // 1. Somar receitas liquidadas das transações
         (transacoesData || []).forEach(transacao => {
           // Verificar se a transação está vinculada a um projeto deste cliente
           const agendamento = transacao.agendamentos as any;
@@ -328,6 +345,15 @@ const Clientes = () => {
             }
           }
         });
+
+        // 2. Somar TODAS as sessões registradas em projetos deste cliente
+        (sessoesData || []).forEach(sessao => {
+          const projeto = sessao.projetos as any;
+          if (projeto?.cliente_id === cliente.id && sessao.valor_sessao) {
+            ltv += Number(sessao.valor_sessao);
+          }
+        });
+
         return {
           ...cliente,
           ltv,
@@ -782,7 +808,7 @@ const Clientes = () => {
   };
   const filteredClientes = clientes.filter(cliente => {
     const term = searchTerm.trim().toLowerCase();
-    const passesSearch = term === "" || cliente.nome.toLowerCase().includes(term) || cliente.email.toLowerCase().includes(term) || cliente.telefone.toLowerCase().includes(term);
+    const passesSearch = term === "" || cliente.nome.toLowerCase().includes(term) || cliente.email?.toLowerCase().includes(term) || cliente.telefone?.toLowerCase().includes(term);
     if (!passesSearch) return false;
 
     // Cidades (multi-select): precisa ter ao menos uma correspondência
@@ -894,7 +920,7 @@ const Clientes = () => {
           <p className="text-xs text-muted-foreground">LTV Total</p>
         </div>
         <p className="text-xl font-semibold">
-          R$ {totalLTV.toFixed(2)}
+          {formatCurrency(totalLTV)}
         </p>
       </Card>
 
@@ -906,7 +932,7 @@ const Clientes = () => {
           <p className="text-xs text-muted-foreground">LTV Médio</p>
         </div>
         <p className="text-xl font-semibold">
-          R$ {avgLTV.toFixed(2)}
+          {formatCurrency(avgLTV)}
         </p>
       </Card>
 
@@ -918,7 +944,7 @@ const Clientes = () => {
           <p className="text-xs text-muted-foreground">Maior LTV</p>
         </div>
         <p className="text-xl font-semibold">
-          R$ {maxLTV.toFixed(2)}
+          {formatCurrency(maxLTV)}
         </p>
       </Card>
 
@@ -1353,7 +1379,7 @@ const Clientes = () => {
                         <Badge variant="outline" className={`rounded-full text-xs ${getLTVColor(cliente.ltv, maxLTV)}`}>
                           {getLTVLabel(cliente.ltv)}
                         </Badge>
-                        <span className="text-sm font-semibold text-success">R$ {cliente.ltv.toFixed(2)}</span>
+                        <span className="text-sm font-semibold text-success">{formatCurrency(cliente.ltv)}</span>
                       </div>
                     </div>
 
@@ -1432,7 +1458,7 @@ const Clientes = () => {
               <div className="space-y-2 pt-2 border-t">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-muted-foreground">LTV</span>
-                  <span className="font-semibold text-primary">R$ {cliente.ltv.toFixed(2)}</span>
+                  <span className="font-semibold text-primary">{formatCurrency(cliente.ltv)}</span>
                 </div>
                 <div className="flex gap-3 text-xs text-muted-foreground">
                   <span>{cliente.projetos_count} projeto(s)</span>
@@ -1563,7 +1589,7 @@ const Clientes = () => {
                         {visibleCols.ltv && <TableCell>
                           <div className="space-y-1">
                             <span className="font-semibold text-success">
-                              R$ {cliente.ltv.toFixed(2)}
+                              {formatCurrency(cliente.ltv)}
                             </span>
                           </div>
                         </TableCell>}
@@ -1641,40 +1667,42 @@ const Clientes = () => {
         </div>
       </TabsContent>
       {/* Overlay de setas visível apenas na visualização de tabela */}
-      {viewMode === 'table' && isTableVisible50 && (
-        <>
-          {showLeftArrow && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="fixed left-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
-              onClick={() => tableScrollRef.current?.scrollBy({ left: -480, behavior: 'smooth' })}
-              title="Rolar para a esquerda"
-              aria-label="Rolar para a esquerda"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-          )}
-          {showRightArrow && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="fixed right-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
-              onClick={() => tableScrollRef.current?.scrollBy({ left: 480, behavior: 'smooth' })}
-              title="Rolar para a direita"
-              aria-label="Rolar para a direita"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </Button>
-          )}
-        </>
-      )}
+      {
+        viewMode === 'table' && isTableVisible50 && (
+          <>
+            {showLeftArrow && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="fixed left-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
+                onClick={() => tableScrollRef.current?.scrollBy({ left: -480, behavior: 'smooth' })}
+                title="Rolar para a esquerda"
+                aria-label="Rolar para a esquerda"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </Button>
+            )}
+            {showRightArrow && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="fixed right-4 top-1/2 -translate-y-1/2 z-50 h-10 w-10 rounded-full bg-background/40 hover:bg-background/60 text-muted-foreground border border-border/40 shadow-lg backdrop-blur-md"
+                onClick={() => tableScrollRef.current?.scrollBy({ left: 480, behavior: 'smooth' })}
+                title="Rolar para a direita"
+                aria-label="Rolar para a direita"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </Button>
+            )}
+          </>
+        )
+      }
 
       {/* Visualização em Rede */}
       <TabsContent value="network" className="mt-6 animate-in fade-in-50 duration-300">
         <ReferralNetwork clientes={clientes} />
       </TabsContent>
-    </Tabs>
-  </div>;
+    </Tabs >
+  </div >;
 };
 export default Clientes;

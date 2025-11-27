@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState, useEffect } from "react";
-import { campanhaSchema, CampanhaRecord, CampanhaCanal, CampanhaStatus } from "@/hooks/useCampanhas";
+import { campanhaSchema, CampanhaRecord, CampanhaCanal, CampanhaStatus, CampanhaEstagioFunil } from "@/hooks/useCampanhas";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,11 @@ import {
   FileText,
   Megaphone,
   TrendingUp,
-  Info
+  Info,
+  Filter,
+  Sparkles,
+  Zap,
+  Trophy
 } from "lucide-react";
 
 type Props = {
@@ -29,6 +33,35 @@ type Props = {
 
 const canais: CampanhaCanal[] = ['INSTAGRAM', 'FACEBOOK', 'TIKTOK', 'GOOGLE_ADS', 'ORGANICO', 'EMAIL'];
 const statuses: CampanhaStatus[] = ['RASCUNHO', 'ATIVA', 'PAUSADA', 'ENCERRADA'];
+const estagiosFunil: {
+  value: CampanhaEstagioFunil;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+}[] = [
+    {
+      value: 'TOPO',
+      label: 'Topo do Funil',
+      description: 'Conscientização - Atrair e educar novos públicos',
+      icon: Sparkles,
+      color: 'text-blue-500'
+    },
+    {
+      value: 'MEIO',
+      label: 'Meio do Funil',
+      description: 'Consideração - Nutrir leads e gerar interesse',
+      icon: Zap,
+      color: 'text-amber-500'
+    },
+    {
+      value: 'FUNDO',
+      label: 'Fundo do Funil',
+      description: 'Conversão - Fechar vendas e converter clientes',
+      icon: Trophy,
+      color: 'text-green-500'
+    },
+  ];
 
 // Função para formatar valor como moeda brasileira
 const formatCurrency = (value: number | null | undefined): string => {
@@ -50,6 +83,7 @@ export default function CampanhaFormModal({ open, onOpenChange, onSubmit, editin
       objetivo: "",
       publico_alvo: "",
       canal: 'INSTAGRAM',
+      estagio_funil: null,
       orcamento: 0,
       data_inicio: new Date().toISOString().slice(0, 10),
       data_fim: new Date().toISOString().slice(0, 10),
@@ -85,6 +119,7 @@ export default function CampanhaFormModal({ open, onOpenChange, onSubmit, editin
       objetivo: values.objetivo ?? null,
       publico_alvo: values.publico_alvo ?? null,
       canal: values.canal,
+      estagio_funil: values.estagio_funil ?? null,
       orcamento: values.orcamento ?? null,
       data_inicio: values.data_inicio ?? null,
       data_fim: values.data_fim ?? null,
@@ -209,6 +244,60 @@ export default function CampanhaFormModal({ open, onOpenChange, onSubmit, editin
                   </FormItem>
                 )} />
               </div>
+            </div>
+
+            {/* Grupo: Estágio do Funil */}
+            <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+              <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                <Filter className="h-4 w-4" /> Estágio do Funil
+              </h3>
+              <FormField name="estagio_funil" control={form.control} render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Posição no Funil de Marketing</FormLabel>
+                  <Select value={field.value || undefined} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger aria-label="Selecionar estágio do funil" className="h-auto min-h-[2.5rem]">
+                        <SelectValue placeholder="Selecione o estágio...">
+                          {field.value && (() => {
+                            const selected = estagiosFunil.find(e => e.value === field.value);
+                            if (!selected) return null;
+                            const Icon = selected.icon;
+                            return (
+                              <div className="flex items-center gap-3 py-1">
+                                <Icon className={`h-5 w-5 ${selected.color}`} />
+                                <div className="flex flex-col items-start">
+                                  <span className="font-medium text-sm">{selected.label}</span>
+                                  <span className="text-xs text-muted-foreground">{selected.description}</span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </SelectValue>
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {estagiosFunil.map(e => {
+                        const Icon = e.icon;
+                        return (
+                          <SelectItem key={e.value} value={e.value} className="cursor-pointer">
+                            <div className="flex items-center gap-3 py-2">
+                              <Icon className={`h-5 w-5 ${e.color} flex-shrink-0`} />
+                              <div className="flex flex-col">
+                                <span className="font-medium text-sm">{e.label}</span>
+                                <span className="text-xs text-muted-foreground leading-tight">{e.description}</span>
+                              </div>
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Classifique sua campanha de acordo com o objetivo no funil de vendas
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
 
             {/* Grupo: Objetivo e Público */}

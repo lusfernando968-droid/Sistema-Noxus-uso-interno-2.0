@@ -7,7 +7,8 @@ import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Plus, Video, Calendar, Link, FileText, TrendingUp, Edit } from "lucide-react";
 import { ConteudoPlatform, ConteudoStatus, ConteudoTipo, ConteudoItem } from "@/hooks/useConteudo";
 
@@ -256,8 +257,11 @@ export default function ConteudoFormModal({ onSave, itemToEdit, open: controlled
                                     <FormLabel>Descrição / Roteiro</FormLabel>
                                     <FormControl>
                                         <div className="relative">
-                                            <FileText className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                                            <Textarea placeholder="Detalhes do conteúdo..." className="pl-9 min-h-[100px]" {...field} />
+                                            <RichTextEditor
+                                                value={field.value || ""}
+                                                onChange={field.onChange}
+                                                placeholder="Detalhes do conteúdo..."
+                                            />
                                         </div>
                                     </FormControl>
                                     <FormMessage />

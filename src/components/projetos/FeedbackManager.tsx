@@ -9,12 +9,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  MessageSquare, 
-  Star, 
-  Plus, 
-  Edit, 
-  Trash2, 
+import {
+  MessageSquare,
+  Star,
+  Plus,
+  Edit,
+  Trash2,
   Calendar,
   FileText,
   Save,
@@ -72,8 +72,8 @@ export function FeedbackManager({ projetoId, onFeedbackUpdate }: FeedbackManager
         .from('projeto_sessoes')
         .select('*')
         .eq('projeto_id', projetoId)
-        .order('numero_sessao', { ascending: true });
-      
+        .order('data_sessao', { ascending: true });
+
       if (error) throw error;
       setSessoes(sessoesData || []);
     } catch (error) {
@@ -220,11 +220,10 @@ export function FeedbackManager({ projetoId, onFeedbackUpdate }: FeedbackManager
         {[1, 2, 3, 4, 5].map((star) => (
           <Star
             key={star}
-            className={`w-4 h-4 ${
-              star <= rating
-                ? 'text-yellow-500 fill-yellow-500'
-                : 'text-gray-300'
-            }`}
+            className={`w-4 h-4 ${star <= rating
+              ? 'text-yellow-500 fill-yellow-500'
+              : 'text-gray-300'
+              }`}
           />
         ))}
       </div>
@@ -265,7 +264,7 @@ export function FeedbackManager({ projetoId, onFeedbackUpdate }: FeedbackManager
                 {editingFeedback ? 'Editar Feedback' : 'Novo Feedback'}
               </DialogTitle>
               <DialogDescription>
-                {editingFeedback 
+                {editingFeedback
                   ? 'Edite o feedback e avaliação da sessão'
                   : 'Adicione feedback e avaliação para uma sessão'
                 }
@@ -285,10 +284,10 @@ export function FeedbackManager({ projetoId, onFeedbackUpdate }: FeedbackManager
                     <SelectValue placeholder="Selecione uma sessão" />
                   </SelectTrigger>
                   <SelectContent>
-                    {getSessoesDisponiveis().map((sessao) => (
+                    {getSessoesDisponiveis().map((sessao, index) => (
                       <SelectItem key={sessao.id} value={sessao.id}>
                         <div className="flex items-center gap-2">
-                          <span>Sessão {sessao.numero_sessao}</span>
+                          <span>Sessão {index + 1}</span>
                           <span className="text-muted-foreground">
                             - {new Date(sessao.data_sessao).toLocaleDateString('pt-BR')}
                           </span>
@@ -388,13 +387,13 @@ export function FeedbackManager({ projetoId, onFeedbackUpdate }: FeedbackManager
             </CardContent>
           </Card>
         ) : (
-          sessoes.map((sessao) => (
+          sessoes.map((sessao, index) => (
             <Card key={sessao.id} className="rounded-2xl">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h4 className="font-semibold">Sessão {sessao.numero_sessao}</h4>
+                      <h4 className="font-semibold">Sessão {index + 1}</h4>
                       <Badge className={`${getSessaoStatusColor(sessao.status_pagamento)} border`}>
                         {sessao.status_pagamento}
                       </Badge>

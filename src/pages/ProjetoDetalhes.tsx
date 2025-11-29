@@ -298,11 +298,11 @@ export default function ProjetoDetalhes() {
         .from('projeto_sessoes')
         .select('*')
         .eq('projeto_id', id)
-        .order('numero_sessao', { ascending: true });
+        .order('data_sessao', { ascending: true });
 
       if (error) throw error;
 
-      const sessoesFormatadas: Sessao[] = (sessoesData || []).map(sessao => {
+      const sessoesFormatadas: Sessao[] = (sessoesData || []).map((sessao, index) => {
         const isPastOrToday = new Date(sessao.data_sessao) <= new Date();
         const isConcluida = sessao.status_pagamento === 'pago' || (sessao.status_pagamento === 'pendente' && isPastOrToday);
 
@@ -317,7 +317,7 @@ export default function ProjetoDetalhes() {
           observacoes_tecnicas: sessao.observacoes_tecnicas,
           avaliacao: sessao.avaliacao,
           agendamento_id: sessao.agendamento_id || null,
-          numero_sessao: sessao.numero_sessao
+          numero_sessao: index + 1 // Use index based numbering
         };
       });
       setSessoes(sessoesFormatadas);
@@ -782,7 +782,7 @@ export default function ProjetoDetalhes() {
                           <div className="flex items-start gap-4 flex-1">
                             <div className="flex-shrink-0">
                               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                <span className="text-sm font-medium">{sessao.numero_sessao ?? (index + 1)}</span>
+                                <span className="text-sm font-medium">{index + 1}</span>
                               </div>
                             </div>
                             <div className="flex-1">

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Plus, Edit, Trash2, Clock, User, MapPin, CheckCircle, AlertCircle, CalendarDays, List, Search, Star, FileText } from "lucide-react";
+import { Calendar, Plus, Edit, Trash2, Clock, User, MapPin, CheckCircle, AlertCircle, CalendarDays, List, Search, Star, FileText, FlaskConical } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAchievementNotifications } from "@/hooks/useAchievementNotifications";
 import { CalendarView } from "@/components/calendar/CalendarView";
@@ -566,6 +566,14 @@ export default function Agendamentos() {
     setAvaliacao(5);
   };
 
+  const handleAnaliseDialogConfirm = async () => {
+    if (agendamentoParaConfirmar) {
+      await handleFinalConfirm();
+    } else {
+      setIsAnaliseDialogOpen(false);
+    }
+  };
+
   // Handlers
   const handleSubmit = async () => {
     // Preserva a posição de rolagem do container principal
@@ -1088,6 +1096,12 @@ export default function Agendamentos() {
                       Confirmar Sessão
                     </Button>
                   )}
+                  {a.status === 'concluido' && (
+                    <Button size="sm" variant="outline" className="ml-3 rounded-xl gap-2" onClick={() => setIsAnaliseDialogOpen(true)}>
+                      <FlaskConical className="w-4 h-4" />
+                      Vincular Análise
+                    </Button>
+                  )}
                 </div>
               ))
             )}
@@ -1395,6 +1409,17 @@ export default function Agendamentos() {
                 </div>
 
                 <div className="flex gap-2 pt-4">
+                  {editingAgendamento && formData.status === 'concluido' && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsAnaliseDialogOpen(true)}
+                      className="rounded-xl gap-2 mr-auto"
+                      title="Vincular Análise de Custo"
+                    >
+                      <FlaskConical className="w-4 h-4" />
+                      Vincular Análise
+                    </Button>
+                  )}
                   <Button variant="outline" onClick={() => {
                     setIsDialogOpen(false);
                     setEditingAgendamento(null);
@@ -1501,6 +1526,16 @@ export default function Agendamentos() {
                                 Confirmar Sessão
                               </Button>
                             )}
+                            {agendamento.status === 'concluido' && (
+                              <Button
+                                variant="outline"
+                                onClick={() => setIsAnaliseDialogOpen(true)}
+                                className="rounded-xl gap-2"
+                                title="Vincular Análise de Custo"
+                              >
+                                <FlaskConical className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1514,7 +1549,7 @@ export default function Agendamentos() {
         <AnaliseUsoDialog
           open={isAnaliseDialogOpen}
           onOpenChange={setIsAnaliseDialogOpen}
-          onConfirm={handleFinalConfirm}
+          onConfirm={handleAnaliseDialogConfirm}
         />
       </div>
     </div>

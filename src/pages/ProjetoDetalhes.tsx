@@ -102,7 +102,7 @@ export default function ProjetoDetalhes() {
   const [manualSessaoCalendarOpen, setManualSessaoCalendarOpen] = useState(false);
   const parseDateOnly = (s: string) => {
     const [y, m, d] = (s || '').split('-').map(Number);
-    return new Date(y || 1970, (m || 1) - 1, d || 1);
+    return new Date(y || 1970, (m || 1) - 1, d || 1, 12);
   };
 
   const abrirEdicaoSessao = (s: Sessao) => {
@@ -303,7 +303,8 @@ export default function ProjetoDetalhes() {
       if (error) throw error;
 
       const sessoesFormatadas: Sessao[] = (sessoesData || []).map((sessao, index) => {
-        const isPastOrToday = new Date(sessao.data_sessao) <= new Date();
+        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+        const isPastOrToday = sessao.data_sessao <= today;
         const isConcluida = sessao.status_pagamento === 'pago' || (sessao.status_pagamento === 'pendente' && isPastOrToday);
 
         return {
@@ -788,7 +789,7 @@ export default function ProjetoDetalhes() {
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <Calendar className="w-4 h-4 text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">{new Date(sessao.data).toLocaleDateString()}</span>
+                                <span className="text-sm text-muted-foreground">{format(parseDateOnly(sessao.data), "dd/MM/yyyy", { locale: ptBR })}</span>
                                 <Badge variant="outline" className={`rounded-xl ${getSessaoStatusColor(sessao.status)}`}>
                                   {sessao.status}
                                 </Badge>
@@ -894,7 +895,9 @@ export default function ProjetoDetalhes() {
                           selected={editSessaoForm.data ? parseDateOnly(editSessaoForm.data) : undefined}
                           onSelect={(date) => {
                             if (date) {
-                              setEditSessaoForm(prev => ({ ...prev, data: format(date, "yyyy-MM-dd") }));
+                              const adjusted = new Date(date);
+                              adjusted.setHours(12, 0, 0, 0);
+                              setEditSessaoForm(prev => ({ ...prev, data: format(adjusted, "yyyy-MM-dd") }));
                               setEditSessaoCalendarOpen(false);
                             }
                           }}
@@ -1088,7 +1091,9 @@ export default function ProjetoDetalhes() {
                         selected={manualSessaoForm.data ? parseDateOnly(manualSessaoForm.data) : undefined}
                         onSelect={(date) => {
                           if (date) {
-                            setManualSessaoForm(prev => ({ ...prev, data: format(date, "yyyy-MM-dd") }));
+                            const adjusted = new Date(date);
+                            adjusted.setHours(12, 0, 0, 0);
+                            setManualSessaoForm(prev => ({ ...prev, data: format(adjusted, "yyyy-MM-dd") }));
                             setManualSessaoCalendarOpen(false);
                           }
                         }}

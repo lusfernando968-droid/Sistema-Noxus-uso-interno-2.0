@@ -17,7 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function AnaliseCusto() {
-    const { analises, loading, iniciarAnalise, finalizarAnalise, excluirAnalise, registrarUso } = useAnaliseCusto();
+    const { analises, loading, iniciarAnalise, finalizarAnalise, excluirAnalise, registrarUso, removerUso } = useAnaliseCusto();
     const { produtos } = useProdutos();
 
     const { user } = useAuth();
@@ -72,8 +72,8 @@ export default function AnaliseCusto() {
     };
 
     const handleConfirmSessionUse = async () => {
-        if (selectedAnalysisId) {
-            await registrarUso([selectedAnalysisId]);
+        if (selectedAnalysisId && selectedSessionId) {
+            await registrarUso([selectedAnalysisId], selectedSessionId);
             setIsSessionSelectOpen(false);
             setSelectedSessionId("");
             setSelectedAnalysisId(null);
@@ -82,25 +82,26 @@ export default function AnaliseCusto() {
 
     const fetchLinkedSessions = async (analysisId: string) => {
         if (!user) return;
-        // For now, we'll show a placeholder since we don't have a direct link table
-        // In a real implementation, you'd query a junction table or track this in analise_custo
+
         const { data, error } = await supabase
-            .from('agendamentos')
+            .from('analise_uso_sessao')
             .select(`
-                id, 
-                data, 
-                hora, 
-                titulo,
-                projetos!inner(
-                    clientes!inner(
-                        nome
+                id,
+                created_at,
+                agendamentos!inner(
+                    id,
+                    data,
+                    hora,
+                    titulo,
+                    projetos!inner(
+                        clientes!inner(
+                            nome
+                        )
                     )
                 )
             `)
-            .eq('user_id', user.id)
-            .eq('status', 'concluido')
-            .order('data', { ascending: false })
-            .limit(10); // Limit for now
+            .eq('analise_id', analysisId)
+            .order('created_at', { ascending: false });
 
         if (error) {
             console.error("Erro ao buscar sessões vinculadas:", error);
@@ -108,7 +109,15 @@ export default function AnaliseCusto() {
         }
 
         if (data) {
-            setLinkedSessions(data);
+            // Transform data to match the expected format for display
+            const formattedSessions = data.map((item: any) => ({
+                id: item.agendamentos.id,
+                data: item.agendamentos.data,
+                hora: item.agendamentos.hora,
+                titulo: item.agendamentos.titulo,
+                projetos: item.agendamentos.projetos
+            }));
+            setLinkedSessions(formattedSessions);
         }
     };
 
@@ -116,6 +125,14 @@ export default function AnaliseCusto() {
         setViewingAnalysisId(analysisId);
         await fetchLinkedSessions(analysisId);
         setIsLinkedSessionsOpen(true);
+    };
+
+    const handleRemoveLink = async (sessionId: string) => {
+        if (viewingAnalysisId) {
+            await removerUso(viewingAnalysisId, sessionId);
+            // Refresh list
+            await fetchLinkedSessions(viewingAnalysisId);
+        }
     };
 
     const ativos = analises.filter(a => a.status === 'ativo');
@@ -401,6 +418,16 @@ export default function AnaliseCusto() {
                                                 </TableCell>
                                                 <TableCell className="text-muted-foreground">
                                                     {session.titulo || "Sem título"}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                        onClick={() => handleRemoveLink(session.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
                                                 </TableCell>
                                             </TableRow>
                                         ))}

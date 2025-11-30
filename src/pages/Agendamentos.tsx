@@ -63,6 +63,7 @@ export default function Agendamentos() {
   const [feedbackCliente, setFeedbackCliente] = useState('');
   const [avaliacao, setAvaliacao] = useState<number>(5);
   const [observacoesTecnicas, setObservacoesTecnicas] = useState<string>('');
+  const [agendamentoParaAnalise, setAgendamentoParaAnalise] = useState<Agendamento | null>(null);
 
   const initialFormData = {
     cliente_nome: "",
@@ -540,6 +541,7 @@ export default function Agendamentos() {
     // Check for active analysis
     const hasActiveAnalysis = analises.some(a => a.status === 'ativo');
     if (hasActiveAnalysis) {
+      setAgendamentoParaAnalise(agendamentoParaConfirmar);
       setIsAnaliseDialogOpen(true);
       // We pause here. The dialog will call handleFinalConfirm when done.
       return;
@@ -571,6 +573,7 @@ export default function Agendamentos() {
       await handleFinalConfirm();
     } else {
       setIsAnaliseDialogOpen(false);
+      setAgendamentoParaAnalise(null);
     }
   };
 
@@ -1097,7 +1100,10 @@ export default function Agendamentos() {
                     </Button>
                   )}
                   {a.status === 'concluido' && (
-                    <Button size="sm" variant="outline" className="ml-3 rounded-xl gap-2" onClick={() => setIsAnaliseDialogOpen(true)}>
+                    <Button size="sm" variant="outline" className="ml-3 rounded-xl gap-2" onClick={() => {
+                      setAgendamentoParaAnalise(a);
+                      setIsAnaliseDialogOpen(true);
+                    }}>
                       <FlaskConical className="w-4 h-4" />
                       Vincular Análise
                     </Button>
@@ -1412,7 +1418,10 @@ export default function Agendamentos() {
                   {editingAgendamento && formData.status === 'concluido' && (
                     <Button
                       variant="outline"
-                      onClick={() => setIsAnaliseDialogOpen(true)}
+                      onClick={() => {
+                        setAgendamentoParaAnalise(editingAgendamento);
+                        setIsAnaliseDialogOpen(true);
+                      }}
                       className="rounded-xl gap-2 mr-auto"
                       title="Vincular Análise de Custo"
                     >
@@ -1529,7 +1538,10 @@ export default function Agendamentos() {
                             {agendamento.status === 'concluido' && (
                               <Button
                                 variant="outline"
-                                onClick={() => setIsAnaliseDialogOpen(true)}
+                                onClick={() => {
+                                  setAgendamentoParaAnalise(agendamento);
+                                  setIsAnaliseDialogOpen(true);
+                                }}
                                 className="rounded-xl gap-2"
                                 title="Vincular Análise de Custo"
                               >
@@ -1548,8 +1560,12 @@ export default function Agendamentos() {
         </Tabs>
         <AnaliseUsoDialog
           open={isAnaliseDialogOpen}
-          onOpenChange={setIsAnaliseDialogOpen}
+          onOpenChange={(open) => {
+            setIsAnaliseDialogOpen(open);
+            if (!open) setAgendamentoParaAnalise(null);
+          }}
           onConfirm={handleAnaliseDialogConfirm}
+          sessionId={agendamentoParaAnalise?.id}
         />
       </div>
     </div>

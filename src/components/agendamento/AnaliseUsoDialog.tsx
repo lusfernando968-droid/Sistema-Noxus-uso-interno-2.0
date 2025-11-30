@@ -9,9 +9,10 @@ type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onConfirm: () => void;
+    sessionId?: string;
 };
 
-export default function AnaliseUsoDialog({ open, onOpenChange, onConfirm }: Props) {
+export default function AnaliseUsoDialog({ open, onOpenChange, onConfirm, sessionId }: Props) {
     const { analises, registrarUso } = useAnaliseCusto();
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -28,8 +29,8 @@ export default function AnaliseUsoDialog({ open, onOpenChange, onConfirm }: Prop
     };
 
     const handleConfirm = async () => {
-        if (selectedIds.length > 0) {
-            await registrarUso(selectedIds);
+        if (selectedIds.length > 0 && sessionId) {
+            await registrarUso(selectedIds, sessionId);
         }
         onConfirm();
     };

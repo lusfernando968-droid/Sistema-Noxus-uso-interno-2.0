@@ -71,30 +71,43 @@ export function useAnaliseCusto() {
         }
     };
 
-    const registrarUso = async (ids: string[]) => {
+    const registrarUso = async (ids: string[], sessionId: string) => {
         try {
             if (!user || ids.length === 0) return;
 
-            // Supabase doesn't support increment in one go easily without RPC, 
-            // but for simplicity we'll fetch and update or just update blindly if we trust the logic.
-            // Let's use a loop for now as it's unlikely to be many items.
-
             for (const id of ids) {
-                // Get current count first to be safe, or use rpc if we had one. 
-                // For now, let's just increment locally and push.
+                // 1. Increment counter
                 const current = analises.find(a => a.id === id);
                 if (!current) continue;
 
-                const { error } = await sb
+                const { error: updateError } = await sb
                     .from("analise_custo")
                     .update({ qtd_sessoes: current.qtd_sessoes + 1 })
                     .eq("id", id);
 
-                if (error) throw error;
+                if (updateError) throw updateError;
+
+                // 2. Link session
+                const { error: linkError } = await sb
+                    .from("analise_uso_sessao")
+                    .insert({
+                        analise_id: id,
+                        agendamento_id: sessionId,
+                        user_id: user.id
+                    });
+
+                if (linkError) {
+                    console.error("Erro ao vincular sessão:", linkError);
+                    toast({
+                        title: "Atenção",
+                        description: "Sessão contada, mas não foi possível vincular o histórico.",
+                        variant: "destructive"
+                    });
+                }
             }
 
             setAnalises(prev => prev.map(a => ids.includes(a.id) ? { ...a, qtd_sessoes: a.qtd_sessoes + 1 } : a));
-            toast({ title: "Uso registrado", description: "Contador de sessões atualizado." });
+            toast({ title: "Uso registrado", description: "Contador de sessões atualizado e vinculado." });
         } catch (err: any) {
             console.error("Erro ao registrar uso:", err);
             toast({ title: "Erro", description: "Falha ao atualizar contadores.", variant: "destructive" });
@@ -120,6 +133,39 @@ export function useAnaliseCusto() {
         } catch (err: any) {
             console.error("Erro ao finalizar:", err);
             toast({ title: "Erro", description: "Não foi possível finalizar.", variant: "destructive" });
+        }
+    };
+
+    const removerUso = async (analiseId: string, sessaoId: string) => {
+        try {
+            if (!user) return;
+
+            // 1. Remove link
+            const { error: deleteError } = await sb
+                .from("analise_uso_sessao")
+                .delete()
+                .eq("analise_id", analiseId)
+                .eq("agendamento_id", sessaoId);
+
+            if (deleteError) throw deleteError;
+
+            // 2. Decrement counter
+            const current = analises.find(a => a.id === analiseId);
+            if (current && current.qtd_sessoes > 0) {
+                const { error: updateError } = await sb
+                    .from("analise_custo")
+                    .update({ qtd_sessoes: current.qtd_sessoes - 1 })
+                    .eq("id", analiseId);
+
+                if (updateError) throw updateError;
+
+                setAnalises(prev => prev.map(a => a.id === analiseId ? { ...a, qtd_sessoes: a.qtd_sessoes - 1 } : a));
+            }
+
+            toast({ title: "Vínculo removido", description: "Sessão desvinculada e contador atualizado." });
+        } catch (err: any) {
+            console.error("Erro ao remover uso:", err);
+            toast({ title: "Erro", description: "Não foi possível remover o vínculo.", variant: "destructive" });
         }
     };
 
@@ -152,6 +198,7 @@ export function useAnaliseCusto() {
         iniciarAnalise,
         registrarUso,
         finalizarAnalise,
-        excluirAnalise
+        excluirAnalise,
+        removerUso
     };
 }

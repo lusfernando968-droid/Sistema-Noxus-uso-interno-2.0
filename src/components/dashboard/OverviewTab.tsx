@@ -80,15 +80,15 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
           const Icon = stat.icon;
           const TrendIcon = stat.trend === "up" ? ArrowUpRight : ArrowDownRight;
           const isPositive = stat.trend === "up";
-          
+
           return (
-            <Card 
-              key={stat.label} 
+            <Card
+              key={stat.label}
               className="rounded-3xl border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 group relative overflow-hidden bg-gradient-to-br from-background to-muted/20"
             >
               {/* Gradiente de fundo sutil */}
               <div className={`absolute inset-0 opacity-5 ${stat.bgColor.replace('/10', '')}`} />
-              
+
               <CardContent className="p-6 relative">
                 <div className="flex items-center justify-between mb-4">
                   <div className={`p-3 rounded-2xl ${stat.bgColor} group-hover:scale-110 transition-transform duration-300`}>
@@ -101,7 +101,7 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
                     </span>
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <p className="text-sm font-medium text-muted-foreground">
                     {stat.label}
@@ -112,7 +112,7 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
                   </div>
                 </div>
 
-              {/* Barra de meta removida para visual mais limpo */}
+                {/* Barra de meta removida para visual mais limpo */}
               </CardContent>
             </Card>
           );
@@ -131,7 +131,7 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
         </TabsList>
 
         <TabsContent value="analytics" className="space-y-6">
-          <AdvancedCharts 
+          <AdvancedCharts
             transacoes={transacoes}
             clientes={clientes}
             projetos={projetos}

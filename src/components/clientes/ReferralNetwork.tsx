@@ -3,11 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useTheme } from "@/contexts/ThemeContext";
-import { 
-  Users, 
-  Network, 
-  ZoomIn, 
-  ZoomOut, 
+import {
+  Users,
+  Network,
+  ZoomIn,
+  ZoomOut,
   RotateCcw,
   Eye,
   EyeOff,
@@ -76,19 +76,19 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
   const [filterTerm, setFilterTerm] = useState("");
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
   const [layoutMode, setLayoutMode] = useState<'hierarchical' | 'circular'>('hierarchical');
-  
+
   // Estados para filtros avançados
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [periodFilter, setPeriodFilter] = useState<string>("all");
   const [ltvRange, setLtvRange] = useState<[number, number]>([0, 10000]);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [animationSpeed, setAnimationSpeed] = useState(300);
-  
+
   // Estados para animações
   const [isAnimating, setIsAnimating] = useState(false);
   const [animationProgress, setAnimationProgress] = useState(0);
   const [previousNodes, setPreviousNodes] = useState<NetworkNode[]>([]);
-  
+
   // Minimap removido
 
   // Estados para interatividade avançada
@@ -100,7 +100,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
   const [showAnalytics, setShowAnalytics] = useState(false); // Painel de analytics
   const [analyticsMode, setAnalyticsMode] = useState<'metrics' | 'heatmap' | 'temporal' | 'predictions' | 'roi'>('metrics');
   const [heatmapData, setHeatmapData] = useState<Map<string, number>>(new Map()); // Dados do heatmap
-  const [temporalData, setTemporalData] = useState<Array<{date: string, count: number, ltv: number}>>([]);
+  const [temporalData, setTemporalData] = useState<Array<{ date: string, count: number, ltv: number }>>([]);
   const [realTimeMetrics, setRealTimeMetrics] = useState({
     totalLTV: 0,
     avgIndicationsPerNode: 0,
@@ -119,7 +119,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
       rose: { r: 244, g: 63, b: 94 }, // Rosa
       black: { r: 107, g: 114, b: 128 }, // Cinza
     };
-    
+
     return themeColorMap[colorTheme] || themeColorMap.default;
   };
 
@@ -173,8 +173,8 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
       if (!raw) return { r: 8, g: 12, b: 24 }; // fallback para cor antiga
       const parts = raw.split(/\s+/);
       const h = parseFloat(parts[0]);
-      const s = parseFloat(parts[1].replace('%',''));
-      const l = parseFloat(parts[2].replace('%',''));
+      const s = parseFloat(parts[1].replace('%', ''));
+      const l = parseFloat(parts[2].replace('%', ''));
       return hslToRgb(h, s, l);
     } catch {
       return { r: 8, g: 12, b: 24 };
@@ -189,8 +189,8 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
       if (!raw) return { r: 229, g: 231, b: 235 }; // fallback claro
       const parts = raw.split(/\s+/);
       const h = parseFloat(parts[0]);
-      const s = parseFloat(parts[1].replace('%',''));
-      const l = parseFloat(parts[2].replace('%',''));
+      const s = parseFloat(parts[1].replace('%', ''));
+      const l = parseFloat(parts[2].replace('%', ''));
       return hslToRgb(h, s, l);
     } catch {
       return { r: 229, g: 231, b: 235 };
@@ -202,19 +202,19 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     const colors = [];
     const maxLevels = Math.max(maxLevel, 4);
     const themeColor = getThemeColors();
-    
+
     for (let i = 0; i <= maxLevels; i++) {
       // Criar gradiente do escuro para claro baseado no tema
       const factor = i / Math.max(maxLevels, 1);
-      
+
       // Gradiente: do escuro (nível 0) para claro (níveis maiores)
       const r = Math.round(themeColor.r + (255 - themeColor.r) * factor * 0.4);
       const g = Math.round(themeColor.g + (255 - themeColor.g) * factor * 0.4);
       const b = Math.round(themeColor.b + (255 - themeColor.b) * factor * 0.2);
-      
+
       colors.push(`rgb(${r}, ${g}, ${b})`);
     }
-    
+
     return colors;
   };
 
@@ -230,7 +230,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     const totalLTV = nodes.reduce((sum, node) => sum + node.ltv, 0);
     const totalIndications = nodes.reduce((sum, node) => sum + node.indicacoes_count, 0);
     const avgIndicationsPerNode = totalIndications / nodes.length;
-    
+
     // Calcular taxa de crescimento baseada em created_at
     const now = new Date();
     const msInDay = 24 * 60 * 60 * 1000;
@@ -253,7 +253,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     } else {
       networkGrowthRate = ((currentPeriodCount - previousPeriodCount) / previousPeriodCount) * 100;
     }
-    
+
     // Top performers (top 3 por indicacoes_count)
     const topPerformers = [...nodes]
       .sort((a, b) => b.indicacoes_count - a.indicacoes_count)
@@ -271,13 +271,13 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
   // Calcular dados do heatmap baseado na performance
   const calculateHeatmapData = useMemo(() => {
     const heatmap = new Map<string, number>();
-    
+
     nodes.forEach(node => {
       // Calcular score de performance baseado em LTV e indicações
       const performanceScore = (node.ltv / 1000) + (node.indicacoes_count * 10);
       heatmap.set(node.id, Math.min(performanceScore, 100)); // Normalizar para 0-100
     });
-    
+
     return heatmap;
   }, [nodes]);
 
@@ -285,22 +285,22 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
   const generateTemporalData = useMemo(() => {
     const data = [];
     const today = new Date();
-    
+
     for (let i = 11; i >= 0; i--) {
       const date = new Date(today);
       date.setMonth(date.getMonth() - i);
-      
+
       // Simular crescimento da rede ao longo do tempo
       const baseCount = Math.max(1, nodes.length - (i * 2));
       const baseLTV = nodes.reduce((sum, node) => sum + node.ltv, 0) * (baseCount / nodes.length);
-      
+
       data.push({
         date: date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
         count: Math.round(baseCount),
         ltv: Math.round(baseLTV)
       });
     }
-    
+
     return data;
   }, [nodes]);
 
@@ -321,7 +321,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     const animate = () => {
       const elapsed = Date.now() - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      
+
       // Função de easing suave (ease-out)
       const easedProgress = 1 - Math.pow(1 - progress, 3);
       setAnimationProgress(easedProgress);
@@ -361,7 +361,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
 
     // Filtro por termo de busca
     if (filterTerm) {
-      filteredNodes = filteredNodes.filter(node => 
+      filteredNodes = filteredNodes.filter(node =>
         node.name.toLowerCase().includes(filterTerm.toLowerCase())
       );
     }
@@ -370,14 +370,14 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     if (periodFilter !== "all") {
       const now = new Date();
       const cliente = clientes.find(c => c.id === filteredNodes[0]?.id);
-      
+
       filteredNodes = filteredNodes.filter(node => {
         const cliente = clientes.find(c => c.id === node.id);
         if (!cliente) return false;
-        
+
         const createdDate = new Date(cliente.created_at);
         const daysDiff = Math.floor((now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-        
+
         switch (periodFilter) {
           case "7days": return daysDiff <= 7;
           case "30days": return daysDiff <= 30;
@@ -389,7 +389,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     }
 
     // Filtro por LTV
-    filteredNodes = filteredNodes.filter(node => 
+    filteredNodes = filteredNodes.filter(node =>
       node.ltv >= ltvRange[0] && node.ltv <= ltvRange[1]
     );
 
@@ -420,7 +420,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     // Primeiro, criar todos os nós
     clientes.forEach(cliente => {
       const indicacoes_count = clientes.filter(c => c.indicado_por === cliente.id).length;
-      
+
       nodeMap.set(cliente.id, {
         id: cliente.id,
         name: cliente.nome,
@@ -485,10 +485,10 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     });
 
     const newNodes = Array.from(nodeMap.values());
-    
+
     // Posicionar nós antes da animação
     positionNodes(newNodes, connections);
-    
+
     // Usar animação suave para transição
     animateLayoutTransition(newNodes);
   };
@@ -557,16 +557,16 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     nodesByLevel.forEach((levelNodes, level) => {
       const yLine = startY + (level * levelHeight);
       const y = yLine - nodeOffset;
-      
+
       if (level === 0) {
         // Nós raiz: distribuição melhorada
         const totalNodes = levelNodes.length;
-        
+
         if (totalNodes === 0) return;
-        
+
         const margin = 100; // Margem das bordas para nós raiz
         const availableWidth = width - (2 * margin);
-        
+
         if (totalNodes === 1) {
           // Se há apenas um nó raiz, centralizar
           levelNodes[0].x = width / 2;
@@ -574,7 +574,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         } else {
           // Distribuir uniformemente pela largura disponível
           const spacing = availableWidth / (totalNodes - 1);
-          
+
           levelNodes.forEach((node, index) => {
             node.x = margin + (index * spacing);
             node.y = y;
@@ -583,30 +583,30 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
       } else {
         // Nós filhos: distribuição melhorada para evitar agrupamento
         const totalNodes = levelNodes.length;
-        
+
         if (totalNodes === 0) return;
-        
+
         // Calcular espaçamento baseado na largura disponível
         const margin = 80; // Margem das bordas
         const availableWidth = width - (2 * margin);
         const spacing = Math.max(120, availableWidth / (totalNodes + 1));
-        
+
         // Ordenar nós por pai para manter grupos próximos
         const sortedNodes = [...levelNodes].sort((a, b) => {
           const parentA = Array.from(nodesByLevel.get(level - 1) || []).find(p => p.connections.includes(a.id));
           const parentB = Array.from(nodesByLevel.get(level - 1) || []).find(p => p.connections.includes(b.id));
-          
+
           if (parentA && parentB) {
             return parentA.x - parentB.x;
           }
           return 0;
         });
-        
+
         // Distribuir nós uniformemente pela largura disponível
         sortedNodes.forEach((node, index) => {
           // Calcular posição X para distribuição uniforme
           const x = margin + spacing + (index * spacing);
-          
+
           // Garantir que não saia dos limites
           node.x = Math.max(margin, Math.min(width - margin, x));
           node.y = y;
@@ -633,7 +633,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         if (node.id !== other.id && node.level === other.level) {
           const dx = node.x - other.x;
           const distance = Math.abs(dx);
-          
+
           if (distance < 120) { // Apenas se muito próximos horizontalmente
             const force = repulsionForce / (distance + 1);
             fx += dx > 0 ? force : -force;
@@ -707,22 +707,22 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     // Configurar alta qualidade e anti-aliasing
     const devicePixelRatio = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    
+
     // Ajustar resolução para HiDPI
     canvas.width = rect.width * devicePixelRatio;
     canvas.height = rect.height * devicePixelRatio;
     canvas.style.width = rect.width + 'px';
     canvas.style.height = rect.height + 'px';
-    
+
     // Escalar contexto para HiDPI
     ctx.scale(devicePixelRatio, devicePixelRatio);
-    
+
     // Configurações de qualidade baseadas no zoom (LOD)
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = zoom > 1 ? 'high' : zoom > 0.5 ? 'medium' : 'low';
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    
+
     // Configurações de qualidade adaptativas
     const highQuality = zoom > 0.8;
     const mediumQuality = zoom > 0.4;
@@ -733,7 +733,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
-    
+
     // Fundo baseado na cor do tema (dark mode)
     const bgRgb = getBackgroundRgb();
     ctx.fillStyle = `rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 1)`;
@@ -769,7 +769,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
 
       for (let level = 0; level <= maxLevel; level++) {
         const y = startY + (level * levelHeight);
-        
+
         // Linha horizontal do nível
         ctx.beginPath();
         ctx.moveTo(0, y);
@@ -802,19 +802,19 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
           // Desenhar apenas conexões pai -> filho (nível menor -> nível maior)
           const isParentToChild = node.level < connected.level;
           if (!isParentToChild) return;
-          
+
           const isHighlighted = highlightedNodes.has(node.id) || highlightedNodes.has(connected.id);
-          
+
           // Raio de energia entre estrelas
           const themeColorForGradient = getThemeColors();
-          
+
           if (isHighlighted) {
             // Conexão brilhante para destacados
             const energyGradient = ctx.createLinearGradient(node.x, node.y, connected.x, connected.y);
             energyGradient.addColorStop(0, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.7)`);
             energyGradient.addColorStop(0.5, `rgba(255, 255, 255, 0.5)`); // Centro um pouco menos brilhante
             energyGradient.addColorStop(1, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.7)`);
-            
+
             // Halo de energia (linha mais grossa e difusa)
             ctx.beginPath();
             ctx.moveTo(node.x, node.y);
@@ -822,7 +822,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
             ctx.strokeStyle = `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.12)`;
             ctx.lineWidth = 4 / zoom;
             ctx.stroke();
-            
+
             // Linha principal brilhante
             ctx.beginPath();
             ctx.moveTo(node.x, node.y);
@@ -835,7 +835,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
             subtleGradient.addColorStop(0, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.12)`);
             subtleGradient.addColorStop(0.5, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.2)`);
             subtleGradient.addColorStop(1, `rgba(${themeColorForGradient.r}, ${themeColorForGradient.g}, ${themeColorForGradient.b}, 0.12)`);
-            
+
             ctx.beginPath();
             ctx.moveTo(node.x, node.y);
             ctx.lineTo(connected.x, connected.y);
@@ -845,17 +845,17 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
           ctx.globalAlpha = isHighlighted ? 0.8 : 0.45;
           ctx.stroke();
           ctx.globalAlpha = 1;
-          
+
           // Adicionar seta indicando direção (pai -> filho)
           // Ocultar setas quando zoom < 1 para evitar poluição visual
           if (mediumQuality && zoom >= 1) {
             const arrowSize = 6 / zoom;
             const angle = Math.atan2(connected.y - node.y, connected.x - node.x);
-            
+
             // Posição da seta (70% do caminho)
             const arrowX = node.x + (connected.x - node.x) * 0.7;
             const arrowY = node.y + (connected.y - node.y) * 0.7;
-            
+
             ctx.beginPath();
             ctx.moveTo(arrowX, arrowY);
             ctx.lineTo(
@@ -880,16 +880,16 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     currentNodes.forEach(node => {
       const isSelected = selectedNode === node.id;
       const isHighlighted = highlightedNodes.has(node.id);
-      
+
       // Sistema de tamanhos baseado na geração e indicações
       const baseSize = node.level === 0 ? 16 : // Clientes raiz maiores
-                      node.level === 1 ? 14 : // 1ª geração
-                      node.level === 2 ? 12 : // 2ª geração
-                      10; // 3ª geração+
-      
+        node.level === 1 ? 14 : // 1ª geração
+          node.level === 2 ? 12 : // 2ª geração
+            10; // 3ª geração+
+
       const indicationBonus = node.indicacoes_count * 1.5; // Bônus por indicações
       const radius = (baseSize + indicationBonus) / zoom;
-      
+
       // Sombra do nó (apenas em alta qualidade)
       if (highQuality) {
         ctx.save();
@@ -903,16 +903,16 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         ctx.fill();
         ctx.restore();
       }
-      
+
       // Cor baseada no nível, destaque ou modo analytics
       const themeColor = getThemeColors();
       let baseColor;
-      
+
       if (analyticsMode === 'heatmap' && showAnalytics) {
         // Modo heatmap: cor baseada na performance
         const performanceScore = calculateHeatmapData.get(node.id) || 0;
         const intensity = performanceScore / 100; // Normalizar 0-1
-        
+
         // Gradiente de azul (baixa performance) para vermelho (alta performance)
         const r = Math.round(intensity * 255);
         const g = Math.round((1 - intensity) * 100);
@@ -923,25 +923,25 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
       } else {
         baseColor = levelColors[Math.min(node.level, levelColors.length - 1)];
       }
-      
 
-      
+
+
       // Ponto de luz como constelação
       let rgb = null;
-      
+
       // Verificar se é hex ou rgb
       if (baseColor.startsWith('#')) {
         rgb = hexToRgb(baseColor);
       } else if (baseColor.startsWith('rgb')) {
         rgb = rgbStringToRgb(baseColor);
       }
-      
+
       if (rgb) {
         // Criar múltiplas camadas de brilho para efeito de constelação
         const intensity = isSelected || isHighlighted ? 1.5 : 1;
         const coreSize = radius * 0.3; // Núcleo pequeno e brilhante
         const glowSize = radius * 1.3; // Halo externo ainda menor
-        
+
         // Camada 1: Halo externo (brilho difuso)
         const outerGlow = ctx.createRadialGradient(
           node.x, node.y, 0,
@@ -950,12 +950,12 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         outerGlow.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.15 * intensity})`);
         outerGlow.addColorStop(0.3, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.05 * intensity})`);
         outerGlow.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
-        
+
         ctx.beginPath();
         ctx.arc(node.x, node.y, glowSize, 0, 2 * Math.PI);
         ctx.fillStyle = outerGlow;
         ctx.fill();
-        
+
         // Camada 2: Brilho médio
         const middleGlow = ctx.createRadialGradient(
           node.x, node.y, 0,
@@ -964,12 +964,12 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         middleGlow.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.45 * intensity})`);
         middleGlow.addColorStop(0.45, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.2 * intensity})`);
         middleGlow.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0)`);
-        
+
         ctx.beginPath();
         ctx.arc(node.x, node.y, radius * 0.75, 0, 2 * Math.PI);
         ctx.fillStyle = middleGlow;
         ctx.fill();
-        
+
         // Camada 3: Núcleo brilhante (estrela)
         const coreGlow = ctx.createRadialGradient(
           node.x, node.y, 0,
@@ -978,12 +978,12 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         coreGlow.addColorStop(0, `rgba(255, 255, 255, ${0.9 * intensity})`); // Centro branco brilhante
         coreGlow.addColorStop(0.3, `rgba(${Math.min(255, rgb.r + 50)}, ${Math.min(255, rgb.g + 50)}, ${Math.min(255, rgb.b + 50)}, ${0.8 * intensity})`);
         coreGlow.addColorStop(1, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${0.35 * intensity})`);
-        
+
         ctx.beginPath();
         ctx.arc(node.x, node.y, coreSize, 0, 2 * Math.PI);
         ctx.fillStyle = coreGlow;
         ctx.fill();
-        
+
 
       }
 
@@ -996,7 +996,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         );
         innerGradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
         innerGradient.addColorStop(1, 'rgba(255, 255, 255, 0.7)');
-        
+
         ctx.beginPath();
         ctx.arc(node.x, node.y, innerRadius, 0, 2 * Math.PI);
         ctx.fillStyle = innerGradient;
@@ -1008,11 +1008,11 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         const fontSize = Math.max(8, (9 / zoom)); // menor e mais fino
         const smallFontSize = Math.max(7, (8 / zoom));
         const fg = getForegroundRgb();
-        
+
         // Configurar texto de alta qualidade
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        
+
         // Nome do nó com sombra
         if (zoom > 0.5) {
           ctx.save();
@@ -1025,11 +1025,11 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         ctx.fillStyle = `rgba(${fg.r}, ${fg.g}, ${fg.b}, ${isSelected || isHighlighted ? 0.9 : 0.75})`;
         ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
         ctx.fillText(node.name.split(' ')[0], node.x, node.y - radius - 10 / zoom);
-        
+
         if (zoom > 0.5) {
           ctx.restore();
         }
-        
+
         // Contador de indicações
         if (node.indicacoes_count > 0 && zoom > 0.4) {
           if (zoom > 0.5) {
@@ -1039,11 +1039,11 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
             ctx.shadowOffsetX = 0.5 / zoom;
             ctx.shadowOffsetY = 0.5 / zoom;
           }
-          
+
           ctx.fillStyle = `rgba(${fg.r}, ${fg.g}, ${fg.b}, 0.6)`;
           ctx.font = `${smallFontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
           ctx.fillText(`${node.indicacoes_count} indicações`, node.x, node.y + radius + 15 / zoom);
-          
+
           if (zoom > 0.5) {
             ctx.restore();
           }
@@ -1146,57 +1146,57 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
           : "bg-gradient-to-r from-primary/5 to-primary/10";
         return (
           <Card className={`rounded-3xl border border-border/40 ${headerGradientClass} shadow-sm`}>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-primary/10 rounded-2xl">
-                <Network className="w-6 h-6 text-primary" />
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-primary/10 rounded-2xl">
+                    <Network className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Rede de Indicações</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Visualização das conexões entre clientes
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 bg-background/60 backdrop-blur-sm border border-border/40 rounded-full px-2 py-1 shadow-sm">
+                  <Input
+                    placeholder="Buscar cliente..."
+                    value={filterTerm}
+                    onChange={(e) => setFilterTerm(e.target.value)}
+                    className="w-56 h-8 rounded-full bg-background/70"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                    className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
+                    title="Filtros Avançados"
+                  >
+                    <Filter className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setLayoutMode(layoutMode === 'hierarchical' ? 'circular' : 'hierarchical')}
+                    className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
+                    title={`Alternar para layout ${layoutMode === 'hierarchical' ? 'circular' : 'hierárquico'}`}
+                  >
+                    {layoutMode === 'hierarchical' ? '🌐' : '📊'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowLabels(!showLabels)}
+                    className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
+                    title={showLabels ? 'Ocultar rótulos' : 'Mostrar rótulos'}
+                  >
+                    {showLabels ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-xl">Rede de Indicações</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Visualização das conexões entre clientes
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2 bg-background/60 backdrop-blur-sm border border-border/40 rounded-full px-2 py-1 shadow-sm">
-              <Input
-                placeholder="Buscar cliente..."
-                value={filterTerm}
-                onChange={(e) => setFilterTerm(e.target.value)}
-                className="w-56 h-8 rounded-full bg-background/70"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
-                title="Filtros Avançados"
-              >
-                <Filter className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setLayoutMode(layoutMode === 'hierarchical' ? 'circular' : 'hierarchical')}
-                className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
-                title={`Alternar para layout ${layoutMode === 'hierarchical' ? 'circular' : 'hierárquico'}`}
-              >
-                {layoutMode === 'hierarchical' ? '🌐' : '📊'}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowLabels(!showLabels)}
-                className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
-                title={showLabels ? 'Ocultar rótulos' : 'Mostrar rótulos'}
-              >
-                {showLabels ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
+            </CardHeader>
           </Card>
         );
       })()}
@@ -1234,13 +1234,13 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                 </div>
                 <div className="space-y-2">
                   <Slider
-                     value={ltvRange}
-                     onValueChange={(value) => setLtvRange(value as [number, number])}
-                     max={10000}
-                     min={0}
-                     step={100}
-                     className="w-full"
-                   />
+                    value={ltvRange}
+                    onValueChange={(value) => setLtvRange(value as [number, number])}
+                    max={10000}
+                    min={0}
+                    step={100}
+                    className="w-full"
+                  />
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>R$ {ltvRange[0].toLocaleString()}</span>
                     <span>R$ {ltvRange[1].toLocaleString()}</span>
@@ -1345,7 +1345,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                 >
                   <RotateCcw className="w-4 h-4" />
                 </Button>
-                
+
                 {/* Exportar e Analytics */}
                 <div className="flex items-center gap-1 border-l pl-2 ml-2">
                   <Button
@@ -1360,7 +1360,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                 </div>
               </div>
             </div>
-            
+
             <div className="relative bg-muted/20 rounded-2xl overflow-hidden">
               <canvas
                 ref={canvasRef}
@@ -1374,7 +1374,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
               />
-              
+
               {/* Menu de Exportação */}
               {showExportMenu && (
                 <div className="absolute top-4 left-4 bg-background/95 backdrop-blur-sm border border-border rounded-xl p-3 shadow-lg min-w-48">
@@ -1389,7 +1389,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                       ×
                     </Button>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Button
                       variant="outline"
@@ -1409,7 +1409,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                       <Download className="w-3 h-3 mr-2" />
                       Exportar PNG
                     </Button>
-                    
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -1422,7 +1422,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                       <Download className="w-3 h-3 mr-2" />
                       Exportar SVG
                     </Button>
-                    
+
                     <Button
                       variant="outline"
                       size="sm"
@@ -1437,25 +1437,25 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                     </Button>
                   </div>
                 </div>
-               )}
-               
-               {/* Painel de Analytics removido do overlay; métricas serão exibidas no card de Informações */}
-             </div>
+              )}
+
+              {/* Painel de Analytics removido do overlay; métricas serão exibidas no card de Informações */}
+            </div>
 
             {/* Legenda */}
             <div className="flex items-center gap-4 mt-4 text-sm">
               {levelColors.slice(0, Math.min(4, levelColors.length)).map((color, index) => {
                 // Tamanhos baseados na geração (mais sutis)
                 const size = index === 0 ? 'w-3.5 h-3.5' : // Clientes raiz
-                           index === 1 ? 'w-3 h-3' : // 1ª geração
-                           index === 2 ? 'w-2.5 h-2.5' : // 2ª geração
-                           'w-2 h-2'; // 3ª geração+
-                
+                  index === 1 ? 'w-3 h-3' : // 1ª geração
+                    index === 2 ? 'w-2.5 h-2.5' : // 2ª geração
+                      'w-2 h-2'; // 3ª geração+
+
                 return (
                   <div key={index} className="flex items-center gap-2">
-                    <div 
+                    <div
                       className={`${size} rounded-full border border-white/20`}
-                      style={{ 
+                      style={{
                         background: `radial-gradient(circle at 30% 30%, ${color}f0, ${color})`
                       }}
                     />
@@ -1469,10 +1469,10 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                 <div className="flex items-center gap-2">
                   <div className="flex -space-x-0.5">
                     {levelColors.slice(4, 7).map((color, index) => (
-                      <div 
+                      <div
                         key={index}
-                        className="w-1.5 h-1.5 rounded-full border border-white/20" 
-                        style={{ 
+                        className="w-1.5 h-1.5 rounded-full border border-white/20"
+                        style={{
                           background: `radial-gradient(circle at 30% 30%, ${color}f0, ${color})`
                         }}
                       />
@@ -1489,16 +1489,16 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         <Card className="lg:col-span-2 rounded-3xl border-0 shadow-xl">
           <CardContent className="p-4">
             <h3 className="font-semibold mb-2">Informações</h3>
-            
+
             {/* Seleção múltipla removida */}
-            
+
             {selectedNodeData && clienteData ? (
               <div className="space-y-2">
                 <div>
                   <h4 className="font-medium text-lg">{selectedNodeData.name}</h4>
                   <p className="text-sm text-muted-foreground">{clienteData.email}</p>
                 </div>
-                
+
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="text-sm">LTV:</span>
@@ -1506,18 +1506,18 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
                       R$ {selectedNodeData.ltv.toLocaleString()}
                     </Badge>
                   </div>
-                  
+
                   <div className="flex justify-between">
                     <span className="text-sm">Indicações:</span>
                     <Badge variant="outline">
                       {selectedNodeData.indicacoes_count}
                     </Badge>
                   </div>
-                  
+
                   <div className="flex justify-between">
                     <span className="text-sm">Nível:</span>
-                    <Badge 
-                      style={{ 
+                    <Badge
+                      style={{
                         backgroundColor: levelColors[Math.min(selectedNodeData.level, levelColors.length - 1)] + '20',
                         color: levelColors[Math.min(selectedNodeData.level, levelColors.length - 1)]
                       }}
@@ -1636,23 +1636,23 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
             {/* Estatísticas Gerais */}
             <div className="mt-3 pt-2 border-t space-y-1">
               <h4 className="font-medium">Estatísticas da Rede</h4>
-              
+
               <div className="space-y-0.5 text-sm">
                 <div className="flex justify-between">
                   <span>Total de Clientes:</span>
                   <span className="font-medium">{nodes.length}</span>
                 </div>
-                
+
                 <div className="flex justify-between">
                   <span>Clientes Raiz:</span>
                   <span className="font-medium">{nodes.filter(n => n.isRoot).length}</span>
                 </div>
-                
+
                 <div className="flex justify-between">
                   <span>Total de Indicações:</span>
                   <span className="font-medium">{nodes.reduce((sum, n) => sum + n.indicacoes_count, 0)}</span>
                 </div>
-                
+
                 <div className="flex justify-between">
                   <span>Níveis Máximos:</span>
                   <span className="font-medium">{Math.max(...nodes.map(n => n.level)) + 1}</span>

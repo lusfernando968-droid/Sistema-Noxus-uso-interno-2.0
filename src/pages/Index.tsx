@@ -18,14 +18,14 @@ import { ENABLE_METAS } from "@/lib/config";
 
 const Index = () => {
   const [dateRange, setDateRange] = useState<DateRange>("30d");
-  const { 
+  const {
     projetos, prevProjetos,
     clientes, prevClientes,
     transacoes, prevTransacoes,
     agendamentos, prevAgendamentos,
-    isLoading 
+    isLoading
   } = useDashboardData(dateRange);
-  
+
   // Estados para gerenciar metas
   const [metaFormOpen, setMetaFormOpen] = useState(false);
   const [metaFormMode, setMetaFormMode] = useState<'create' | 'edit' | 'progress'>('create');
@@ -117,7 +117,7 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
-            <OverviewTab 
+            <OverviewTab
               projetos={projetos}
               clientes={clientes}
               transacoes={transacoes}
@@ -133,7 +133,7 @@ const Index = () => {
 
           {ENABLE_METAS && (
             <TabsContent value="metas" className="space-y-4">
-              <MetasTab 
+              <MetasTab
                 onCreateMeta={handleCreateMeta}
                 onEditMeta={handleEditMeta}
               />
@@ -159,7 +159,7 @@ const Index = () => {
 
           {/* Nova aba principal dedicada aos Insights Inteligentes */}
           <TabsContent value="insights" className="space-y-4">
-            <SmartInsights 
+            <SmartInsights
               transacoes={transacoes}
               clientes={clientes}
               projetos={projetos}

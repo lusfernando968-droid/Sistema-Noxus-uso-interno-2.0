@@ -9,10 +9,9 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Calendar as CalendarComp } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { ArrowLeft, Calendar, DollarSign, User, Clock, FileText, Image, CheckCircle, MessageSquare, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -98,8 +97,6 @@ export default function ProjetoDetalhes() {
     descricao: '',
     status: 'concluida'
   });
-  const [editSessaoCalendarOpen, setEditSessaoCalendarOpen] = useState(false);
-  const [manualSessaoCalendarOpen, setManualSessaoCalendarOpen] = useState(false);
   const parseDateOnly = (s: string) => {
     const [y, m, d] = (s || '').split('-').map(Number);
     return new Date(y || 1970, (m || 1) - 1, d || 1, 12);
@@ -882,30 +879,11 @@ export default function ProjetoDetalhes() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Data</Label>
-                    <Popover open={editSessaoCalendarOpen} onOpenChange={setEditSessaoCalendarOpen}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className="h-9 w-full justify-start text-left font-normal rounded-xl">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {editSessaoForm.data ? format(parseDateOnly(editSessaoForm.data), "dd/MM/yyyy", { locale: ptBR }) : "dd/mm/aaaa"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <CalendarComp
-                          mode="single"
-                          selected={editSessaoForm.data ? parseDateOnly(editSessaoForm.data) : undefined}
-                          onSelect={(date) => {
-                            if (date) {
-                              const adjusted = new Date(date);
-                              adjusted.setHours(12, 0, 0, 0);
-                              setEditSessaoForm(prev => ({ ...prev, data: format(adjusted, "yyyy-MM-dd") }));
-                              setEditSessaoCalendarOpen(false);
-                            }
-                          }}
-                          locale={ptBR}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <DatePickerInput
+                      value={editSessaoForm.data}
+                      onChange={(date) => setEditSessaoForm(prev => ({ ...prev, data: date }))}
+                      placeholder="dd/mm/aaaa"
+                    />
                   </div>
                   <div>
                     <Label>Valor</Label>
@@ -1078,30 +1056,11 @@ export default function ProjetoDetalhes() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Data</Label>
-                  <Popover open={manualSessaoCalendarOpen} onOpenChange={setManualSessaoCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="h-9 w-full justify-start text-left font-normal rounded-xl">
-                        <Calendar className="mr-2 h-4 w-4" />
-                        {manualSessaoForm.data ? format(parseDateOnly(manualSessaoForm.data), "dd/MM/yyyy", { locale: ptBR }) : "dd/mm/aaaa"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <CalendarComp
-                        mode="single"
-                        selected={manualSessaoForm.data ? parseDateOnly(manualSessaoForm.data) : undefined}
-                        onSelect={(date) => {
-                          if (date) {
-                            const adjusted = new Date(date);
-                            adjusted.setHours(12, 0, 0, 0);
-                            setManualSessaoForm(prev => ({ ...prev, data: format(adjusted, "yyyy-MM-dd") }));
-                            setManualSessaoCalendarOpen(false);
-                          }
-                        }}
-                        locale={ptBR}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <DatePickerInput
+                    value={manualSessaoForm.data}
+                    onChange={(date) => setManualSessaoForm(prev => ({ ...prev, data: date }))}
+                    placeholder="dd/mm/aaaa"
+                  />
                 </div>
                 <div>
                   <Label>Valor</Label>

@@ -6,6 +6,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Layout } from "@/components/layout/Layout";
 import { BrandingProvider } from "@/contexts/BrandingContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Perfil from "./pages/Perfil";
@@ -60,15 +61,17 @@ const AppContent = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <BrandingProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AppContent />
-      </TooltipProvider>
-    </BrandingProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <BrandingProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <AppContent />
+        </TooltipProvider>
+      </BrandingProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

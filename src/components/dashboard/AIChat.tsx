@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export function AIChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "system", content: "Você é um assistente de IA focado em gerar insights práticos sobre clientes, projetos, agenda e financeiro da Noxus." },
+    { role: "system", content: "Você é um assistente de IA focado em gerar insights práticos sobre clientes, projetos, agenda e financeiro da Noxus. IMPORTANTE: Sempre responda em português brasileiro (pt-BR), usando linguagem clara e profissional." },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);

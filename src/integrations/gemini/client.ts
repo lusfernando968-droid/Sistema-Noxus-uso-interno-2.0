@@ -77,7 +77,7 @@ export async function chat(messages: ChatMessage[]) {
     .map((m) => `${m.role === "user" ? "Usuário" : "Assistente"}: ${m.content}`)
     .join("\n");
 
-  const prompt = `${systemMsg}\n\nHistórico:\n${conversation}\n\nResponda em português com objetividade.`;
+  const prompt = `${systemMsg}\n\nHistórico:\n${conversation}\n\nIMPORTANTE: Responda SEMPRE em português brasileiro (pt-BR) com objetividade, clareza e profissionalismo. Nunca use outro idioma.`;
 
   let lastError: unknown = undefined;
   const tryOrder = [resolvedModelName, ...CANDIDATE_MODELS.filter((m) => m !== resolvedModelName)];

@@ -10,10 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Upload, Link as LinkIcon, FileText, Trash2, ExternalLink, Download, Calendar as CalendarIcon } from "lucide-react";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Calendar as CalendarComp } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 
 // Helper: parse a date-only string (yyyy-MM-dd) in local timezone
 function parseDateOnly(dateStr: string) {
@@ -55,7 +53,7 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
   const [notas, setNotas] = useState("");
   const [status, setStatus] = useState<string>("planejamento");
   const [clienteId, setClienteId] = useState<string>("");
-  
+
   // Dados financeiros e de sessões
   const [valorTotal, setValorTotal] = useState<string>("");
   const [valorPorSessao, setValorPorSessao] = useState<string>("");
@@ -63,8 +61,6 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [categoria, setCategoria] = useState<string>("");
-  const [dataInicioOpen, setDataInicioOpen] = useState(false);
-  const [dataFimOpen, setDataFimOpen] = useState(false);
 
   // Referências e anexos
   const [referencias, setReferencias] = useState<Referencia[]>([]);
@@ -371,7 +367,7 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
   const handleDeleteAnexo = async (id: string, url: string) => {
     try {
       const path = url.split("/project-references/")[1];
-      
+
       const { error: storageError } = await supabase.storage
         .from("project-references")
         .remove([path]);
@@ -400,375 +396,331 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto bg-background">
         <form onSubmit={(e) => { e.preventDefault(); handleSaveProjeto(); }}>
-        <DialogHeader>
-          <DialogTitle>
-            {projetoId ? "Editar Projeto" : "Criar Novo Projeto"}
-          </DialogTitle>
-        </DialogHeader>
+          <DialogHeader>
+            <DialogTitle>
+              {projetoId ? "Editar Projeto" : "Criar Novo Projeto"}
+            </DialogTitle>
+          </DialogHeader>
 
-        <Tabs defaultValue="info" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="info">Informações</TabsTrigger>
-            <TabsTrigger value="notas">Notas</TabsTrigger>
-            <TabsTrigger value="referencias">Referências</TabsTrigger>
-            <TabsTrigger value="anexos">Anexos</TabsTrigger>
-          </TabsList>
+          <Tabs defaultValue="info" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="info">Informações</TabsTrigger>
+              <TabsTrigger value="notas">Notas</TabsTrigger>
+              <TabsTrigger value="referencias">Referências</TabsTrigger>
+              <TabsTrigger value="anexos">Anexos</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="info" className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="titulo" className="text-sm">Título do Projeto *</Label>
-              <Input
-                id="titulo"
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
-                placeholder="Nome do projeto"
-                className="h-9"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+            <TabsContent value="info" className="space-y-3">
               <div className="space-y-1">
-                <Label htmlFor="cliente" className="text-sm">Cliente *</Label>
-                <Select value={clienteId} onValueChange={setClienteId}>
+                <Label htmlFor="titulo" className="text-sm">Título do Projeto *</Label>
+                <Input
+                  id="titulo"
+                  value={titulo}
+                  onChange={(e) => setTitulo(e.target.value)}
+                  placeholder="Nome do projeto"
+                  className="h-9"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="cliente" className="text-sm">Cliente *</Label>
+                  <Select value={clienteId} onValueChange={setClienteId}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="Selecione um cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {clientes.map((cliente) => (
+                        <SelectItem key={cliente.id} value={cliente.id}>
+                          {cliente.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="status" className="text-sm">Status</Label>
+                  <Select value={status} onValueChange={setStatus}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="planejamento">Planejamento</SelectItem>
+                      <SelectItem value="andamento">Em Andamento</SelectItem>
+                      <SelectItem value="concluido">Concluído</SelectItem>
+                      <SelectItem value="cancelado">Cancelado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="categoria" className="text-sm">Categoria</Label>
+                <Select value={categoria} onValueChange={setCategoria}>
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Selecione um cliente" />
+                    <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    {clientes.map((cliente) => (
-                      <SelectItem key={cliente.id} value={cliente.id}>
-                        {cliente.nome}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="tatuagem">Tatuagem</SelectItem>
+                    <SelectItem value="piercing">Piercing</SelectItem>
+                    <SelectItem value="design">Design</SelectItem>
+                    <SelectItem value="consultoria">Consultoria</SelectItem>
+                    <SelectItem value="outros">Outros</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="status" className="text-sm">Status</Label>
-                <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="planejamento">Planejamento</SelectItem>
-                    <SelectItem value="andamento">Em Andamento</SelectItem>
-                    <SelectItem value="concluido">Concluído</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="categoria" className="text-sm">Categoria</Label>
-              <Select value={categoria} onValueChange={setCategoria}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Selecione uma categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tatuagem">Tatuagem</SelectItem>
-                  <SelectItem value="piercing">Piercing</SelectItem>
-                  <SelectItem value="design">Design</SelectItem>
-                  <SelectItem value="consultoria">Consultoria</SelectItem>
-                  <SelectItem value="outros">Outros</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label htmlFor="dataInicio" className="text-sm">Data de Início</Label>
-                <Popover open={dataInicioOpen} onOpenChange={setDataInicioOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-9 w-full justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dataInicio
-                        ? format(parseDateOnly(dataInicio), "dd/MM/yyyy", { locale: ptBR })
-                        : "dd/mm/aaaa"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComp
-                      mode="single"
-                      selected={dataInicio ? parseDateOnly(dataInicio) : undefined}
-                      onSelect={(date) => {
-                        if (date) {
-                          setDataInicio(format(date, "yyyy-MM-dd"));
-                          setDataInicioOpen(false);
-                        }
-                      }}
-                      locale={ptBR}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="dataFim" className="text-sm">Data de Fim (Prevista)</Label>
-                <Popover open={dataFimOpen} onOpenChange={setDataFimOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="h-9 w-full justify-start text-left font-normal"
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dataFim
-                        ? format(parseDateOnly(dataFim), "dd/MM/yyyy", { locale: ptBR })
-                        : "dd/mm/aaaa"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComp
-                      mode="single"
-                      selected={dataFim ? parseDateOnly(dataFim) : undefined}
-                      onSelect={(date) => {
-                        if (date) {
-                          setDataFim(format(date, "yyyy-MM-dd"));
-                          setDataFimOpen(false);
-                        }
-                      }}
-                      locale={ptBR}
-                      disabled={(date) => (dataInicio ? date < parseDateOnly(dataInicio) : false)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              {/* 1º: Valor/Sessão */}
-              <div className="space-y-1">
-                <Label htmlFor="valorPorSessao" className="text-sm">Valor/Sessão (R$)</Label>
-                <Input
-                  id="valorPorSessao"
-                  type="text"
-                  inputMode="numeric"
-                  value={formatCurrencyBR(valorPorSessao)}
-                  onChange={handleCurrencyChange(setValorPorSessao)}
-                  placeholder="R$ 0,00"
-                  className="h-9"
-                />
-              </div>
-              {/* 2º: Valor Total */}
-              <div className="space-y-1">
-                <Label htmlFor="valorTotal" className="text-sm">Valor Total (R$)</Label>
-                <Input
-                  id="valorTotal"
-                  type="text"
-                  inputMode="numeric"
-                  value={formatCurrencyBR(valorTotal)}
-                  onChange={handleCurrencyChange(setValorTotal)}
-                  placeholder="R$ 0,00"
-                  className="h-9"
-                />
-              </div>
-              {/* 3º: Quantidade de Sessões */}
-              <div className="space-y-1">
-                <Label htmlFor="quantidadeSessoes" className="text-sm">Qtd. Sessões</Label>
-                <Input
-                  id="quantidadeSessoes"
-                  type="number"
-                  min="1"
-                  value={quantidadeSessoes}
-                  onChange={(e) => setQuantidadeSessoes(e.target.value)}
-                  placeholder="Ex: 5"
-                  className="h-9"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label htmlFor="descricao" className="text-sm">Descrição Breve</Label>
-              <Textarea
-                id="descricao"
-                value={descricao}
-                onChange={(e) => setDescricao(e.target.value)}
-                placeholder="Breve descrição do projeto"
-                rows={2}
-                className="text-sm"
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="notas" className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="notas">Notas Detalhadas do Projeto</Label>
-              <Textarea
-                id="notas"
-                value={notas}
-                onChange={(e) => setNotas(e.target.value)}
-                placeholder="Descreva as ideias, objetivos, requisitos, cronograma e qualquer informação relevante sobre o projeto..."
-                rows={15}
-                className="font-mono text-sm"
-              />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="referencias" className="space-y-4">
-            {projetoId && (
-              <Card>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="space-y-2">
-                    <Label>Título da Referência</Label>
-                    <Input
-                      value={novaRefTitulo}
-                      onChange={(e) => setNovaRefTitulo(e.target.value)}
-                      placeholder="Ex: Design inspiração"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>URL</Label>
-                    <Input
-                      value={novaRefUrl}
-                      onChange={(e) => setNovaRefUrl(e.target.value)}
-                      placeholder="https://..."
-                      type="url"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Descrição (opcional)</Label>
-                    <Textarea
-                      value={novaRefDescricao}
-                      onChange={(e) => setNovaRefDescricao(e.target.value)}
-                      placeholder="O que há de interessante nesta referência?"
-                      rows={2}
-                    />
-                  </div>
-                  <Button onClick={handleAddReferencia} className="w-full">
-                    <LinkIcon className="mr-2 h-4 w-4" />
-                    Adicionar Referência
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            <div className="space-y-2">
-              {referencias.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {projetoId
-                    ? "Nenhuma referência adicionada ainda"
-                    : "Salve o projeto para adicionar referências"}
-                </p>
-              ) : (
-                referencias.map((ref) => (
-                  <Card key={ref.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold truncate">{ref.titulo}</h4>
-                          <a
-                            href={ref.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-primary hover:underline flex items-center gap-1 mt-1"
-                          >
-                            {ref.url}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                          {ref.descricao && (
-                            <p className="text-sm text-muted-foreground mt-2">
-                              {ref.descricao}
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDeleteReferencia(ref.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="anexos" className="space-y-4">
-            {projetoId && (
-              <div className="flex items-center justify-center w-full">
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent/50">
-                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                    <Upload className="h-8 w-8 mb-2 text-muted-foreground" />
-                    <p className="mb-2 text-sm text-muted-foreground">
-                      <span className="font-semibold">Clique para fazer upload</span>
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Imagens, PDFs, documentos, etc.
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                    disabled={uploadingFile}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="dataInicio" className="text-sm">Data de Início</Label>
+                  <DatePickerInput
+                    value={dataInicio}
+                    onChange={setDataInicio}
+                    placeholder="dd/mm/aaaa"
                   />
-                </label>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="dataFim" className="text-sm">Data de Fim (Prevista)</Label>
+                  <DatePickerInput
+                    value={dataFim}
+                    onChange={setDataFim}
+                    placeholder="dd/mm/aaaa"
+                    minDate={dataInicio ? parseDateOnly(dataInicio) : undefined}
+                  />
+                </div>
               </div>
-            )}
 
-            <div className="space-y-2">
-              {anexos.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  {projetoId
-                    ? "Nenhum anexo enviado ainda"
-                    : "Salve o projeto para adicionar anexos"}
-                </p>
-              ) : (
-                anexos.map((anexo) => (
-                  <Card key={anexo.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <FileText className="h-8 w-8 text-muted-foreground flex-shrink-0" />
-                          <div className="min-w-0">
-                            <h4 className="font-semibold truncate">{anexo.nome}</h4>
-                            <p className="text-xs text-muted-foreground">
-                              {(anexo.tamanho / 1024).toFixed(2)} KB
-                            </p>
+              <div className="grid grid-cols-3 gap-3">
+                {/* 1º: Valor/Sessão */}
+                <div className="space-y-1">
+                  <Label htmlFor="valorPorSessao" className="text-sm">Valor/Sessão (R$)</Label>
+                  <Input
+                    id="valorPorSessao"
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyBR(valorPorSessao)}
+                    onChange={handleCurrencyChange(setValorPorSessao)}
+                    placeholder="R$ 0,00"
+                    className="h-9"
+                  />
+                </div>
+                {/* 2º: Valor Total */}
+                <div className="space-y-1">
+                  <Label htmlFor="valorTotal" className="text-sm">Valor Total (R$)</Label>
+                  <Input
+                    id="valorTotal"
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyBR(valorTotal)}
+                    onChange={handleCurrencyChange(setValorTotal)}
+                    placeholder="R$ 0,00"
+                    className="h-9"
+                  />
+                </div>
+                {/* 3º: Quantidade de Sessões */}
+                <div className="space-y-1">
+                  <Label htmlFor="quantidadeSessoes" className="text-sm">Qtd. Sessões</Label>
+                  <Input
+                    id="quantidadeSessoes"
+                    type="number"
+                    min="1"
+                    value={quantidadeSessoes}
+                    onChange={(e) => setQuantidadeSessoes(e.target.value)}
+                    placeholder="Ex: 5"
+                    className="h-9"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="descricao" className="text-sm">Descrição Breve</Label>
+                <Textarea
+                  id="descricao"
+                  value={descricao}
+                  onChange={(e) => setDescricao(e.target.value)}
+                  placeholder="Breve descrição do projeto"
+                  rows={2}
+                  className="text-sm"
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="notas" className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="notas">Notas Detalhadas do Projeto</Label>
+                <Textarea
+                  id="notas"
+                  value={notas}
+                  onChange={(e) => setNotas(e.target.value)}
+                  placeholder="Descreva as ideias, objetivos, requisitos, cronograma e qualquer informação relevante sobre o projeto..."
+                  rows={15}
+                  className="font-mono text-sm"
+                />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="referencias" className="space-y-4">
+              {projetoId && (
+                <Card>
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="space-y-2">
+                      <Label>Título da Referência</Label>
+                      <Input
+                        value={novaRefTitulo}
+                        onChange={(e) => setNovaRefTitulo(e.target.value)}
+                        placeholder="Ex: Design inspiração"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>URL</Label>
+                      <Input
+                        value={novaRefUrl}
+                        onChange={(e) => setNovaRefUrl(e.target.value)}
+                        placeholder="https://..."
+                        type="url"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Descrição (opcional)</Label>
+                      <Textarea
+                        value={novaRefDescricao}
+                        onChange={(e) => setNovaRefDescricao(e.target.value)}
+                        placeholder="O que há de interessante nesta referência?"
+                        rows={2}
+                      />
+                    </div>
+                    <Button onClick={handleAddReferencia} className="w-full">
+                      <LinkIcon className="mr-2 h-4 w-4" />
+                      Adicionar Referência
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="space-y-2">
+                {referencias.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    {projetoId
+                      ? "Nenhuma referência adicionada ainda"
+                      : "Salve o projeto para adicionar referências"}
+                  </p>
+                ) : (
+                  referencias.map((ref) => (
+                    <Card key={ref.id}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold truncate">{ref.titulo}</h4>
+                            <a
+                              href={ref.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-primary hover:underline flex items-center gap-1 mt-1"
+                            >
+                              {ref.url}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                            {ref.descricao && (
+                              <p className="text-sm text-muted-foreground mt-2">
+                                {ref.descricao}
+                              </p>
+                            )}
                           </div>
-                        </div>
-                        <div className="flex gap-2">
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => window.open(anexo.url, "_blank")}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteAnexo(anexo.id, anexo.url)}
+                            onClick={() => handleDeleteReferencia(ref.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
 
-        <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? "Salvando..." : projetoId ? "Salvar" : "Criar Projeto"}
-          </Button>
-        </div>
+            <TabsContent value="anexos" className="space-y-4">
+              {projetoId && (
+                <div className="flex items-center justify-center w-full">
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-accent/50">
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                      <Upload className="h-8 w-8 mb-2 text-muted-foreground" />
+                      <p className="mb-2 text-sm text-muted-foreground">
+                        <span className="font-semibold">Clique para fazer upload</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Imagens, PDFs, documentos, etc.
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      disabled={uploadingFile}
+                    />
+                  </label>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {anexos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    {projetoId
+                      ? "Nenhum anexo enviado ainda"
+                      : "Salve o projeto para adicionar anexos"}
+                  </p>
+                ) : (
+                  anexos.map((anexo) => (
+                    <Card key={anexo.id}>
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <FileText className="h-8 w-8 text-muted-foreground flex-shrink-0" />
+                            <div className="min-w-0">
+                              <h4 className="font-semibold truncate">{anexo.nome}</h4>
+                              <p className="text-xs text-muted-foreground">
+                                {(anexo.tamanho / 1024).toFixed(2)} KB
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => window.open(anexo.url, "_blank")}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteAnexo(anexo.id, anexo.url)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Salvando..." : projetoId ? "Salvar" : "Criar Projeto"}
+            </Button>
+          </div>
         </form>
       </DialogContent>
-      </Dialog>
+    </Dialog>
   );
 }

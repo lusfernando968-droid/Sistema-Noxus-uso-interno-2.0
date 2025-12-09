@@ -4,7 +4,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, User, ChevronRight, ChevronLeft, Mail, Phone, Instagram, MapPin, UserPlus } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, FolderOpen, LayoutGrid, LayoutList, Table2, Save, X, Check, TrendingUp, DollarSign, Network, Eye, EyeOff, Users, User, ChevronRight, ChevronLeft, Mail, Phone, Instagram, MapPin, UserPlus, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,6 +21,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useTemporaryReferrals } from "@/hooks/useTemporaryReferrals";
 import { formatCurrency } from "@/utils/formatters";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
+import { ClientesService, type ClienteComLTV } from "@/services/clientes.service";
 interface Cliente {
   id: string;
   nome: string;
@@ -32,13 +34,10 @@ interface Cliente {
   cidade?: string;
   cidades?: string[];
   indicado_por?: string; // ID do cliente que indicou
+  data_aniversario?: string; // yyyy-MM-dd
   created_at: string;
 }
-interface ClienteComLTV extends Cliente {
-  ltv: number;
-  projetos_count: number;
-  transacoes_count: number;
-}
+// Interface ClienteComLTV removida pois agora é importada do serviço
 interface FiltrosClientes {
   cidades: string[];
   hasInstagram: boolean;
@@ -81,7 +80,8 @@ const Clientes = () => {
     telefone: "",
     instagram: "",
     cidade: "",
-    indicado_por: ""
+    indicado_por: "",
+    data_aniversario: ""
   });
   // Ref para container com scroll horizontal da tabela
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -152,13 +152,14 @@ const Clientes = () => {
   const [filterCityQuery, setFilterCityQuery] = useState("");
   const [cityRankingMode, setCityRankingMode] = useState<"mais_usadas" | "mais_recentes">("mais_usadas");
   const [cityUsageCounts, setCityUsageCounts] = useState<Record<string, number>>({});
-  type ColKey = 'nome' | 'email' | 'telefone' | 'instagram' | 'cidade' | 'ltv' | 'categoria' | 'indicado_por' | 'indicados' | 'projetos' | 'acoes';
+  type ColKey = 'nome' | 'email' | 'telefone' | 'instagram' | 'cidade' | 'data_aniversario' | 'ltv' | 'categoria' | 'indicado_por' | 'indicados' | 'projetos' | 'acoes';
   const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>({
     nome: true,
     email: true,
     telefone: true,
     instagram: true,
     cidade: true,
+    data_aniversario: true,
     ltv: true,
     categoria: true,
     indicado_por: true,
@@ -172,6 +173,7 @@ const Clientes = () => {
     telefone: 'Telefone',
     instagram: 'Instagram',
     cidade: 'Cidade',
+    data_aniversario: 'Data',
     ltv: 'LTV',
     categoria: 'Categoria',
     indicado_por: 'Indicado por',
@@ -258,120 +260,19 @@ const Clientes = () => {
   };
   const fetchClientes = async () => {
     try {
-      // Buscar clientes
-      const {
-        data: clientesData,
-        error: clientesError
-      } = await supabase.from("clientes").select("*").order("created_at", {
-        ascending: false
-      });
-      if (clientesError) throw clientesError;
+      if (!user) return;
 
-      // Buscar transações com seus relacionamentos
-      const {
-        data: transacoesData,
-        error: transacoesError
-      } = await supabase.from("transacoes").select(`
-          id,
-          valor,
-          tipo,
-          data_liquidacao,
-          agendamento_id,
-          agendamentos (
-            projeto_id,
-            projetos (
-              cliente_id
-            )
-          )
-        `);
-      if (transacoesError) throw transacoesError;
+      const data = await ClientesService.fetchAll(user.id);
 
-      // Buscar projetos para contar quantos cada cliente tem
-      const {
-        data: projetosData,
-        error: projetosError
-      } = await supabase.from("projetos").select("id, cliente_id");
-      if (projetosError) throw projetosError;
-
-      // Buscar todas as sessões de projetos para incluir no LTV
-      const {
-        data: sessoesData,
-        error: sessoesError
-      } = await supabase.from("projeto_sessoes").select(`
-          id,
-          projeto_id,
-          valor_sessao,
-          projetos (
-            cliente_id
-          )
-        `);
-      if (sessoesError) throw sessoesError;
-
-      // Buscar cidades vinculadas (se a tabela existir)
-      let cidadesPorCliente: Record<string, string[]> = {};
-      try {
-        const { data: ccData, error: ccError } = await supabase
-          .from("clientes_cidades")
-          .select("cliente_id, cidades (nome)");
-        if (ccError) throw ccError;
-        (ccData || []).forEach((row: any) => {
-          const nomeCidade = row.cidades?.nome as string | undefined;
-          if (!nomeCidade) return;
-          if (!cidadesPorCliente[row.cliente_id]) cidadesPorCliente[row.cliente_id] = [];
-          cidadesPorCliente[row.cliente_id].push(nomeCidade);
-        });
-      } catch (err) {
-        // Ignorar se tabela não existir
-      }
-
-      // Calcular LTV para cada cliente
-      const clientesComLTV: ClienteComLTV[] = (clientesData || []).map(cliente => {
-        // Contar projetos do cliente
-        const projetos_count = (projetosData || []).filter(p => p.cliente_id === cliente.id).length;
-
-        // Calcular LTV através das transações E sessões de projetos
-        let ltv = 0;
-        let transacoes_count = 0;
-
-        // 1. Somar receitas liquidadas das transações
-        (transacoesData || []).forEach(transacao => {
-          // Verificar se a transação está vinculada a um projeto deste cliente
-          const agendamento = transacao.agendamentos as any;
-          if (agendamento?.projetos?.cliente_id === cliente.id) {
-            transacoes_count++;
-            // Somar apenas receitas liquidadas
-            if (transacao.tipo === "RECEITA" && transacao.data_liquidacao) {
-              ltv += Number(transacao.valor);
-            }
-          }
-        });
-
-        // 2. Somar TODAS as sessões registradas em projetos deste cliente
-        (sessoesData || []).forEach(sessao => {
-          const projeto = sessao.projetos as any;
-          if (projeto?.cliente_id === cliente.id && sessao.valor_sessao) {
-            ltv += Number(sessao.valor_sessao);
-          }
-        });
-
-        return {
-          ...cliente,
-          ltv,
-          projetos_count,
-          transacoes_count,
-          // Prioriza valor do banco; usa temporário apenas como fallback
-          indicado_por: (cliente as any).indicado_por ?? getReferral(cliente.id),
-          cidades: cidadesPorCliente[cliente.id] || undefined
-        };
-      });
-
-      // Ordenar por LTV por padrão
-      clientesComLTV.sort((a, b) => b.ltv - a.ltv);
-      setClientes(clientesComLTV);
+      // Adicionar fallback para indicado_por usando hook local
+      const dataWithFallback = data.map(c => ({
+        ...c,
+        indicado_por: c.indicado_por ?? getReferral(c.id)
+      }));
 
       // Calcular contagem de uso por cidade (para ranking "mais usadas")
       const usage: Record<string, number> = {};
-      (clientesComLTV || []).forEach(c => {
+      (dataWithFallback || []).forEach(c => {
         const names = (c.cidades && c.cidades.length > 0) ? c.cidades : (c.cidade ? [c.cidade] : []);
         names.forEach(n => {
           const key = (n || "").trim();
@@ -380,6 +281,8 @@ const Clientes = () => {
         });
       });
       setCityUsageCounts(usage);
+
+      setClientes(dataWithFallback);
     } catch (error) {
       console.error("Erro ao buscar clientes:", error);
       toast({
@@ -404,6 +307,7 @@ const Clientes = () => {
       if (formData.telefone) payload.telefone = formData.telefone;
       if (formData.instagram) payload.instagram = formData.instagram;
       if (formData.cidade) payload.cidade = formData.cidade;
+      if (formData.data_aniversario) payload.data_aniversario = formData.data_aniversario;
       // Campos adicionais (instagram, cidade) serão tratados após migrações específicas
       // Persistir indicação diretamente no banco, se fornecida
       if (formData.indicado_por && formData.indicado_por !== "none") {
@@ -477,7 +381,8 @@ const Clientes = () => {
         telefone: "",
         instagram: "",
         cidade: "",
-        indicado_por: ""
+        indicado_por: "",
+        data_aniversario: ""
       });
       setSelectedCities([]);
       setCityQuery("");
@@ -517,7 +422,8 @@ const Clientes = () => {
           telefone: "",
           instagram: "",
           cidade: "",
-          indicado_por: ""
+          indicado_por: "",
+          data_aniversario: ""
         });
         setSelectedCities([]);
         setCityQuery("");
@@ -1219,6 +1125,21 @@ const Clientes = () => {
                     </div>
                   </div>
 
+                  {/* Grupo: Data de Aniversário */}
+                  <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                    <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                      <Calendar className="h-4 w-4" /> Data de Aniversário
+                    </h3>
+                    <div className="space-y-2">
+                      <Label htmlFor="data_aniversario">Data de Aniversário (opcional)</Label>
+                      <DatePickerInput
+                        value={formData.data_aniversario}
+                        onChange={(date) => setFormData({ ...formData, data_aniversario: date })}
+                        placeholder="dd/mm/aaaa"
+                      />
+                    </div>
+                  </div>
+
                   {/* Grupo: Localização */}
                   <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
                     <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
@@ -1554,6 +1475,7 @@ const Clientes = () => {
                       {visibleCols.telefone && <TableHead className="min-w-[150px]">Telefone</TableHead>}
                       {visibleCols.instagram && <TableHead className="min-w-[200px]">Instagram</TableHead>}
                       {visibleCols.cidade && <TableHead className="min-w-[150px]">Cidade</TableHead>}
+                      {visibleCols.data_aniversario && <TableHead className="min-w-[120px]">Aniversário</TableHead>}
                       {visibleCols.ltv && <TableHead className="min-w-[150px]">LTV</TableHead>}
                       {visibleCols.categoria && <TableHead className="min-w-[120px]">Categoria</TableHead>}
                       {visibleCols.indicado_por && <TableHead className="min-w-[180px]">Indicado por</TableHead>}
@@ -1585,6 +1507,9 @@ const Clientes = () => {
                         </TableCell>}
                         {visibleCols.cidade && <TableCell>
                           {isEditing ? <Input value={(editData as any).cidade || ''} onChange={e => updateEditedData(cliente.id, 'cidade' as any, e.target.value)} onKeyDown={handleKeyDownSave(cliente.id)} className="rounded-xl h-8" /> : ((cliente as any).cidades && (cliente as any).cidades.length > 0) ? <span className="text-muted-foreground">{(cliente as any).cidades.join(', ')}</span> : cliente.cidade ? <span className="text-muted-foreground">{cliente.cidade}</span> : <span className="text-xs text-muted-foreground italic">Não informado</span>}
+                        </TableCell>}
+                        {visibleCols.data_aniversario && <TableCell>
+                          {cliente.data_aniversario ? <span className="text-sm text-muted-foreground">{new Date(cliente.data_aniversario + 'T00:00:00').toLocaleDateString('pt-BR')}</span> : <span className="text-xs text-muted-foreground italic">Não informado</span>}
                         </TableCell>}
                         {visibleCols.ltv && <TableCell>
                           <div className="space-y-1">

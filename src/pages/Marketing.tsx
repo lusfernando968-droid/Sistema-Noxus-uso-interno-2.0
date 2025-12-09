@@ -21,6 +21,7 @@ import AnuncioStats from "@/components/marketing/anuncio/AnuncioStats";
 import AnuncioTable from "@/components/marketing/anuncio/AnuncioTable";
 import AnuncioFormModal from "@/components/marketing/anuncio/AnuncioFormModal";
 import { useAnuncios } from "@/hooks/useAnuncios";
+import { MarketingSkeleton, TableSkeleton } from "@/components/ui/skeletons";
 
 import { ConteudoItem } from "@/hooks/useConteudo";
 import { Marca } from "@/hooks/useMarcas";
@@ -100,7 +101,7 @@ export default function Marketing() {
                     </Button>
                   </div>
                   {loadingMarcas ? (
-                    <div className="text-center py-10">Carregando...</div>
+                    <TableSkeleton rows={4} cols={4} />
                   ) : (
                     <MarcasTable
                       marcas={marcas}
@@ -127,7 +128,7 @@ export default function Marketing() {
                     <BrandingFormModal onSave={addAsset} onUpload={uploadImage} />
                   </div>
                   {loadingBranding ? (
-                    <div className="text-center py-10">Carregando...</div>
+                    <TableSkeleton rows={4} cols={4} />
                   ) : (
                     <>
                       <BrandingStats assets={assets} />
@@ -187,7 +188,7 @@ export default function Marketing() {
                 />
 
                 {loadingConteudo ? (
-                  <div className="text-center py-10">Carregando...</div>
+                  <TableSkeleton rows={5} cols={5} />
                 ) : (
                   <>
                     <ConteudoStats items={items} />
@@ -238,7 +239,7 @@ export default function Marketing() {
                   <AnuncioFormModal onSave={addAnuncio} />
                 </div>
                 {loadingAnuncios ? (
-                  <div className="text-center py-10">Carregando...</div>
+                  <TableSkeleton rows={4} cols={5} />
                 ) : (
                   <>
                     <AnuncioStats items={anuncios} />

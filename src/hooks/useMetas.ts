@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -80,173 +81,235 @@ export interface MetasStats {
   metasPorPrioridade: Record<string, number>;
 }
 
-export function useMetas() {
-  const [metas, setMetas] = useState<MetaComProgresso[]>([]);
-  const [metasStats, setMetasStats] = useState<MetasStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+// Query key factory
+const metasKeys = {
+  all: ['metas'] as const,
+  list: (userId: string) => [...metasKeys.all, 'list', userId] as const,
+  progresso: (userId: string, metaId: string) => [...metasKeys.all, 'progresso', userId, metaId] as const,
+};
 
-  // Buscar todas as metas do usuário
-  const fetchMetas = useCallback(async () => {
-    if (!user) {
-      setMetas([]);
-      setIsLoading(false);
-      return;
-    }
+// Função para calcular progresso de uma meta
+function calcularProgresso(meta: Meta): MetaComProgresso {
+  const percentual = meta.valor_meta > 0 
+    ? Math.min((meta.valor_atual / meta.valor_meta) * 100, 100) 
+    : 0;
+  const diasRestantes = Math.ceil(
+    (new Date(meta.data_fim).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+  );
+  
+  let statusCalculado = meta.status;
+  if (diasRestantes < 0 && meta.status === 'ativa') {
+    statusCalculado = 'vencida';
+  } else if (diasRestantes <= 7 && meta.status === 'ativa') {
+    statusCalculado = 'proxima_vencimento';
+  }
 
-    try {
-      setIsLoading(true);
-      setError(null);
+  return {
+    ...meta,
+    percentual_progresso: percentual,
+    status_calculado: statusCalculado,
+    dias_restantes: diasRestantes,
+    nivel_progresso: percentual >= 100 ? 'concluida' : 'em_andamento',
+  };
+}
 
-      const { data, error: fetchError } = await supabase
-        .from('metas')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+// Função para buscar metas
+async function fetchMetas(userId: string): Promise<MetaComProgresso[]> {
+  const { data, error } = await supabase
+    .from('metas')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
 
-      if (fetchError) throw fetchError;
+  if (error) throw error;
+  return (data || []).map(calcularProgresso);
+}
 
-      // Calcular progresso manualmente
-      const metasComProgresso = data?.map(meta => ({
-        ...meta,
-        percentual_progresso: meta.valor_meta > 0 ? Math.min((meta.valor_atual / meta.valor_meta) * 100, 100) : 0,
-        status_calculado: meta.status,
-        dias_restantes: Math.ceil((new Date(meta.data_fim).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)),
-        nivel_progresso: meta.valor_meta > 0 && (meta.valor_atual / meta.valor_meta) * 100 >= 100 ? 'concluida' : 'em_andamento'
-      })) || [];
-
-      setMetas(metasComProgresso);
-      calculateStats(metasComProgresso);
-
-    } catch (err) {
-      console.error('Erro ao buscar metas:', err);
-      setError('Erro ao carregar metas');
-      toast.error('Erro ao carregar metas.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user]);
-
-  // Calcular estatísticas das metas
-  const calculateStats = (metasData: MetaComProgresso[]) => {
-    const stats: MetasStats = {
-      total: metasData.length,
-      ativas: metasData.filter(m => m.status === 'ativa').length,
-      concluidas: metasData.filter(m => m.status === 'concluida' || m.percentual_progresso >= 100).length,
-      vencidas: metasData.filter(m => m.status_calculado === 'vencida').length,
-      proximasVencimento: metasData.filter(m => m.status_calculado === 'proxima_vencimento').length,
-      progressoMedio: metasData.length > 0 
-        ? metasData.reduce((sum, m) => sum + m.percentual_progresso, 0) / metasData.length 
-        : 0,
-      metasPorCategoria: {},
-      metasPorPrioridade: {}
-    };
-
-    // Contar por categoria
-    metasData.forEach(meta => {
-      stats.metasPorCategoria[meta.categoria] = (stats.metasPorCategoria[meta.categoria] || 0) + 1;
-      stats.metasPorPrioridade[meta.prioridade] = (stats.metasPorPrioridade[meta.prioridade] || 0) + 1;
-    });
-
-    setMetasStats(stats);
+// Função para calcular estatísticas
+function calculateStats(metasData: MetaComProgresso[]): MetasStats {
+  const stats: MetasStats = {
+    total: metasData.length,
+    ativas: metasData.filter(m => m.status === 'ativa').length,
+    concluidas: metasData.filter(m => m.status === 'concluida' || m.percentual_progresso >= 100).length,
+    vencidas: metasData.filter(m => m.status_calculado === 'vencida').length,
+    proximasVencimento: metasData.filter(m => m.status_calculado === 'proxima_vencimento').length,
+    progressoMedio: metasData.length > 0 
+      ? metasData.reduce((sum, m) => sum + m.percentual_progresso, 0) / metasData.length 
+      : 0,
+    metasPorCategoria: {},
+    metasPorPrioridade: {},
   };
 
-  // Criar nova meta
-  const createMeta = async (metaData: CreateMetaData): Promise<Meta | null> => {
-    if (!user) {
-      toast.error('Usuário não autenticado');
-      return null;
-    }
+  metasData.forEach(meta => {
+    stats.metasPorCategoria[meta.categoria] = (stats.metasPorCategoria[meta.categoria] || 0) + 1;
+    stats.metasPorPrioridade[meta.prioridade] = (stats.metasPorPrioridade[meta.prioridade] || 0) + 1;
+  });
 
-    try {
-      const { data, error: createError } = await supabase
+  return stats;
+}
+
+export function useMetas() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Query principal
+  const {
+    data: metas = [],
+    isLoading,
+    error: queryError,
+    refetch: fetchMetas,
+  } = useQuery({
+    queryKey: metasKeys.list(user?.id || ''),
+    queryFn: () => fetchMetas(user!.id),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const error = queryError ? (queryError as Error).message : null;
+  const metasStats = useMemo(() => calculateStats(metas), [metas]);
+
+  // Mutation para criar
+  const createMutation = useMutation({
+    mutationFn: async (metaData: CreateMetaData): Promise<Meta> => {
+      if (!user) throw new Error('Usuário não autenticado');
+      const { data, error } = await supabase
         .from('metas')
         .insert([{
           ...metaData,
           user_id: user.id,
           prioridade: metaData.prioridade || 'media',
-          cor: metaData.cor || '#8B5CF6'
+          cor: metaData.cor || '#8B5CF6',
         }])
         .select()
         .single();
 
-      if (createError) throw createError;
-
-      toast.success('Meta criada com sucesso!');
-      await fetchMetas();
+      if (error) throw error;
       return data;
-    } catch (err) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metasKeys.all });
+      toast.success('Meta criada com sucesso!');
+    },
+    onError: (err: Error) => {
       console.error('Erro ao criar meta:', err);
       toast.error('Erro ao criar meta');
-      return null;
-    }
-  };
+    },
+  });
 
-  // Atualizar meta existente
-  const updateMeta = async (id: string, updateData: UpdateMetaData): Promise<boolean> => {
-    try {
-      const { error: updateError } = await supabase
+  // Mutation para atualizar
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, updateData }: { id: string; updateData: UpdateMetaData }) => {
+      const { error } = await supabase
         .from('metas')
         .update(updateData)
         .eq('id', id)
         .eq('user_id', user?.id);
 
-      if (updateError) throw updateError;
-
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metasKeys.all });
       toast.success('Meta atualizada com sucesso!');
-      await fetchMetas();
-      return true;
-    } catch (err) {
+    },
+    onError: (err: Error) => {
       console.error('Erro ao atualizar meta:', err);
       toast.error('Erro ao atualizar meta');
-      return false;
-    }
-  };
+    },
+  });
 
-  // Atualizar progresso da meta
-  const updateProgresso = async (id: string, novoValor: number, observacao?: string): Promise<boolean> => {
-    try {
-      const { error: updateError } = await supabase
+  // Mutation para atualizar progresso
+  const updateProgressoMutation = useMutation({
+    mutationFn: async ({ id, novoValor }: { id: string; novoValor: number; observacao?: string }) => {
+      const { error } = await supabase
         .from('metas')
         .update({ valor_atual: novoValor })
         .eq('id', id)
         .eq('user_id', user?.id);
 
-      if (updateError) throw updateError;
-
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metasKeys.all });
       toast.success('Progresso atualizado com sucesso!');
-      await fetchMetas();
-      return true;
-    } catch (err) {
+    },
+    onError: (err: Error) => {
       console.error('Erro ao atualizar progresso:', err);
       toast.error('Erro ao atualizar progresso');
-      return false;
-    }
-  };
+    },
+  });
 
-  // Deletar meta
-  const deleteMeta = async (id: string): Promise<boolean> => {
-    try {
-      const { error: deleteError } = await supabase
+  // Mutation para deletar
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
         .from('metas')
         .delete()
         .eq('id', id)
         .eq('user_id', user?.id);
 
-      if (deleteError) throw deleteError;
-
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metasKeys.all });
       toast.success('Meta excluída com sucesso!');
-      await fetchMetas();
-      return true;
-    } catch (err) {
+    },
+    onError: (err: Error) => {
       console.error('Erro ao deletar meta:', err);
       toast.error('Erro ao deletar meta');
+    },
+  });
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('realtime-metas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'metas', filter: `user_id=eq.${user.id}` }, () => {
+        queryClient.invalidateQueries({ queryKey: metasKeys.all });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
+
+  // API compatível
+  const createMeta = async (metaData: CreateMetaData): Promise<Meta | null> => {
+    try {
+      return await createMutation.mutateAsync(metaData);
+    } catch {
+      return null;
+    }
+  };
+
+  const updateMeta = async (id: string, updateData: UpdateMetaData): Promise<boolean> => {
+    try {
+      await updateMutation.mutateAsync({ id, updateData });
+      return true;
+    } catch {
       return false;
     }
   };
 
-  // Buscar histórico de progresso de uma meta
+  const updateProgresso = async (id: string, novoValor: number, observacao?: string): Promise<boolean> => {
+    try {
+      await updateProgressoMutation.mutateAsync({ id, novoValor, observacao });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const deleteMeta = async (id: string): Promise<boolean> => {
+    try {
+      await deleteMutation.mutateAsync(id);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  // Buscar histórico de progresso
   const fetchProgressoHistorico = async (metaId: string): Promise<MetaProgresso[]> => {
     try {
       const { data, error } = await supabase
@@ -264,34 +327,26 @@ export function useMetas() {
     }
   };
 
-  // Buscar metas por categoria
-  const getMetasPorCategoria = (categoria: Meta['categoria']): MetaComProgresso[] => {
+  // Consultas específicas (memoizadas)
+  const getMetasPorCategoria = useCallback((categoria: Meta['categoria']): MetaComProgresso[] => {
     return metas.filter(meta => meta.categoria === categoria);
-  };
+  }, [metas]);
 
-  // Buscar metas por status
-  const getMetasPorStatus = (status: Meta['status']): MetaComProgresso[] => {
+  const getMetasPorStatus = useCallback((status: Meta['status']): MetaComProgresso[] => {
     return metas.filter(meta => meta.status === status);
-  };
+  }, [metas]);
 
-  // Buscar metas próximas do vencimento
-  const getMetasProximasVencimento = (dias: number = 7): MetaComProgresso[] => {
+  const getMetasProximasVencimento = useCallback((dias: number = 7): MetaComProgresso[] => {
     return metas.filter(meta => 
       meta.status === 'ativa' && 
       meta.dias_restantes <= dias && 
       meta.dias_restantes >= 0
     );
-  };
+  }, [metas]);
 
-  // Buscar metas vencidas
-  const getMetasVencidas = (): MetaComProgresso[] => {
+  const getMetasVencidas = useCallback((): MetaComProgresso[] => {
     return metas.filter(meta => meta.status_calculado === 'vencida');
-  };
-
-  // Carregar dados iniciais
-  useEffect(() => {
-    fetchMetas();
-  }, [fetchMetas]);
+  }, [metas]);
 
   return {
     // Estados
@@ -305,7 +360,7 @@ export function useMetas() {
     updateMeta,
     updateProgresso,
     deleteMeta,
-    fetchMetas,
+    fetchMetas: () => fetchMetas(),
 
     // Consultas específicas
     fetchProgressoHistorico,
@@ -315,6 +370,12 @@ export function useMetas() {
     getMetasVencidas,
 
     // Utilitários
-    calculateStats
+    calculateStats: () => calculateStats(metas),
+
+    // Mutations expostas
+    createMutation,
+    updateMutation,
+    updateProgressoMutation,
+    deleteMutation,
   };
 }

@@ -12,7 +12,7 @@ import { SchedulesTab } from "@/components/dashboard/SchedulesTab";
 import { MetasTab } from "@/components/dashboard/MetasTab";
 import { MetaFormDialog } from "@/components/dashboard/MetaFormDialog";
 import { SmartInsights } from "@/components/dashboard/SmartInsights";
-import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { MetaComProgresso } from "@/hooks/useMetas";
 import { ENABLE_METAS } from "@/lib/config";
 
@@ -100,10 +100,7 @@ const Index = () => {
       </div>
 
       {isLoading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-32 w-full rounded-3xl" />
-          <Skeleton className="h-96 w-full rounded-3xl" />
-        </div>
+        <DashboardSkeleton />
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="rounded-2xl p-1.5 bg-muted/50">

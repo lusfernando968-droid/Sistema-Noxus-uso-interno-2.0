@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { ProjectBuilder } from "@/components/projetos/ProjectBuilder";
+import { ProjetosSkeleton } from "@/components/ui/skeletons";
 
 type Status = "planejamento" | "andamento" | "concluido" | "cancelado";
 
@@ -303,12 +304,9 @@ export default function Projetos() {
     valorPago: filteredProjetos.reduce((acc, p) => acc + (p.valor_pago || 0), 0),
   };
 
+  // Loading state com skeleton que reflete o layout
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <p className="text-muted-foreground">Carregando...</p>
-      </div>
-    );
+    return <ProjetosSkeleton />;
   }
 
   // ===== Kanban =====

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,28 +30,43 @@ export interface AulaModelo {
   updated_at?: string;
 }
 
+// Query key factory
+const aulasKeys = {
+  all: ['aulas'] as const,
+  list: (userId: string) => [...aulasKeys.all, 'list', userId] as const,
+  modelos: (userId: string) => [...aulasKeys.all, 'modelos', userId] as const,
+};
+
+// Fetch functions
+async function fetchAulas(): Promise<Aula[]> {
+  const { data, error } = await supabase
+    .from("aulas")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []) as Aula[];
+}
+
+async function fetchModelos(): Promise<AulaModelo[]> {
+  const { data, error } = await supabase
+    .from("aula_modelos")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []) as AulaModelo[];
+}
+
 export function useAulaModelos() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [modelos, setModelos] = useState<AulaModelo[]>([]);
-  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    (async () => {
-      if (!user) return;
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("aula_modelos")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (error) {
-        toast({ title: "Erro ao carregar modelos", description: error.message });
-      } else {
-        setModelos((data || []) as AulaModelo[]);
-      }
-      setLoading(false);
-    })();
-  }, [user]);
+  const { data: modelos = [], isLoading: loading } = useQuery({
+    queryKey: aulasKeys.modelos(user?.id || ''),
+    queryFn: fetchModelos,
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+  });
 
   return { modelos, loading };
 }
@@ -58,31 +74,26 @@ export function useAulaModelos() {
 export function useAulas() {
   const { toast } = useToast();
   const { user } = useAuth();
-  const [aulas, setAulas] = useState<Aula[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Filtros locais
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AulaStatus | "all">("all");
   const [disciplinaFilter, setDisciplinaFilter] = useState<string | "all">("all");
   const [responsavelFilter, setResponsavelFilter] = useState<string | "all">("all");
 
-  useEffect(() => {
-    (async () => {
-      if (!user) return;
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("aulas")
-        .select("*")
-        .order("updated_at", { ascending: false })
-        .order("created_at", { ascending: false });
-      if (error) {
-        toast({ title: "Erro ao carregar aulas", description: error.message });
-      } else {
-        setAulas((data || []) as Aula[]);
-      }
-      setLoading(false);
-    })();
-  }, [user]);
+  // Query principal
+  const {
+    data: aulas = [],
+    isLoading: loading,
+  } = useQuery({
+    queryKey: aulasKeys.list(user?.id || ''),
+    queryFn: fetchAulas,
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2,
+  });
 
+  // Filtro memoizado
   const filtered = useMemo(() => {
     return aulas.filter((a) => {
       const s = search.toLowerCase();
@@ -94,63 +105,183 @@ export function useAulas() {
     });
   }, [aulas, search, statusFilter, disciplinaFilter, responsavelFilter]);
 
-  async function updateStatus(id: string, novoStatus: AulaStatus) {
-    const prev = aulas;
-    setAulas((list) => list.map((a) => (a.id === id ? { ...a, status: novoStatus } : a)));
-    const { error } = await supabase.from("aulas").update({ status: novoStatus }).eq("id", id);
-    if (error) {
-      toast({ title: "Falha ao mover aula", description: error.message });
-      setAulas(prev);
-      return;
-    }
-    await supabase.from("aula_versions").insert({ aula_id: id, user_id: user!.id, version_number: Date.now(), snapshot: { status: novoStatus } });
-  }
+  // Mutation para atualizar status
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, novoStatus }: { id: string; novoStatus: AulaStatus }) => {
+      const { error } = await supabase.from("aulas").update({ status: novoStatus }).eq("id", id);
+      if (error) throw error;
+      await supabase.from("aula_versions").insert({ 
+        aula_id: id, 
+        user_id: user!.id, 
+        version_number: Date.now(), 
+        snapshot: { status: novoStatus } 
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: aulasKeys.all });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Falha ao mover aula", description: err.message });
+    },
+  });
 
-  async function updateAula(id: string, patch: Partial<Aula>) {
-    const prev = aulas;
-    setAulas((list) => list.map((a) => (a.id === id ? { ...a, ...patch } : a)));
-    const { error } = await supabase.from("aulas").update(patch).eq("id", id);
-    if (error) {
-      toast({ title: "Falha ao salvar aula", description: error.message });
-      setAulas(prev);
+  // Mutation para atualizar aula
+  const updateAulaMutation = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: Partial<Aula> }) => {
+      const { error } = await supabase.from("aulas").update(patch).eq("id", id);
+      if (error) throw error;
+      await supabase.from("aula_versions").insert({ 
+        aula_id: id, 
+        user_id: user!.id, 
+        version_number: Date.now(), 
+        snapshot: { ...patch } 
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: aulasKeys.all });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Falha ao salvar aula", description: err.message });
+    },
+  });
+
+  // Mutation para criar aula
+  const createAulaMutation = useMutation({
+    mutationFn: async (overrides: Partial<Aula> = {}) => {
+      if (!user) throw new Error("Sessão não encontrada");
+      const payload = {
+        titulo: overrides.titulo || "Nova Aula",
+        descricao: overrides.descricao ?? null,
+        status: (overrides.status as AulaStatus) || "esboco",
+        disciplina: overrides.disciplina ?? null,
+        responsavel_id: overrides.responsavel_id ?? user.id,
+        prazo: overrides.prazo ?? null,
+        modelo_id: overrides.modelo_id ?? null,
+        estrutura: overrides.estrutura ?? null,
+      };
+      const { data, error } = await supabase.from("aulas").insert(payload).select("*").single();
+      if (error) throw error;
+      await supabase.from("aula_versions").insert({ 
+        aula_id: (data as Aula).id, 
+        user_id: user.id, 
+        version_number: 1, 
+        snapshot: payload 
+      });
+      return data as Aula;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: aulasKeys.all });
+      toast({ title: "Aula criada", description: "A aula foi adicionada" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Falha ao criar aula", description: err.message });
+    },
+  });
+
+  // Mutation para criar aula a partir de modelo
+  const createFromModeloMutation = useMutation({
+    mutationFn: async ({ modeloId, overrides = {} }: { modeloId: string; overrides?: Partial<Aula> }) => {
+      if (!user) throw new Error("Sessão não encontrada");
+      const { data: modelo } = await supabase.from("aula_modelos").select("*").eq("id", modeloId).maybeSingle();
+      const payload = {
+        titulo: modelo?.titulo || "Nova Aula",
+        disciplina: modelo?.disciplina || null,
+        descricao: modelo?.descricao || null,
+        status: "esboco" as AulaStatus,
+        modelo_id: modeloId,
+        responsavel_id: user.id,
+        estrutura: modelo?.estrutura || null,
+        ...overrides,
+      };
+      const { data, error } = await supabase.from("aulas").insert(payload).select("*").single();
+      if (error) throw error;
+      await supabase.from("aula_versions").insert({ 
+        aula_id: (data as Aula).id, 
+        user_id: user.id, 
+        version_number: 1, 
+        snapshot: payload 
+      });
+      return data as Aula;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: aulasKeys.all });
+      toast({ title: "Aula criada", description: "A aula foi adicionada" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Falha ao criar aula", description: err.message });
+    },
+  });
+
+  // Mutation para deletar
+  const deleteAulaMutation = useMutation({
+    mutationFn: async (id: string) => {
+      if (!user) throw new Error("Sessão não encontrada");
+      const { error } = await supabase.from("aulas").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: aulasKeys.all });
+      toast({ title: "Aula excluída", description: "A aula foi removida" });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Falha ao excluir aula", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel('realtime-aulas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'aulas' }, () => {
+        queryClient.invalidateQueries({ queryKey: aulasKeys.all });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
+
+  // API compatível
+  const updateStatus = useCallback(async (id: string, novoStatus: AulaStatus) => {
+    await updateStatusMutation.mutateAsync({ id, novoStatus });
+  }, [updateStatusMutation]);
+
+  const updateAula = useCallback(async (id: string, patch: Partial<Aula>) => {
+    try {
+      await updateAulaMutation.mutateAsync({ id, patch });
+      return true;
+    } catch {
       return false;
     }
-    await supabase.from("aula_versions").insert({ aula_id: id, user_id: user!.id, version_number: Date.now(), snapshot: { ...patch } });
-    return true;
-  }
+  }, [updateAulaMutation]);
 
-  async function createAulaFromModelo(modeloId: string, overrides: Partial<Aula> = {}) {
-    if (!user) {
-      toast({ title: "Sessão não encontrada", description: "Faça login para criar aulas", variant: "destructive" });
-      return null;
-    }
-    const { data: modelo } = await supabase.from("aula_modelos").select("*").eq("id", modeloId).maybeSingle();
-    const payload = {
-      titulo: modelo?.titulo || "Nova Aula",
-      disciplina: modelo?.disciplina || null,
-      descricao: modelo?.descricao || null,
-      status: "esboco" as AulaStatus,
-      modelo_id: modeloId,
-      responsavel_id: user.id,
-      estrutura: modelo?.estrutura || null,
-      ...overrides,
-    };
-    const { data, error } = await supabase.from("aulas").insert(payload).select("*").single();
-    if (error) {
-      toast({ title: "Falha ao criar aula", description: error.message });
-      return null;
-    }
-    setAulas((list) => [data as Aula, ...list]);
+  const createAulaFromModelo = useCallback(async (modeloId: string, overrides: Partial<Aula> = {}) => {
     try {
-      await supabase.from("aula_versions").insert({ aula_id: (data as Aula).id, user_id: user.id, version_number: 1, snapshot: payload });
-    } catch (e: any) {
-      toast({ title: "Versão não registrada", description: e?.message || "Erro ao salvar versão", variant: "destructive" });
+      return await createFromModeloMutation.mutateAsync({ modeloId, overrides });
+    } catch {
+      return null;
     }
-    toast({ title: "Aula criada", description: "A aula foi adicionada" });
-    return data as Aula;
-  }
+  }, [createFromModeloMutation]);
 
-  async function createDefaultModelos() {
+  const createAula = useCallback(async (overrides: Partial<Aula> = {}) => {
+    try {
+      return await createAulaMutation.mutateAsync(overrides);
+    } catch {
+      return null;
+    }
+  }, [createAulaMutation]);
+
+  const deleteAula = useCallback(async (id: string) => {
+    try {
+      await deleteAulaMutation.mutateAsync(id);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [deleteAulaMutation]);
+
+  const createDefaultModelos = async () => {
     const modelosPadrao = [
       {
         titulo: 'Aula de Matemática Básica',
@@ -184,114 +315,18 @@ export function useAulas() {
           { tipo: 'registro', titulo: 'Registro dos Resultados', duracao: 10 },
           { tipo: 'analise', titulo: 'Análise e Conclusão', duracao: 10 }
         ]
-      },
-      {
-        titulo: 'Aula de História - Debate',
-        disciplina: 'História',
-        descricao: 'Modelo para aulas com debate',
-        estrutura: [
-          { tipo: 'contexto', titulo: 'Contextualização Histórica', duracao: 15 },
-          { tipo: 'debate', titulo: 'Debate em Grupos', duracao: 25 },
-          { tipo: 'sintese', titulo: 'Síntese dos Argumentos', duracao: 10 },
-          { tipo: 'reflexao', titulo: 'Reflexão Final', duracao: 10 }
-        ]
-      },
-      {
-        titulo: 'Aula de Geografia - Mapas',
-        disciplina: 'Geografia',
-        descricao: 'Modelo para aulas com análise de mapas',
-        estrutura: [
-          { tipo: 'mapa', titulo: 'Análise do Mapa', duracao: 15 },
-          { tipo: 'interpretacao', titulo: 'Interpretação dos Dados', duracao: 20 },
-          { tipo: 'discussao', titulo: 'Discussão em Grupo', duracao: 10 },
-          { tipo: 'aplicacao', titulo: 'Aplicação Prática', duracao: 15 }
-        ]
       }
     ];
 
     try {
-      const { error } = await supabase
-        .from('aula_modelos')
-        .insert(modelosPadrao);
-
-      if (error) {
-        console.error('Erro ao criar modelos padrão:', error);
-        throw error;
-      }
-
-      console.log('Modelos padrão criados com sucesso!');
+      const { error } = await supabase.from('aula_modelos').insert(modelosPadrao);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: aulasKeys.modelos(user?.id || '') });
     } catch (error) {
       console.error('Erro ao criar modelos padrão:', error);
       throw error;
     }
-  }
-
-  async function createAula(overrides: Partial<Aula> = {}) {
-    if (!user) {
-      toast({ title: "Sessão não encontrada", description: "Faça login para criar aulas", variant: "destructive" });
-      return null;
-    }
-    const prev = aulas;
-    const payload = {
-      titulo: overrides.titulo || "Nova Aula",
-      descricao: overrides.descricao ?? null,
-      status: (overrides.status as AulaStatus) || "esboco",
-      disciplina: overrides.disciplina ?? null,
-      responsavel_id: overrides.responsavel_id ?? user.id,
-      prazo: overrides.prazo ?? null,
-      modelo_id: overrides.modelo_id ?? null,
-      estrutura: overrides.estrutura ?? null,
-    } as Partial<Aula> & { titulo: string; status: AulaStatus };
-    const tempId = `temp-${Date.now()}`;
-    const tempAula: Aula = {
-      id: tempId,
-      titulo: payload.titulo,
-      descricao: payload.descricao || null,
-      status: payload.status,
-      disciplina: payload.disciplina || null,
-      responsavel_id: payload.responsavel_id || null,
-      prazo: payload.prazo || null,
-      modelo_id: payload.modelo_id || null,
-      estrutura: payload.estrutura || null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    setAulas((list) => [tempAula, ...list]);
-    const { data, error } = await supabase.from("aulas").insert(payload).select("*").single();
-    if (error) {
-      setAulas(prev);
-      toast({ title: "Falha ao criar aula", description: error.message });
-      return null;
-    }
-    setAulas((list) => list.map((a) => (a.id === tempId ? (data as Aula) : a)));
-    (async () => {
-      const { error: versionError } = await supabase
-        .from("aula_versions")
-        .insert({ aula_id: (data as Aula).id, user_id: user.id, version_number: 1, snapshot: payload });
-      if (versionError) {
-        toast({ title: "Versão não registrada", description: versionError.message, variant: "destructive" });
-      }
-    })();
-    toast({ title: "Aula criada", description: "A aula foi adicionada" });
-    return data as Aula;
-  }
-
-  async function deleteAula(id: string) {
-    if (!user) {
-      toast({ title: "Sessão não encontrada", description: "Faça login para excluir aulas", variant: "destructive" });
-      return false;
-    }
-    const prev = aulas;
-    setAulas((list) => list.filter((a) => a.id !== id));
-    const { error } = await supabase.from("aulas").delete().eq("id", id);
-    if (error) {
-      toast({ title: "Falha ao excluir aula", description: error.message, variant: "destructive" });
-      setAulas(prev);
-      return false;
-    }
-    toast({ title: "Aula excluída", description: "A aula foi removida" });
-    return true;
-  }
+  };
 
   return {
     aulas,
@@ -310,5 +345,12 @@ export function useAulas() {
     createAulaFromModelo,
     createAula,
     deleteAula,
+    createDefaultModelos,
+    // Mutations expostas
+    updateStatusMutation,
+    updateAulaMutation,
+    createAulaMutation,
+    createFromModeloMutation,
+    deleteAulaMutation,
   };
 }

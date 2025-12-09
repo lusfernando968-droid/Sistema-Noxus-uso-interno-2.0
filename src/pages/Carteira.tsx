@@ -11,6 +11,7 @@ import { useCarteira } from "@/hooks/useCarteira";
 import TabelaDividas from "@/components/carteira/TabelaDividas";
 import TabelaPatrimonio from "@/components/carteira/TabelaPatrimonio";
 import TabelaLinhasCredito from "@/components/carteira/TabelaLinhasCredito";
+import { CarteiraSkeleton } from "@/components/ui/skeletons";
 import {
   Wallet,
   ArrowRightLeft,
@@ -28,8 +29,13 @@ export default function Carteira() {
   }, []);
 
   const [activeTab, setActiveTab] = useState("despesas");
-  const { items: contas } = useContasBancarias();
-  const { items: transacoes } = useCarteira();
+  const { items: contas, loading: loadingContas } = useContasBancarias();
+  const { items: transacoes, loading: loadingTransacoes } = useCarteira();
+
+  // Loading state com skeleton que reflete o layout
+  if (loadingContas || loadingTransacoes) {
+    return <CarteiraSkeleton />;
+  }
 
   return (
     <div className="space-y-6">

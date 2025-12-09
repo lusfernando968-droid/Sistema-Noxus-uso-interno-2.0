@@ -17,6 +17,25 @@ export interface Agendamento {
     updated_at?: string;
 }
 
+/**
+ * Agendamento com dados completos do projeto e cliente (via JOIN)
+ */
+export interface AgendamentoComDetalhes extends Agendamento {
+    projeto_titulo?: string;
+    projeto_status?: string;
+    projeto_valor_total?: number;
+    projeto_valor_por_sessao?: number;
+    projeto_quantidade_sessoes?: number;
+    cliente_id?: string;
+    cliente_nome?: string;
+    cliente_email?: string;
+    cliente_telefone?: string;
+    cliente_instagram?: string;
+    cliente_foto_url?: string;
+    tem_sessao_registrada?: boolean;
+    tem_transacao_registrada?: boolean;
+}
+
 export interface CreateAgendamentoDTO {
     projeto_id: string;
     titulo: string;
@@ -57,7 +76,7 @@ export class AgendamentosServiceError extends Error {
  */
 export class AgendamentosService {
     /**
-     * Busca todos os agendamentos do usuário
+     * Busca todos os agendamentos do usuário (query simples)
      */
     static async fetchAll(userId: string): Promise<Agendamento[]> {
         try {
@@ -77,6 +96,119 @@ export class AgendamentosService {
                 error
             );
         }
+    }
+
+    /**
+     * Busca todos os agendamentos com dados do projeto e cliente (query otimizada com JOINs)
+     * Usa a view agendamentos_com_detalhes para evitar N+1 queries
+     */
+    static async fetchAllWithRelations(userId: string): Promise<AgendamentoComDetalhes[]> {
+        try {
+            // Tenta usar a view otimizada primeiro
+            const { data, error } = await supabase
+                .from('agendamentos_com_detalhes')
+                .select('*')
+                .eq('user_id', userId)
+                .order('data', { ascending: false });
+
+            if (error) {
+                // Fallback: usa query com JOINs inline se a view não existir
+                console.warn('View agendamentos_com_detalhes não disponível, usando fallback');
+                return this.fetchAllWithRelationsFallback(userId);
+            }
+
+            return (data || []).map(row => ({
+                id: row.id,
+                user_id: row.user_id,
+                projeto_id: row.projeto_id,
+                titulo: row.titulo,
+                descricao: row.descricao,
+                data: row.data,
+                hora: row.hora,
+                status: row.status,
+                valor_estimado: row.valor_estimado,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+                projeto_titulo: row.projeto_titulo,
+                projeto_status: row.projeto_status,
+                projeto_valor_total: row.projeto_valor_total,
+                projeto_valor_por_sessao: row.projeto_valor_por_sessao,
+                projeto_quantidade_sessoes: row.projeto_quantidade_sessoes,
+                cliente_id: row.cliente_id,
+                cliente_nome: row.cliente_nome,
+                cliente_email: row.cliente_email,
+                cliente_telefone: row.cliente_telefone,
+                cliente_instagram: row.cliente_instagram,
+                cliente_foto_url: row.cliente_foto_url,
+                tem_sessao_registrada: row.tem_sessao_registrada,
+                tem_transacao_registrada: row.tem_transacao_registrada,
+            }));
+        } catch (error: any) {
+            throw new AgendamentosServiceError(
+                'Erro ao buscar agendamentos com detalhes',
+                'FETCH_WITH_RELATIONS_ERROR',
+                error
+            );
+        }
+    }
+
+    /**
+     * Fallback: busca agendamentos com JOINs inline do Supabase
+     * Usado quando a view não está disponível
+     */
+    private static async fetchAllWithRelationsFallback(userId: string): Promise<AgendamentoComDetalhes[]> {
+        const { data, error } = await supabase
+            .from('agendamentos')
+            .select(`
+                *,
+                projetos (
+                    id,
+                    titulo,
+                    status,
+                    valor_total,
+                    valor_por_sessao,
+                    quantidade_sessoes,
+                    clientes (
+                        id,
+                        nome,
+                        email,
+                        telefone,
+                        instagram,
+                        foto_url
+                    )
+                )
+            `)
+            .eq('user_id', userId)
+            .order('data', { ascending: false });
+
+        if (error) throw error;
+
+        return (data || []).map((row: any) => ({
+            id: row.id,
+            user_id: row.user_id,
+            projeto_id: row.projeto_id,
+            titulo: row.titulo,
+            descricao: row.descricao,
+            data: row.data,
+            hora: row.hora,
+            status: row.status,
+            valor_estimado: row.valor_estimado,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            projeto_titulo: row.projetos?.titulo,
+            projeto_status: row.projetos?.status,
+            projeto_valor_total: row.projetos?.valor_total,
+            projeto_valor_por_sessao: row.projetos?.valor_por_sessao,
+            projeto_quantidade_sessoes: row.projetos?.quantidade_sessoes,
+            cliente_id: row.projetos?.clientes?.id,
+            cliente_nome: row.projetos?.clientes?.nome,
+            cliente_email: row.projetos?.clientes?.email,
+            cliente_telefone: row.projetos?.clientes?.telefone,
+            cliente_instagram: row.projetos?.clientes?.instagram,
+            cliente_foto_url: row.projetos?.clientes?.foto_url,
+            tem_sessao_registrada: false, // Não disponível no fallback
+            tem_transacao_registrada: false, // Não disponível no fallback
+        }));
     }
 
     /**
@@ -187,6 +319,8 @@ export class AgendamentosService {
     /**
      * Confirma uma sessão realizada
      * Cria registros em projeto_sessoes e transacoes
+     * 
+     * OTIMIZAÇÃO: Usa query única com JOINs para buscar todos os dados necessários
      */
     static async confirmarSessao(
         agendamentoId: string,
@@ -196,10 +330,21 @@ export class AgendamentosService {
         avaliacao?: number
     ): Promise<void> {
         try {
-            // Buscar agendamento com projeto
+            // Query ÚNICA otimizada: busca agendamento + projeto + cliente em uma só chamada
             const { data: agendamento, error: agError } = await supabase
                 .from('agendamentos')
-                .select('*, projetos (id, cliente_id)')
+                .select(`
+                    *,
+                    projetos (
+                        id,
+                        titulo,
+                        cliente_id,
+                        clientes (
+                            id,
+                            nome
+                        )
+                    )
+                `)
                 .eq('id', agendamentoId)
                 .eq('user_id', userId)
                 .single();
@@ -207,6 +352,7 @@ export class AgendamentosService {
             if (agError) throw agError;
 
             const projeto = agendamento.projetos as any;
+            const cliente = projeto?.clientes as any;
 
             // Atualizar status do agendamento
             await this.update(agendamentoId, userId, { status: 'concluido' });
@@ -226,12 +372,14 @@ export class AgendamentosService {
 
             // Criar transação se houver valor
             if (agendamento.valor_estimado && agendamento.valor_estimado > 0) {
-                await this.createTransacao(
+                const clienteNome = cliente?.nome || 'Cliente';
+                await this.createTransacaoOtimizada(
                     userId,
                     agendamentoId,
                     agendamento.valor_estimado,
                     agendamento.data,
-                    agendamento.titulo
+                    agendamento.titulo,
+                    clienteNome
                 );
             }
         } catch (error: any) {
@@ -304,6 +452,7 @@ export class AgendamentosService {
     /**
      * Cria uma transação financeira
      * @private
+     * @deprecated Use createTransacaoOtimizada que já recebe o nome do cliente
      */
     private static async createTransacao(
         userId: string,
@@ -336,6 +485,50 @@ export class AgendamentosService {
                     valor,
                     data_vencimento: data,
                     descricao: `Sessão realizada: ${descricao}`,
+                    agendamento_id: agendamentoId,
+                });
+        }
+    }
+
+    /**
+     * Cria uma transação financeira (versão otimizada)
+     * Já recebe todos os dados necessários, evitando queries adicionais
+     * @private
+     */
+    private static async createTransacaoOtimizada(
+        userId: string,
+        agendamentoId: string,
+        valor: number,
+        data: string,
+        titulo: string,
+        clienteNome: string
+    ): Promise<void> {
+        const descricaoCompleta = `Sessão realizada: ${titulo} - ${clienteNome}`;
+
+        // Verificar se já existe transação (usar upsert seria ideal, mas mantemos compatibilidade)
+        const { data: existingTransacao } = await supabase
+            .from('transacoes')
+            .select('id')
+            .eq('agendamento_id', agendamentoId)
+            .maybeSingle();
+
+        if (existingTransacao) {
+            // Atualizar descrição
+            await supabase
+                .from('transacoes')
+                .update({ descricao: descricaoCompleta })
+                .eq('id', existingTransacao.id);
+        } else {
+            // Criar nova
+            await supabase
+                .from('transacoes')
+                .insert({
+                    user_id: userId,
+                    tipo: 'RECEITA',
+                    categoria: 'Serviços',
+                    valor,
+                    data_vencimento: data,
+                    descricao: descricaoCompleta,
                     agendamento_id: agendamentoId,
                 });
         }

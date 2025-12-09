@@ -4,10 +4,16 @@ import MateriaisTable from "@/components/estoque/MateriaisTable";
 import ProdutosTable from "@/components/estoque/ProdutosTable";
 import AnaliseCusto from "@/components/estoque/AnaliseCusto";
 import { useMateriaisEstoque } from "@/hooks/useMateriaisEstoque";
+import { EstoqueSkeleton } from "@/components/ui/skeletons";
 import { Package, DollarSign, AlertTriangle } from "lucide-react";
 
 export default function Estoque() {
-  const { items } = useMateriaisEstoque();
+  const { items, loading } = useMateriaisEstoque();
+
+  // Loading state com skeleton que reflete o layout
+  if (loading) {
+    return <EstoqueSkeleton />;
+  }
 
   const totalItems = items.length;
   const totalValue = items.reduce((acc, item) => {

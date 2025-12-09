@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseLocal, isSupabaseLocalConfigured } from "@/integrations/supabase/local";
@@ -18,8 +19,8 @@ export type CampanhaRecord = {
   canal: CampanhaCanal;
   estagio_funil?: CampanhaEstagioFunil | null;
   orcamento?: number | null;
-  data_inicio?: string | null; // yyyy-MM-dd
-  data_fim?: string | null;    // yyyy-MM-dd
+  data_inicio?: string | null;
+  data_fim?: string | null;
   status: CampanhaStatus;
   tags?: string[] | null;
   notas?: string | null;
@@ -48,13 +49,59 @@ type ListFilters = {
   q?: string;
 };
 
+// Query key factory
+const campanhasKeys = {
+  all: ['campanhas'] as const,
+  list: (userId: string, filters?: ListFilters) => [...campanhasKeys.all, 'list', userId, filters] as const,
+};
+
+// Função para buscar campanhas
+async function fetchCampanhas(userId: string, filters?: ListFilters): Promise<CampanhaRecord[]> {
+  const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
+  let query = sb
+    .from("campanhas")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (filters?.status && filters.status !== 'TODOS') query = query.eq('status', filters.status);
+  if (filters?.canal && filters.canal !== 'TODOS') query = query.eq('canal', filters.canal);
+  if (filters?.periodo?.inicio) query = query.gte('data_inicio', filters.periodo.inicio);
+  if (filters?.periodo?.fim) query = query.lte('data_fim', filters.periodo.fim);
+  if (filters?.q) query = query.ilike('titulo', `%${filters.q}%`);
+
+  const { data, error } = await query;
+  
+  if (error) {
+    if ((error as any).code === 'PGRST205' || (error as any).message?.includes('schema cache')) {
+      return [];
+    }
+    throw error;
+  }
+  
+  return (data || []) as CampanhaRecord[];
+}
+
 export function useCampanhas() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [items, setItems] = useState<CampanhaRecord[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [filters, setFilters] = useState<ListFilters>({ status: 'TODOS', canal: 'TODOS' });
+
+  // Query principal com React Query
+  const {
+    data: items = [],
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = useQuery({
+    queryKey: campanhasKeys.list(user?.id || '', filters),
+    queryFn: () => fetchCampanhas(user!.id, filters),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const error = queryError ? (queryError as Error).message : null;
 
   const stats = useMemo(() => {
     const porStatus = {
@@ -67,47 +114,9 @@ export function useCampanhas() {
     return { porStatus, totalOrcamento };
   }, [items]);
 
-  const fetchAll = async (opts?: ListFilters) => {
-    try {
-      if (!user) return;
-      setLoading(true);
-      const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
-      let query = sb
-        .from("campanhas")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      const f = opts || filters;
-      if (f?.status && f.status !== 'TODOS') query = query.eq('status', f.status);
-      if (f?.canal && f.canal !== 'TODOS') query = query.eq('canal', f.canal);
-      if (f?.periodo?.inicio) query = query.gte('data_inicio', f.periodo.inicio);
-      if (f?.periodo?.fim) query = query.lte('data_fim', f.periodo.fim);
-      if (f?.q) query = query.ilike('titulo', `%${f.q}%`);
-
-      const { data, error } = await query;
-      if (error) {
-        if ((error as any).code === 'PGRST205' || (error as any).message?.includes('schema cache')) {
-          setItems([]);
-          setError('Tabela campanhas não encontrada. Aplique o schema e recarregue.');
-          toast({ title: 'Campanhas indisponíveis', description: 'Tabela campanhas não existe no Supabase. Aplique a migration e recarregue.', variant: 'destructive' });
-          return;
-        }
-        throw error;
-      }
-      setItems((data || []) as any);
-      setError(null);
-    } catch (err: any) {
-      console.error("Erro ao carregar campanhas:", err);
-      setError(err?.message || "Erro desconhecido");
-      toast({ title: "Erro ao carregar campanhas", description: "Tente novamente mais tarde.", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const create = async (payload: CampanhaRecord) => {
-    try {
+  // Mutation para criar
+  const createMutation = useMutation({
+    mutationFn: async (payload: CampanhaRecord) => {
       if (!user) throw new Error("Usuário não autenticado");
       const parsed = campanhaSchema.parse(payload);
       const toInsert = {
@@ -131,22 +140,25 @@ export function useCampanhas() {
         .select("*");
       if (error) {
         if ((error as any).code === 'PGRST205') {
-          toast({ title: 'Campanhas indisponíveis', description: 'Tabela campanhas não existe no Supabase. Aplique a migration e recarregue.', variant: 'destructive' });
-          throw error;
+          throw new Error('Tabela campanhas não existe. Aplique a migration.');
         }
         throw error;
       }
-      setItems(prev => rows ? ([rows[0] as any, ...prev]) : prev);
+      return rows?.[0];
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: campanhasKeys.all });
       toast({ title: "Campanha criada", description: "Registro salvo com sucesso." });
-    } catch (err: any) {
+    },
+    onError: (err: Error) => {
       console.error("Erro ao criar campanha:", err);
       toast({ title: "Erro ao criar", description: err.message || "Verifique os dados.", variant: "destructive" });
-      throw err;
-    }
-  };
+    },
+  });
 
-  const update = async (id: string, changes: Partial<CampanhaRecord>) => {
-    try {
+  // Mutation para atualizar
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, changes }: { id: string; changes: Partial<CampanhaRecord> }) => {
       if (!user) throw new Error("Usuário não autenticado");
       const merged: any = { ...changes };
       if (merged.orcamento !== undefined) merged.orcamento = Number(merged.orcamento);
@@ -159,27 +171,25 @@ export function useCampanhas() {
         .eq("user_id", user.id);
       if (error) {
         if ((error as any).code === 'PGRST205') {
-          toast({ title: 'Campanhas indisponíveis', description: 'Tabela campanhas não existe no Supabase. Aplique a migration e recarregue.', variant: 'destructive' });
-          throw error;
+          throw new Error('Tabela campanhas não existe. Aplique a migration.');
         }
         throw error;
       }
-      if (rows && rows.length) {
-        const updated = rows[0] as any;
-        setItems(prev => prev.map(i => (i.id === updated.id ? updated : i)));
-      } else {
-        await fetchAll();
-      }
+      return rows?.[0];
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: campanhasKeys.all });
       toast({ title: "Campanha atualizada", description: "Alterações salvas com sucesso." });
-    } catch (err: any) {
+    },
+    onError: (err: Error) => {
       console.error("Erro ao atualizar campanha:", err);
       toast({ title: "Erro ao atualizar", description: err.message || "Tente novamente.", variant: "destructive" });
-      throw err;
-    }
-  };
+    },
+  });
 
-  const remove = async (id: string) => {
-    try {
+  // Mutation para remover
+  const removeMutation = useMutation({
+    mutationFn: async (id: string) => {
       if (!user) throw new Error("Usuário não autenticado");
       const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
       const { error } = await sb
@@ -189,18 +199,47 @@ export function useCampanhas() {
         .eq("user_id", user.id);
       if (error) {
         if ((error as any).code === 'PGRST205') {
-          toast({ title: 'Campanhas indisponíveis', description: 'Tabela campanhas não existe no Supabase. Aplique a migration e recarregue.', variant: 'destructive' });
-          throw error;
+          throw new Error('Tabela campanhas não existe. Aplique a migration.');
         }
         throw error;
       }
-      setItems(prev => prev.filter(i => i.id !== id));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: campanhasKeys.all });
       toast({ title: "Campanha removida", description: "Registro excluído." });
-    } catch (err: any) {
+    },
+    onError: (err: Error) => {
       console.error("Erro ao remover campanha:", err);
       toast({ title: "Erro ao remover", description: err.message || "Tente novamente.", variant: "destructive" });
-      throw err;
-    }
+    },
+  });
+
+  // Realtime subscriptions
+  useEffect(() => {
+    if (!user) return;
+    const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
+    const channel = sb
+      .channel("realtime-campanhas")
+      .on("postgres_changes", { event: "*", schema: "public", table: "campanhas", filter: `user_id=eq.${user.id}` }, () => {
+        queryClient.invalidateQueries({ queryKey: campanhasKeys.all });
+      })
+      .subscribe();
+    return () => {
+      sb.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
+
+  // API compatível
+  const create = async (payload: CampanhaRecord) => {
+    await createMutation.mutateAsync(payload);
+  };
+
+  const update = async (id: string, changes: Partial<CampanhaRecord>) => {
+    await updateMutation.mutateAsync({ id, changes });
+  };
+
+  const remove = async (id: string) => {
+    await removeMutation.mutateAsync(id);
   };
 
   const duplicate = async (id: string) => {
@@ -225,27 +264,10 @@ export function useCampanhas() {
     await update(id, { status });
   };
 
-  useEffect(() => {
-    fetchAll();
-    if (!user) return;
-    const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
-    const channel = sb
-      .channel("realtime-campanhas")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "campanhas", filter: `user_id=eq.${user.id}` }, (payload) => {
-        setItems(prev => [payload.new as any, ...prev]);
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "campanhas", filter: `user_id=eq.${user.id}` }, (payload) => {
-        setItems(prev => prev.map(i => (i.id === (payload.new as any).id ? (payload.new as any) : i)));
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "campanhas", filter: `user_id=eq.${user.id}` }, (payload) => {
-        setItems(prev => prev.filter(i => i.id !== (payload.old as any).id));
-      })
-      .subscribe();
-    return () => {
-      sb.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  const fetchAll = (opts?: ListFilters) => {
+    if (opts) setFilters(opts);
+    return refetch();
+  };
 
   return {
     items,
@@ -260,5 +282,9 @@ export function useCampanhas() {
     remove,
     duplicate,
     setStatus,
+    // Mutations expostas
+    createMutation,
+    updateMutation,
+    removeMutation,
   };
 }

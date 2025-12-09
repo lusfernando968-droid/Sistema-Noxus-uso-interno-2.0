@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseLocal, isSupabaseLocalConfigured } from "@/integrations/supabase/local";
@@ -74,112 +75,87 @@ function calcularStats(rows: FinanceiroGeralRecord[]): FinanceiroStats {
   return { totalEntradas, totalSaidas, saldo, porCategoriaEntradas, porCategoriaSaidas };
 }
 
+// Query key factory para consistência
+const financeiroKeys = {
+  all: ['financeiro_geral'] as const,
+  list: (userId: string) => [...financeiroKeys.all, 'list', userId] as const,
+};
+
+// Função para buscar dados do financeiro com JOINs otimizados
+async function fetchFinanceiroData(userId: string): Promise<FinanceiroGeralRecord[]> {
+  const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
+  
+  // Query principal com JOIN para agendamentos -> projetos -> clientes
+  const { data, error } = await sb
+    .from("financeiro_geral")
+    .select(`
+      *,
+      agendamentos (
+        id,
+        projetos (
+          id,
+          clientes (
+            id,
+            nome
+          )
+        )
+      )
+    `)
+    .eq("user_id", userId)
+    .order("data", { ascending: false });
+
+  if (error) throw error;
+
+  // Mapear dados com cliente_nome já resolvido
+  return (data || []).map((item: any) => ({
+    id: item.id,
+    user_id: item.user_id,
+    data: item.data,
+    descricao: item.descricao,
+    valor: Number(item.valor),
+    categoria: item.categoria,
+    forma_pagamento: item.forma_pagamento,
+    tipo: item.tipo,
+    comprovante: item.comprovante,
+    observacoes: item.observacoes,
+    conta_id: item.conta_id,
+    created_at: item.created_at,
+    updated_at: item.updated_at,
+    origem: item.origem,
+    origem_id: item.origem_id,
+    setor: item.setor,
+    readOnly: !!item.origem,
+    editLink: item.origem === 'financeiro_tattoo' && item.origem_id ? `/tattoo-financeiro?id=${item.origem_id}` : null,
+    agendamento_id: item.agendamento_id,
+    // Nome do cliente via JOIN (evita N+1 queries)
+    cliente_nome: item.agendamentos?.projetos?.clientes?.nome || undefined,
+  }));
+}
+
 export function useFinanceiroGeral() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [items, setItems] = useState<FinanceiroGeralRecord[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
+  // Query principal com React Query
+  const {
+    data: items = [],
+    isLoading: loading,
+    error: queryError,
+    refetch: fetchAll,
+  } = useQuery({
+    queryKey: financeiroKeys.list(user?.id || ''),
+    queryFn: () => fetchFinanceiroData(user!.id),
+    enabled: !!user,
+    staleTime: 1000 * 60 * 2, // 2 minutos de cache
+  });
+
+  const error = queryError ? (queryError as Error).message : null;
   const stats = useMemo(() => calcularStats(items), [items]);
 
-  const fetchAll = async () => {
-    try {
-      if (!user) return;
-      setLoading(true);
-      const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
-      const { data, error } = await sb
-        .from("financeiro_geral")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("data", { ascending: false });
-      if (error) throw error;
-      const converted = (data || []).map((item: any) => ({
-        id: item.id,
-        user_id: item.user_id,
-        data: item.data,
-        descricao: item.descricao,
-        valor: Number(item.valor),
-        categoria: item.categoria,
-        forma_pagamento: item.forma_pagamento,
-        tipo: item.tipo,
-        comprovante: item.comprovante,
-        observacoes: item.observacoes,
-        conta_id: item.conta_id,
-        created_at: item.created_at,
-        updated_at: item.updated_at,
-        origem: item.origem,
-        origem_id: item.origem_id,
-        setor: item.setor,
-        readOnly: !!item.origem,
-        editLink: item.origem === 'financeiro_tattoo' && item.origem_id ? `/tattoo-financeiro?id=${item.origem_id}` : null,
-        agendamento_id: item.agendamento_id,
-      }));
-
-      // Resolve client names for records with agendamento_id
-      const agendamentoIds = converted
-        .filter((i: any) => i.agendamento_id)
-        .map((i: any) => i.agendamento_id);
-
-      if (agendamentoIds.length > 0) {
-        const { data: agendamentosData } = await sb
-          .from('agendamentos')
-          .select('id, projeto_id')
-          .in('id', agendamentoIds);
-
-        if (agendamentosData && agendamentosData.length > 0) {
-          const projetoIds = agendamentosData.map((a: any) => a.projeto_id).filter(Boolean);
-
-          if (projetoIds.length > 0) {
-            const { data: projetosData } = await sb
-              .from('projetos')
-              .select('id, cliente_id')
-              .in('id', projetoIds);
-
-            if (projetosData && projetosData.length > 0) {
-              const clienteIds = projetosData.map((p: any) => p.cliente_id).filter(Boolean);
-
-              if (clienteIds.length > 0) {
-                const { data: clientesData } = await sb
-                  .from('clientes')
-                  .select('id, nome')
-                  .in('id', clienteIds);
-
-                // Map everything back
-                const clienteMap = new Map(clientesData?.map((c: any) => [c.id, c.nome]));
-                const projetoMap = new Map(projetosData?.map((p: any) => [p.id, p.cliente_id]));
-                const agendamentoMap = new Map(agendamentosData?.map((a: any) => [a.id, a.projeto_id]));
-
-                converted.forEach((item: any) => {
-                  if (item.agendamento_id) {
-                    const projId = agendamentoMap.get(item.agendamento_id);
-                    if (projId) {
-                      const cliId = projetoMap.get(projId);
-                      if (cliId) {
-                        item.cliente_nome = clienteMap.get(cliId);
-                      }
-                    }
-                  }
-                });
-              }
-            }
-          }
-        }
-      }
-
-      setItems(converted);
-      setError(null);
-    } catch (err: any) {
-      console.error("Erro ao carregar financeiro_geral:", err);
-      setError(err?.message || "Erro desconhecido");
-      toast({ title: "Erro ao carregar dados", description: "Tente novamente mais tarde.", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const insert = async (payload: FinanceiroGeralRecord) => {
-    try {
+  // Mutation para inserir
+  const insertMutation = useMutation({
+    mutationFn: async (payload: FinanceiroGeralRecord) => {
       if (!user) throw new Error("Usuário não autenticado");
       const parsed = financeiroGeralSchema.parse(payload);
       const toInsert = {
@@ -201,53 +177,31 @@ export function useFinanceiroGeral() {
         .insert(toInsert)
         .select("*");
       if (error) throw error;
-      if (rows && rows.length) {
-        const r: any = rows[0];
-        const newRecord: FinanceiroGeralRecord = {
-          id: r.id,
-          user_id: r.user_id,
-          data: r.data,
-          descricao: r.descricao,
-          valor: Number(r.valor),
-          categoria: r.categoria,
-          forma_pagamento: r.forma_pagamento,
-          tipo: r.tipo,
-          comprovante: r.comprovante,
-          observacoes: r.observacoes,
-          conta_id: r.conta_id,
-          created_at: r.created_at,
-          updated_at: r.updated_at,
-          origem: r.origem,
-          origem_id: r.origem_id,
-          setor: r.setor,
-          readOnly: !!r.origem,
-          editLink: r.origem === 'financeiro_tattoo' && r.origem_id ? `/tattoo-financeiro?id=${r.origem_id}` : null,
-        };
-        setItems(prev => [newRecord, ...prev]);
-      } else {
-        await fetchAll();
-      }
-      toast({ title: "Registro criado", description: "Financeiro Tattoo salvo com sucesso." });
-    } catch (err: any) {
+      return rows?.[0];
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: financeiroKeys.list(user!.id) });
+      toast({ title: "Registro criado", description: "Financeiro salvo com sucesso." });
+    },
+    onError: (err: Error) => {
       console.error("Erro ao inserir em financeiro_geral:", err);
       toast({ title: "Erro ao criar registro", description: err.message || "Verifique os dados.", variant: "destructive" });
-      throw err;
-    }
-  };
+    },
+  });
 
-  const update = async (id: string, changes: Partial<FinanceiroGeralRecord>) => {
-    try {
+  // Mutation para atualizar
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, changes }: { id: string; changes: Partial<FinanceiroGeralRecord> }) => {
       if (!user) throw new Error("Usuário não autenticado");
       const merged: any = { ...changes };
       if (merged.valor !== undefined) merged.valor = Number(merged.valor);
       if (merged.comprovante === "") merged.comprovante = null;
-      if (merged.data !== undefined) merged.data = merged.data;
-      if (merged.tipo !== undefined) merged.tipo = merged.tipo;
-      if (merged.conta_id === "") merged.conta_id = null as any;
+      if (merged.conta_id === "") merged.conta_id = null;
       delete merged.user_id;
 
-      const local = items.find(i => i.id === id);
-      if (local?.origem) throw new Error("Registro sincronizado (Tattoo) é somente leitura. Edite no módulo Tattoo.");
+      // Verificar se é readonly
+      const current = items.find(i => i.id === id);
+      if (current?.origem) throw new Error("Registro sincronizado (Tattoo) é somente leitura. Edite no módulo Tattoo.");
 
       const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
       const { data: rows, error } = await sb
@@ -258,47 +212,27 @@ export function useFinanceiroGeral() {
         .eq("user_id", user.id)
         .is("origem", null);
       if (error) throw error;
-
-      if (rows && rows.length) {
-        const r: any = rows[0];
-        const updated: FinanceiroGeralRecord = {
-          id: r.id,
-          user_id: r.user_id,
-          data: r.data,
-          descricao: r.descricao,
-          valor: Number(r.valor),
-          categoria: r.categoria,
-          forma_pagamento: r.forma_pagamento,
-          tipo: r.tipo,
-          comprovante: r.comprovante,
-          observacoes: r.observacoes,
-          conta_id: r.conta_id,
-          created_at: r.created_at,
-          updated_at: r.updated_at,
-          origem: r.origem,
-          origem_id: r.origem_id,
-          setor: r.setor,
-          readOnly: !!r.origem,
-          editLink: r.origem === 'financeiro_tattoo' && r.origem_id ? `/tattoo-financeiro?id=${r.origem_id}` : null,
-        };
-        setItems(prev => prev.map(i => (i.id === updated.id ? updated : i)));
-      } else {
-        await fetchAll();
-      }
+      return rows?.[0];
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: financeiroKeys.list(user!.id) });
       toast({ title: "Registro atualizado", description: "Alterações salvas com sucesso." });
-    } catch (err: any) {
+    },
+    onError: (err: Error) => {
       console.error("Erro ao atualizar financeiro_geral:", err);
       toast({ title: "Erro ao atualizar", description: err.message || "Tente novamente.", variant: "destructive" });
-      throw err;
-    }
-  };
+    },
+  });
 
-  const remove = async (id: string) => {
-    try {
+  // Mutation para remover
+  const removeMutation = useMutation({
+    mutationFn: async (id: string) => {
       if (!user) throw new Error("Usuário não autenticado");
+      
+      const current = items.find(i => i.id === id);
+      if (current?.origem) throw new Error("Registro sincronizado (Tattoo) é somente leitura. Exclua no módulo Tattoo.");
+
       const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
-      const local = items.find(i => i.id === id);
-      if (local?.origem) throw new Error("Registro sincronizado (Tattoo) é somente leitura. Exclua no módulo Tattoo.");
       const { error } = await sb
         .from("financeiro_geral")
         .delete()
@@ -306,87 +240,61 @@ export function useFinanceiroGeral() {
         .eq("user_id", user.id)
         .is("origem", null);
       if (error) throw error;
-      setItems(prev => prev.filter(i => i.id !== id));
-      toast({ title: "Registro removido", description: "Financeiro Tattoo excluído." });
-    } catch (err: any) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: financeiroKeys.list(user!.id) });
+      toast({ title: "Registro removido", description: "Financeiro excluído." });
+    },
+    onError: (err: Error) => {
       console.error("Erro ao remover financeiro_geral:", err);
       toast({ title: "Erro ao remover", description: err.message || "Tente novamente.", variant: "destructive" });
-      throw err;
-    }
-  };
+    },
+  });
 
+  // Realtime subscriptions
   useEffect(() => {
-    fetchAll();
     if (!user) return;
     const sb = isSupabaseLocalConfigured ? supabaseLocal : supabase;
+    
     const channel = sb
       .channel("realtime-financeiro_geral")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "financeiro_geral", filter: `user_id=eq.${user.id}` }, (payload) => {
-        const r: any = payload.new;
-        const newRecord: FinanceiroGeralRecord = {
-          id: r.id,
-          user_id: r.user_id,
-          data: r.data,
-          descricao: r.descricao,
-          valor: Number(r.valor),
-          categoria: r.categoria,
-          forma_pagamento: r.forma_pagamento,
-          tipo: r.tipo,
-          comprovante: r.comprovante,
-          observacoes: r.observacoes,
-          created_at: r.created_at,
-          updated_at: r.updated_at,
-          origem: r.origem,
-          origem_id: r.origem_id,
-          setor: r.setor,
-          readOnly: !!r.origem,
-          editLink: r.origem === 'financeiro_tattoo' && r.origem_id ? `/tattoo-financeiro?id=${r.origem_id}` : null,
-        };
-        setItems(prev => [newRecord, ...prev]);
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "financeiro_geral", filter: `user_id=eq.${user.id}` }, (payload) => {
-        const r: any = payload.new;
-        const updatedRecord: FinanceiroGeralRecord = {
-          id: r.id,
-          user_id: r.user_id,
-          data: r.data,
-          descricao: r.descricao,
-          valor: Number(r.valor),
-          categoria: r.categoria,
-          forma_pagamento: r.forma_pagamento,
-          tipo: r.tipo,
-          comprovante: r.comprovante,
-          observacoes: r.observacoes,
-          created_at: r.created_at,
-          updated_at: r.updated_at,
-          origem: r.origem,
-          origem_id: r.origem_id,
-          setor: r.setor,
-          readOnly: !!r.origem,
-          editLink: r.origem === 'financeiro_tattoo' && r.origem_id ? `/tattoo-financeiro?id=${r.origem_id}` : null,
-        };
-        setItems(prev => prev.map(i => (i.id === updatedRecord.id ? updatedRecord : i)));
-      })
-      .on("postgres_changes", { event: "DELETE", schema: "public", table: "financeiro_geral", filter: `user_id=eq.${user.id}` }, (payload) => {
-        setItems(prev => prev.filter(i => i.id !== (payload.old as any).id));
+      .on("postgres_changes", { event: "*", schema: "public", table: "financeiro_geral", filter: `user_id=eq.${user.id}` }, () => {
+        // Invalidar cache para refetch automático
+        queryClient.invalidateQueries({ queryKey: financeiroKeys.list(user.id) });
       })
       .subscribe();
 
     return () => {
       sb.removeChannel(channel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, queryClient]);
+
+  // API compatível com versão anterior
+  const insert = async (payload: FinanceiroGeralRecord) => {
+    await insertMutation.mutateAsync(payload);
+  };
+
+  const update = async (id: string, changes: Partial<FinanceiroGeralRecord>) => {
+    await updateMutation.mutateAsync({ id, changes });
+  };
+
+  const remove = async (id: string) => {
+    await removeMutation.mutateAsync(id);
+  };
 
   return {
     items,
     stats,
     loading,
     error,
-    fetchAll,
+    fetchAll: () => fetchAll(),
     insert,
     update,
     remove,
+    // Expor mutations para uso direto se necessário
+    insertMutation,
+    updateMutation,
+    removeMutation,
   };
 }
 

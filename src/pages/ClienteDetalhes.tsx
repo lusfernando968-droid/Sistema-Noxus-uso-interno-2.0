@@ -9,6 +9,7 @@ import { UserAvatar } from "@/components/profile/UserAvatar";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { ClienteDetalhesSkeleton } from "@/components/ui/skeletons";
 
 // Interfaces
 interface Cliente {
@@ -314,14 +315,7 @@ export default function ClienteDetalhes() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando dados do cliente...</p>
-        </div>
-      </div>
-    );
+    return <ClienteDetalhesSkeleton />;
   }
 
   if (!cliente) {

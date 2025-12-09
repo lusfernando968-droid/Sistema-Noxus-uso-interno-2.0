@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useProjetoDetalhesReducer } from "@/hooks/useProjetoDetalhesReducer";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { FeedbackManager } from "@/components/projetos/FeedbackManager";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu";
+import { ProjetoDetalhesSkeleton } from "@/components/ui/skeletons";
 
 // Interfaces
 interface Projeto {
@@ -64,53 +66,44 @@ export default function ProjetoDetalhes() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Dados do servidor
   const [projeto, setProjeto] = useState<Projeto | null>(null);
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
   const [agendamentos, setAgendamentos] = useState<AgendamentoProjeto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isAgendamentosDialogOpen, setIsAgendamentosDialogOpen] = useState(false);
-  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
-  const [agendamentoToCancel, setAgendamentoToCancel] = useState<AgendamentoProjeto | null>(null);
-  const [editingAgendamento, setEditingAgendamento] = useState<AgendamentoProjeto | null>(null);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editForm, setEditForm] = useState<{ titulo: string; descricao: string; data: string; hora: string; status: AgendamentoProjeto['status'] }>({
-    titulo: '',
-    descricao: '',
-    data: '',
-    hora: '',
-    status: 'agendado'
-  });
 
-  // Edição de sessão
-  const [editingSessao, setEditingSessao] = useState<Sessao | null>(null);
-  const [editSessaoDialogOpen, setEditSessaoDialogOpen] = useState(false);
-  const [editSessaoForm, setEditSessaoForm] = useState<{ data: string; valor: number; descricao: string; status: Sessao['status'] }>({
-    data: '',
-    valor: 0,
-    descricao: '',
-    status: 'agendada'
-  });
-  const [manualSessaoDialogOpen, setManualSessaoDialogOpen] = useState(false);
-  const [manualSessaoForm, setManualSessaoForm] = useState<{ data: string; valor: number; descricao: string; status: Sessao['status'] }>({
-    data: '',
-    valor: 0,
-    descricao: '',
-    status: 'concluida'
-  });
+  // Reducer para estados de UI complexos (dialogs, formulários de edição)
+  const { state: uiState, actions: uiActions } = useProjetoDetalhesReducer();
+
+  // Aliases para compatibilidade com código existente
+  const isAgendamentosDialogOpen = uiState.isAgendamentosDialogOpen;
+  const setIsAgendamentosDialogOpen = uiActions.setAgendamentosDialogOpen;
+  const cancelDialogOpen = uiState.cancelDialogOpen;
+  const setCancelDialogOpen = uiActions.setCancelDialogOpen;
+  const agendamentoToCancel = uiState.agendamentoToCancel;
+  const editingAgendamento = uiState.editingAgendamento;
+  const editDialogOpen = uiState.editDialogOpen;
+  const setEditDialogOpen = uiActions.setEditDialogOpen;
+  const editForm = uiState.editForm;
+  const setEditForm = (form: Partial<typeof uiState.editForm>) => uiActions.setEditForm(form);
+
+  // Edição de sessão - aliases
+  const editingSessao = uiState.editingSessao;
+  const editSessaoDialogOpen = uiState.editSessaoDialogOpen;
+  const setEditSessaoDialogOpen = uiActions.setEditSessaoDialogOpen;
+  const editSessaoForm = uiState.editSessaoForm;
+  const setEditSessaoForm = (form: Partial<typeof uiState.editSessaoForm>) => uiActions.setEditSessaoForm(form);
+  const manualSessaoDialogOpen = uiState.manualSessaoDialogOpen;
+  const setManualSessaoDialogOpen = uiActions.setManualSessaoDialogOpen;
+  const manualSessaoForm = uiState.manualSessaoForm;
+  const setManualSessaoForm = (form: Partial<typeof uiState.manualSessaoForm>) => uiActions.setManualSessaoForm(form);
   const parseDateOnly = (s: string) => {
     const [y, m, d] = (s || '').split('-').map(Number);
     return new Date(y || 1970, (m || 1) - 1, d || 1, 12);
   };
 
   const abrirEdicaoSessao = (s: Sessao) => {
-    setEditingSessao(s);
-    setEditSessaoForm({
-      data: s.data || '',
-      valor: s.valor || 0,
-      descricao: s.descricao || '',
-      status: s.status || 'agendada'
-    });
-    setEditSessaoDialogOpen(true);
+    uiActions.openEditSessaoDialog(s as Parameters<typeof uiActions.openEditSessaoDialog>[0]);
   };
 
   const mapSessaoStatusToPagamento = (status: Sessao['status']) => {
@@ -159,8 +152,7 @@ export default function ProjetoDetalhes() {
         status: editSessaoForm.status,
       } : s));
 
-      setEditSessaoDialogOpen(false);
-      setEditingSessao(null);
+      uiActions.closeEditSessaoDialog();
       toast({ title: 'Sessão atualizada', description: 'As alterações foram salvas.' });
 
       // Atualizar status automaticamente
@@ -410,15 +402,7 @@ export default function ProjetoDetalhes() {
   };
 
   const abrirEdicao = (a: AgendamentoProjeto) => {
-    setEditingAgendamento(a);
-    setEditForm({
-      titulo: a.titulo || '',
-      descricao: a.descricao || '',
-      data: a.data || '',
-      hora: a.hora || '',
-      status: a.status || 'agendado'
-    });
-    setEditDialogOpen(true);
+    uiActions.openEditAgendamentoDialog(a as Parameters<typeof uiActions.openEditAgendamentoDialog>[0]);
   };
 
   const salvarEdicao = async () => {
@@ -445,8 +429,7 @@ export default function ProjetoDetalhes() {
         hora: editForm.hora,
         status: editForm.status,
       } : a));
-      setEditDialogOpen(false);
-      setEditingAgendamento(null);
+      uiActions.closeEditAgendamentoDialog();
     } catch (error) {
       console.error('Erro ao salvar edição do agendamento:', error);
     }
@@ -582,14 +565,7 @@ export default function ProjetoDetalhes() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Carregando projeto...</p>
-        </div>
-      </div>
-    );
+    return <ProjetoDetalhesSkeleton />;
   }
 
   if (!projeto) {
@@ -862,7 +838,7 @@ export default function ProjetoDetalhes() {
                   </Select>
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" className="rounded-xl" onClick={() => { setEditDialogOpen(false); setEditingAgendamento(null); }}>Cancelar</Button>
+                  <Button variant="outline" className="rounded-xl" onClick={() => uiActions.closeEditAgendamentoDialog()}>Cancelar</Button>
                   <Button className="rounded-xl" onClick={salvarEdicao}>Salvar</Button>
                 </div>
               </div>
@@ -908,7 +884,7 @@ export default function ProjetoDetalhes() {
                   </Select>
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" className="rounded-xl" onClick={() => { setEditSessaoDialogOpen(false); setEditingSessao(null); }}>Cancelar</Button>
+                  <Button variant="outline" className="rounded-xl" onClick={() => uiActions.closeEditSessaoDialog()}>Cancelar</Button>
                   <Button className="rounded-xl" onClick={salvarEdicaoSessao}>Salvar</Button>
                 </div>
               </div>

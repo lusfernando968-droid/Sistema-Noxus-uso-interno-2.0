@@ -12,6 +12,7 @@ import { SchedulesTab } from "@/components/dashboard/SchedulesTab";
 import { MetasTab } from "@/components/dashboard/MetasTab";
 import { MetaFormDialog } from "@/components/dashboard/MetaFormDialog";
 import { SmartInsights } from "@/components/dashboard/SmartInsights";
+import { InventoryTab } from "@/components/dashboard/InventoryTab";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { MetaComProgresso } from "@/hooks/useMetas";
 import { ENABLE_METAS } from "@/lib/config";
@@ -110,6 +111,7 @@ const Index = () => {
             <TabsTrigger value="clients" className="rounded-xl">Clientes</TabsTrigger>
             <TabsTrigger value="projects" className="rounded-xl">Projetos</TabsTrigger>
             <TabsTrigger value="schedules" className="rounded-xl">Agendamentos</TabsTrigger>
+            <TabsTrigger value="estoque" className="rounded-xl">Estoque</TabsTrigger>
             <TabsTrigger value="finance" className="rounded-xl">Financeiro</TabsTrigger>
           </TabsList>
 
@@ -152,6 +154,10 @@ const Index = () => {
 
           <TabsContent value="schedules" className="space-y-4">
             <SchedulesTab agendamentos={agendamentos} />
+          </TabsContent>
+
+          <TabsContent value="estoque" className="space-y-4">
+            <InventoryTab />
           </TabsContent>
 
           {/* Nova aba principal dedicada aos Insights Inteligentes */}

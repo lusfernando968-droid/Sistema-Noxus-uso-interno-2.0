@@ -1,23 +1,33 @@
-import { Home, Users, Briefcase, DollarSign, Calendar, Package, Moon, Sun, Loader2, BookOpen } from "lucide-react";
+import { Home, Users, Briefcase, DollarSign, Calendar, Package, Moon, Sun, Loader2, BookOpen, FileText, LayoutGrid, Clipboard } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { useBrandingContext } from "@/contexts/BrandingContext";
+import { useAuth } from "@/contexts/AuthContext";
 
-const menuItems = [
-  { icon: Home, label: "Dashboard", path: "/" },
-  { icon: Users, label: "Clientes", path: "/clientes" },
-  { icon: Briefcase, label: "Projetos", path: "/projetos" },
-  { icon: Calendar, label: "Agendamentos", path: "/agendamentos" },
-  { icon: DollarSign, label: "Financeiro", path: "/tattoo/financeiro" },
-  { icon: DollarSign, label: "Financeiro Tattoo", path: "/financeiro" },
-  { icon: BookOpen, label: "Conhecimento", path: "/conhecimento" },
+const allMenuItems = [
+  { icon: Home, label: "Dashboard", path: "/", role: ["admin", "manager"] },
+  { icon: Users, label: "Clientes", path: "/clientes", role: ["admin", "manager", "assistant"] },
+  { icon: Briefcase, label: "Projetos", path: "/projetos", role: ["admin", "manager", "assistant"] },
+  { icon: Calendar, label: "Agendamentos", path: "/agendamentos", role: ["admin", "manager", "assistant"] },
+  { icon: FileText, label: "Orçamentos", path: "/orcamento", role: ["admin", "manager", "assistant"] },
+  { icon: LayoutGrid, label: "Central de Atendimento", path: "/central-atendente", role: ["admin", "assistant"] },
+  { icon: Clipboard, label: "Leads e Orçamentos", path: "/leads-orcamentos", role: ["admin", "assistant"] },
+  { icon: DollarSign, label: "Financeiro", path: "/tattoo/financeiro", role: ["admin", "manager"] },
+  { icon: DollarSign, label: "Financeiro Tattoo", path: "/financeiro", role: ["admin", "manager"] },
+  { icon: BookOpen, label: "Conhecimento", path: "/conhecimento", role: ["admin", "manager"] },
 ];
 
 export function Sidebar() {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
   const { studioName, logoUrl, studioNameUrl } = useBrandingContext();
+  const { userRole } = useAuth();
+
+  const menuItems = allMenuItems.filter(item => {
+    if (!userRole) return false;
+    return item.role && item.role.includes(userRole);
+  });
 
   return (
     <aside className="w-52 h-screen bg-card border-r border-border flex flex-col">

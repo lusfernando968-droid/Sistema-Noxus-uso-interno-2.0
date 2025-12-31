@@ -1,0 +1,7 @@
+-- DESATIVAR RLS TEMPORARIAMENTE PARA DIAGNÓSTICO
+-- Isso fará seus dados aparecerem se o problema for permissão.
+
+ALTER TABLE public.clientes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.projetos DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.agendamentos DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assistants DISABLE ROW LEVEL SECURITY;

@@ -27,6 +27,7 @@ export function ProfileDropdown() {
     admin: "Administrador",
     manager: "Gerente",
     user: "Usuário",
+    assistant: "Assistente",
   };
 
   return (
@@ -51,11 +52,13 @@ export function ProfileDropdown() {
       <DropdownMenuContent align="end" className="w-56 rounded-xl">
         <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate("/perfil")} className="rounded-lg">
-          <Settings className="mr-2 h-4 w-4" />
-          <span>Configurações</span>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
+        {userRole !== 'assistant' && (
+          <DropdownMenuItem onClick={() => navigate("/perfil")} className="rounded-lg">
+            <Settings className="mr-2 h-4 w-4" />
+            <span>Configurações</span>
+          </DropdownMenuItem>
+        )}
+        {userRole !== 'assistant' && <DropdownMenuSeparator />}
         <DropdownMenuItem onClick={handleSignOut} className="rounded-lg text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Sair</span>

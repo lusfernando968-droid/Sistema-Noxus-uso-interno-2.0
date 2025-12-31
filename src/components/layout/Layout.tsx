@@ -1,14 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { Header } from "./Header";
-import { DockNav } from "./DockNav";
+import { DockAdmin } from "./DockAdmin";
+import { DockAssistant } from "./DockAssistant";
 import { Sidebar } from "./Sidebar";
 import { useNavigation } from "@/contexts/NavigationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { FloatingAIChat } from "@/components/layout/FloatingAIChat";
+
+import { AssistantActivityTracker } from "./AssistantActivityTracker";
 
 interface LayoutProps {
   children: React.ReactNode;
 }
+
 
 export function Layout({ children }: LayoutProps) {
   const { navigationType, isNavigationVisible } = useNavigation();
@@ -18,14 +23,25 @@ export function Layout({ children }: LayoutProps) {
   // Rotas onde o dock global deve ficar oculto
   const hideDockRoutes = ["/tattoo/financeiro", "/carteira"];
   const shouldHideDock = hideDockRoutes.includes(location.pathname);
-  
+
   const showSidebar = navigationType === "sidebar";
   const showDock = navigationType === "dock";
   const sidebarVisible = showSidebar && (isNavigationVisible || isHoveringMenuArea);
   const dockVisible = showDock && (isNavigationVisible || isHoveringMenuArea);
 
+  // Forçar modo Dock para assistentes
+  const { userRole } = useAuth();
+  const { setNavigationType } = useNavigation();
+
+  useEffect(() => {
+    if (userRole === "assistant" && navigationType !== "dock") {
+      setNavigationType("dock");
+    }
+  }, [userRole, navigationType, setNavigationType]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <AssistantActivityTracker />
       {/* Área de hover para sidebar */}
       {showSidebar && !isNavigationVisible && (
         <div
@@ -34,50 +50,49 @@ export function Layout({ children }: LayoutProps) {
           onMouseLeave={() => setIsHoveringMenuArea(false)}
         />
       )}
-      
+
       {/* Sidebar */}
       {showSidebar && (
         <div
-          className={`transition-transform duration-300 ease-in-out ${
-            sidebarVisible ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          className={`transition-transform duration-300 ease-in-out ${sidebarVisible ? 'translate-x-0' : '-translate-x-full'
+            }`}
           onMouseEnter={() => setIsHoveringMenuArea(true)}
           onMouseLeave={() => setIsHoveringMenuArea(false)}
         >
           <Sidebar />
         </div>
       )}
-      
+
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto p-6 pb-24">{children}</main>
-        
+
         {/* Dock */}
         {showDock && isNavigationVisible && !shouldHideDock && (
-          <DockNav />
+          // Se for assistente, mostra DockAssistant. Todo o resto (Admin, User, Null) vê DockNav.
+          (userRole === "assistant") ? <DockAssistant /> : <DockAdmin />
         )}
 
         {/* Chat de IA flutuante */}
         <FloatingAIChat />
       </div>
-      
+
       {/* Dock suspenso quando visibilidade desabilitada */}
       {showDock && !isNavigationVisible && !shouldHideDock && (
         <div
-          className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-300 ease-in-out ${
-            dockVisible 
-              ? 'translate-y-0 opacity-100 scale-100' 
-              : 'translate-y-8 opacity-0 scale-95'
-          }`}
+          className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 z-40 transition-all duration-300 ease-in-out ${dockVisible
+            ? 'translate-y-0 opacity-100 scale-100'
+            : 'translate-y-8 opacity-0 scale-95'
+            }`}
           onMouseEnter={() => setIsHoveringMenuArea(true)}
           onMouseLeave={() => setIsHoveringMenuArea(false)}
         >
           <div className="bg-background/90 backdrop-blur-xl border border-foreground/20 rounded-full shadow-2xl p-2">
-            <DockNav />
+            {(userRole === "assistant") ? <DockAssistant /> : <DockAdmin />}
           </div>
         </div>
       )}
-      
+
       {/* Área de hover para dock */}
       {showDock && !isNavigationVisible && !shouldHideDock && (
         <div

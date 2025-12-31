@@ -3,14 +3,14 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { supabaseLocal, isSupabaseLocalConfigured } from "@/integrations/supabase/local";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  Agendamento, 
-  AgendamentoFormData, 
-  AgendamentoStatus, 
-  Cliente, 
-  Projeto, 
+import {
+  Agendamento,
+  AgendamentoFormData,
+  AgendamentoStatus,
+  Cliente,
+  Projeto,
   INITIAL_FORM_DATA,
-  DEFAULT_SESSION_MINUTES 
+  DEFAULT_SESSION_MINUTES
 } from "./types";
 import { isUUID, addMinutes, getStatusLabel } from "./utils";
 
@@ -30,7 +30,7 @@ export function useAgendamentosCrud({
   checkAgendamentosMilestone,
 }: UseAgendamentosCrudProps) {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, masterId } = useAuth();
   const supabaseClient = isSupabaseLocalConfigured ? supabaseLocal : supabase;
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -77,7 +77,7 @@ export function useAgendamentosCrud({
       setAgendamentos(prev => prev.map(a => a.id === editingAgendamento.id ? agendamentoAtualizado : a));
 
       try {
-        if (user && isUUID(editingAgendamento.id)) {
+        if (masterId && isUUID(editingAgendamento.id)) {
           const projetoSelecionado = projetos.find((p) => p.titulo === formData.tatuador) || projetos.find((p) => p.id === formData.tatuador);
           const basePayload: any = {
             titulo: formData.servico || formData.cliente_nome,
@@ -95,7 +95,7 @@ export function useAgendamentosCrud({
               .from('agendamentos')
               .update({ ...basePayload, valor_estimado: formData.valor_estimado })
               .eq('id', editingAgendamento.id)
-              .eq('user_id', user.id)
+              .eq('user_id', masterId)
               .select('id')
               .maybeSingle();
             if (error) throw error;
@@ -107,7 +107,7 @@ export function useAgendamentosCrud({
                 .from('agendamentos')
                 .update(basePayload)
                 .eq('id', editingAgendamento.id)
-                .eq('user_id', user.id)
+                .eq('user_id', masterId)
                 .select('id')
                 .maybeSingle();
               if (error2) throw error2;
@@ -129,7 +129,7 @@ export function useAgendamentosCrud({
         toast({ title: "Erro ao atualizar no banco", description: "Tente novamente mais tarde.", variant: "destructive" });
       }
     } else {
-      if (user) {
+      if (masterId) {
         try {
           const projeto = projetos.find(p => p.titulo === formData.tatuador);
           if (!projeto?.id) {
@@ -140,7 +140,7 @@ export function useAgendamentosCrud({
           const { data: inserted, error } = await supabase
             .from('agendamentos')
             .insert({
-              user_id: user.id,
+              user_id: masterId,
               projeto_id: projeto.id,
               titulo: formData.servico || `${formData.cliente_nome}`,
               descricao: formData.observacoes,
@@ -160,7 +160,7 @@ export function useAgendamentosCrud({
             await supabase
               .from('transacoes')
               .insert({
-                user_id: user.id,
+                user_id: masterId,
                 tipo: 'RECEITA',
                 categoria: 'Serviços',
                 valor: formData.valor_estimado,
@@ -253,7 +253,7 @@ export function useAgendamentosCrud({
     setAgendamentos(prev => prev.filter(a => a.id !== id));
 
     try {
-      if (user && isUUID(id)) {
+      if (masterId && isUUID(id)) {
         const { error } = await supabaseClient.from('agendamentos').delete().eq('id', id);
         if (error) throw error;
 
@@ -275,9 +275,9 @@ export function useAgendamentosCrud({
     ));
 
     try {
-      if (user && isUUID(id)) {
+      if (masterId && isUUID(id)) {
         const owner = await fetchAgendamentoOwner(id);
-        if (!owner || String(owner.user_id) !== String(user.id)) {
+        if (!owner || String(owner.user_id) !== String(masterId)) {
           throw new Error('owner_mismatch');
         }
         const { data: updated, error } = await supabaseClient
@@ -310,12 +310,12 @@ export function useAgendamentosCrud({
     ));
 
     try {
-      if (user && isUUID(appointmentId)) {
+      if (masterId && isUUID(appointmentId)) {
         const { error } = await supabaseClient
           .from('agendamentos')
           .update({ data: newDate })
           .eq('id', appointmentId)
-          .eq('user_id', user.id);
+          .eq('user_id', masterId);
         if (error) throw error;
       }
       toast({ title: "Agendamento movido com sucesso!" });

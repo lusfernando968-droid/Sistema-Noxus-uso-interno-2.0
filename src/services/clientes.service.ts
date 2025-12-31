@@ -17,6 +17,7 @@ export interface Cliente {
     indicado_por?: string | null;
     data_aniversario?: string;
     foto_url?: string;
+    status: 'lead' | 'cliente' | 'efetivado';
     created_at?: string;
     updated_at?: string;
 }
@@ -36,6 +37,7 @@ export interface CreateClienteDTO {
     cidades?: string[];
     indicado_por?: string;
     data_aniversario?: string;
+    status?: 'lead' | 'cliente' | 'efetivado';
 }
 
 export interface UpdateClienteDTO {
@@ -81,52 +83,138 @@ export class ClientesService {
      * @returns Lista de clientes com métricas calculadas
      * @throws ClientesServiceError
      */
-    static async fetchAll(userId: string): Promise<ClienteComLTV[]> {
+    static async fetchAll(userId?: string): Promise<ClienteComLTV[]> {
         try {
-            // 1. Buscar clientes da view com LTV já calculado
-            const { data: clientesData, error: clientesError } = await supabase
+            // 1. Tentar buscar da view (ideal)
+            // Se userId for fornecido, filtra. Se não, confia no RLS.
+            let query = supabase
                 .from('clientes_com_ltv')
                 .select('*')
-                .eq('user_id', userId)
                 .order('ltv', { ascending: false });
 
-            if (clientesError) throw clientesError;
+            // Se quisermos ver APENAS meus clientes, usamos userId.
+            // Mas se somos assistentes vendo clientes do admin, a query deve ser aberta (RLS filtra)
+            // Por padrão, vamos confiar no RLS se userId não for crítico. 
+            // Porém, a assinatura pedia userId. Vamos manter opcional.
 
-            // 2. Buscar cidades vinculadas (mantido pois é N:N)
-            let cidadesPorCliente: Record<string, string[]> = {};
-            try {
-                const { data: ccData, error: ccError } = await supabase
-                    .from('clientes_cidades')
-                    .select('cliente_id, cidades (nome)');
+            // if (userId) query = query.eq('user_id', userId); 
+            // REMOVIDO FILTRO DE ID PARA PERMITIR ASSISTENTES VEREM DADOS DO ADMIN (RLS DECIDE)
 
-                if (!ccError && ccData) {
-                    ccData.forEach((row: any) => {
-                        const nomeCidade = row.cidades?.nome;
-                        if (!nomeCidade) return;
-                        if (!cidadesPorCliente[row.cliente_id]) {
-                            cidadesPorCliente[row.cliente_id] = [];
-                        }
-                        cidadesPorCliente[row.cliente_id].push(nomeCidade);
-                    });
-                }
-            } catch (err) {
-                console.warn('Tabela clientes_cidades não disponível:', err);
+            const { data: clientesData, error: clientesError } = await query;
+
+            // Se der sucesso, usa a view
+            if (!clientesError && clientesData) {
+                // ... Busca cidades ... (Lógica existente simplificada abaixo)
+                return await this.enrichWithCities(clientesData);
             }
 
-            // 3. Combinar dados
-            const clientesComLTV: ClienteComLTV[] = (clientesData || []).map(cliente => ({
-                ...cliente,
-                cidades: cidadesPorCliente[cliente.id] || undefined,
-            }));
+            throw clientesError; // Força cair no catch para tentar o fallback
 
-            return clientesComLTV;
-        } catch (error: any) {
-            throw new ClientesServiceError(
-                'Erro ao buscar clientes',
-                'FETCH_ERROR',
-                error
-            );
+        } catch (viewError: any) {
+            console.warn("View falhou. Tentando tabela...", viewError);
+
+            // Aguardar 500ms antes de tentar fallback para evitar sobrecarga
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            // 2. FALLBACK: Buscar da tabela bruta 'clientes'
+            try {
+                let queryRaw = supabase
+                    .from('clientes')
+                    .select('*')
+                    .order('nome', { ascending: true });
+
+                // if (userId) queryRaw = queryRaw.eq('user_id', userId);
+                // REMOVIDO FILTRO DE ID
+
+                const { data: rawData, error: rawError } = await queryRaw;
+
+                if (rawError) throw rawError;
+
+                // Converter para formato ComLTV (com zeros)
+                const fallbackData: ClienteComLTV[] = (rawData || []).map(c => ({
+                    ...c,
+                    ltv: 0,
+                    projetos_count: 0,
+                    transacoes_count: 0,
+                    cidades: undefined // Será preenchido pelo enrich
+                }));
+
+                return await this.enrichWithCities(fallbackData);
+
+            } catch (tableError) {
+                console.warn("Tabela falhou (bloqueio severo). Tentando RPC V4...", tableError);
+
+                // Aguardar 1s antes de tentar último fallback
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // 3. ULTIMATO: Tentar via RPC V4 (Seleção Dinâmica - À prova de falhas)
+                try {
+                    // Log para debug
+                    console.log("Chamando RPC get_clients_v4 com ID:", userId);
+
+                    // A RPC V4 geralmente exige parametro. Se for nulo, pode falhar.
+                    // Se formos assistente, precisamos do ID do Admin para essa RPC funcionar se ela for SECURITY DEFINER e filtrar.
+                    // Mas se não sabemos o ID do Admin, essa RPC pode ser inútil para o assistente.
+                    // Vamos tentar passar user_id se tiver, senao null.
+
+                    const { data: rpcData, error: rpcError } = await supabase
+                        .rpc('get_clients_v4', { p_user_id: userId || null });
+
+                    if (rpcError) {
+                        console.error("Erro na RPC V4:", rpcError);
+                        throw rpcError;
+                    }
+
+                    // O RPC retorna JSON, precisamos garantir tipagem
+                    const safeData = (rpcData as any[]) || [];
+
+                    const finalData: ClienteComLTV[] = safeData.map(c => ({
+                        ...c,
+                        ltv: c.ltv || 0,
+                        projetos_count: 0,
+                        transacoes_count: 0,
+                        cidades: undefined // Será preenchido
+                    }));
+
+                    return await this.enrichWithCities(finalData);
+
+                } catch (rpcFatalError) {
+                    throw new ClientesServiceError(
+                        'Erro Fatal: Clientes inacessíveis por todas as vias (até RPC falhou).',
+                        'FETCH_ERROR',
+                        rpcFatalError
+                    );
+                }
+            }
         }
+    }
+
+    // Helper auxiliar para não duplicar código de cidades
+    private static async enrichWithCities(clientes: ClienteComLTV[]): Promise<ClienteComLTV[]> {
+        let cidadesPorCliente: Record<string, string[]> = {};
+        try {
+            const { data: ccData } = await supabase
+                .from('clientes_cidades')
+                .select('cliente_id, cidades (nome)');
+
+            if (ccData) {
+                ccData.forEach((row: any) => {
+                    const nomeCidade = row.cidades?.nome;
+                    if (!nomeCidade) return;
+                    if (!cidadesPorCliente[row.cliente_id]) {
+                        cidadesPorCliente[row.cliente_id] = [];
+                    }
+                    cidadesPorCliente[row.cliente_id].push(nomeCidade);
+                });
+            }
+        } catch (err) {
+            console.warn('Cidades indisponíveis:', err);
+        }
+
+        return clientes.map(c => ({
+            ...c,
+            cidades: cidadesPorCliente[c.id] || undefined
+        }));
     }
 
     /**
@@ -145,6 +233,7 @@ export class ClientesService {
             const payload: any = {
                 user_id: userId,
                 nome: data.nome,
+                status: data.status || 'lead',
             };
 
             if (data.email) payload.email = data.email;

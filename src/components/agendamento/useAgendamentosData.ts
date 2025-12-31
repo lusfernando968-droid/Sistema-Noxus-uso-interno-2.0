@@ -7,7 +7,7 @@ import { addMinutes } from "./utils";
 
 export function useAgendamentosData() {
   const { checkAgendamentosMilestone } = useAchievementNotifications();
-  const { user } = useAuth();
+  const { user, masterId } = useAuth();
 
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -31,9 +31,11 @@ export function useAgendamentosData() {
   useEffect(() => {
     const fetchClientes = async () => {
       try {
+        if (!masterId) return;
         const { data, error } = await supabase
           .from("clientes")
           .select("id, nome")
+          .eq("user_id", masterId)
           .order("nome");
         if (error) throw error;
         setClientes(data || []);
@@ -41,16 +43,18 @@ export function useAgendamentosData() {
         console.error("Erro ao buscar clientes:", err);
       }
     };
-    fetchClientes();
-  }, []);
+    if (masterId) fetchClientes();
+  }, [masterId]);
 
   // Buscar lista de projetos
   useEffect(() => {
     const fetchProjetos = async () => {
       try {
+        if (!masterId) return;
         const { data, error } = await supabase
           .from("projetos")
           .select("id, titulo, valor_por_sessao, cliente_id")
+          .eq("user_id", masterId)
           .order("titulo");
         if (error) throw error;
         setProjetos(data || []);
@@ -58,8 +62,8 @@ export function useAgendamentosData() {
         console.error("Erro ao buscar projetos:", err);
       }
     };
-    fetchProjetos();
-  }, []);
+    if (masterId) fetchProjetos();
+  }, [masterId]);
 
   // Dados demo (sem login)
   useEffect(() => {
@@ -102,8 +106,8 @@ export function useAgendamentosData() {
   useEffect(() => {
     const fetchDbAgendamentos = async () => {
       try {
-        if (!user) {
-          setLoading(false);
+        if (!user || !masterId) {
+          if (!user) setLoading(false);
           return;
         }
         if (projetos.length === 0 || clientes.length === 0) return;
@@ -111,7 +115,7 @@ export function useAgendamentosData() {
         const { data, error } = await supabase
           .from('agendamentos')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', masterId) // Use masterId
           .order('created_at', { ascending: false });
         if (error) throw error;
 
@@ -144,7 +148,7 @@ export function useAgendamentosData() {
       }
     };
     fetchDbAgendamentos();
-  }, [user, projetos, clientes]);
+  }, [user, masterId, projetos, clientes]);
 
   return {
     agendamentos,

@@ -1,25 +1,35 @@
 import { useState, useRef, useEffect } from "react";
-import { BarChart3, Users, Briefcase, Calendar, DollarSign, Package, BookOpen, Megaphone } from "lucide-react";
+import { BarChart3, Users, Briefcase, Calendar, DollarSign, Package, BookOpen, Megaphone, LayoutGrid, Clipboard } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useNavigation } from "@/contexts/NavigationContext";
+import { useAuth } from "@/contexts/AuthContext";
 
-const menuItems = [
-  { icon: BarChart3, label: "Dashboard", path: "/noxus" },
-  { icon: Users, label: "Clientes", path: "/clientes" },
-  { icon: Briefcase, label: "Projetos", path: "/projetos" },
-  { icon: Calendar, label: "Agendamentos", path: "/agendamentos" },
-  { icon: Megaphone, label: "Marketing", path: "/marketing" },
-  { icon: Package, label: "Estoque", path: "/estoque" },
-  { icon: DollarSign, label: "Financeiro Tattoo", path: "/financeiro" },
+const allMenuItems = [
+  { icon: BarChart3, label: "Dashboard", path: "/noxus", role: ["admin", "manager"] },
+  { icon: Users, label: "Clientes", path: "/clientes", role: ["admin", "manager", "assistant"] },
+  { icon: Briefcase, label: "Projetos", path: "/projetos", role: ["admin", "manager", "assistant"] },
+  { icon: Calendar, label: "Agendamentos", path: "/agendamentos", role: ["admin", "manager", "assistant"] },
+  { icon: LayoutGrid, label: "Central", path: "/central-atendente", role: ["admin", "assistant"] },
+  { icon: Clipboard, label: "Leads", path: "/leads-orcamentos", role: ["admin", "assistant"] },
+  { icon: Megaphone, label: "Marketing", path: "/marketing", role: ["admin", "manager"] },
+  { icon: Package, label: "Estoque", path: "/estoque", role: ["admin", "manager"] },
+  { icon: DollarSign, label: "Financeiro Tattoo", path: "/financeiro", role: ["admin", "manager"] },
 ];
 
-export function DockNav() {
+export function DockAdmin() {
   const location = useLocation();
   const { isNavigationVisible } = useNavigation();
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isHovering, setIsHovering] = useState(false);
   const dockRef = useRef<HTMLDivElement>(null);
+  const { userRole } = useAuth();
+
+  const menuItems = allMenuItems.filter(item => {
+    // Se não tiver role ou for "user" (fallback), mostra itens de admin/manager
+    if (!userRole || userRole === "user") return item.role && (item.role.includes("admin") || item.role.includes("manager"));
+    return item.role && item.role.includes(userRole);
+  });
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (dockRef.current) {
@@ -33,14 +43,14 @@ export function DockNav() {
 
   const getIconScale = (index: number) => {
     if (!isHovering) return 1;
-    
+
     const iconWidth = 60; // Largura aproximada de cada ícone + gap
     const iconCenterX = (index * iconWidth) + (iconWidth / 2);
     const distance = Math.abs(mousePosition.x - iconCenterX);
     const maxDistance = 120; // Distância máxima para o efeito
-    
+
     if (distance > maxDistance) return 1;
-    
+
     // Escala de 1 a 1.3 baseada na proximidade (mais sutil)
     const scale = 1 + (0.3 * (1 - distance / maxDistance));
     return Math.max(1, Math.min(1.3, scale));
@@ -48,10 +58,10 @@ export function DockNav() {
 
   const getDockScale = () => {
     if (!isHovering) return 1;
-    
+
     // Calcula a escala máxima dos ícones atualmente visíveis
     const maxScale = Math.max(...menuItems.map((_, index) => getIconScale(index)));
-    
+
     // O container cresce proporcionalmente, mas de forma mais sutil
     return 1 + (maxScale - 1) * 0.2; // 20% do crescimento dos ícones
   };
@@ -60,15 +70,15 @@ export function DockNav() {
     <div className={isNavigationVisible ? "fixed bottom-6 left-1/2 -translate-x-1/2 z-50" : "relative"}>
       <div className="relative">
         {/* Glow effect */}
-        <div 
+        <div
           className="absolute inset-0 bg-gradient-to-r from-foreground/10 via-foreground/20 to-foreground/10 blur-2xl rounded-full transition-transform duration-200 ease-out"
           style={{
             transform: `scale(${getDockScale()})`,
           }}
         />
-        
+
         {/* Main dock container */}
-        <div 
+        <div
           ref={dockRef}
           className="relative bg-background/90 backdrop-blur-3xl border border-foreground/20 rounded-full shadow-2xl px-4 py-3 transition-transform duration-200 ease-out"
           style={{
@@ -91,8 +101,8 @@ export function DockNav() {
                         <div
                           className={`
                             relative p-2.5 rounded-full transition-all duration-200 ease-out group
-                            ${isActive 
-                              ? "bg-primary/30 backdrop-blur-xl border border-primary/40 text-primary shadow-2xl shadow-primary/30" 
+                            ${isActive
+                              ? "bg-primary/30 backdrop-blur-xl border border-primary/40 text-primary shadow-2xl shadow-primary/30"
                               : "bg-foreground/15 backdrop-blur-md border border-foreground/25 hover:bg-foreground/25 hover:border-foreground/45 hover:shadow-xl hover:shadow-foreground/20 active:scale-95"
                             }
                           `}
@@ -101,17 +111,16 @@ export function DockNav() {
                             zIndex: Math.round(scale * 10),
                           }}
                         >
-                          <Icon className={`w-4 h-4 transition-all duration-300 ${
-                            isActive 
-                              ? "drop-shadow-lg text-primary" 
-                              : "text-foreground/90 group-hover:text-foreground group-hover:drop-shadow-md"
-                          }`} />
+                          <Icon className={`w-4 h-4 transition-all duration-300 ${isActive
+                            ? "drop-shadow-lg text-primary"
+                            : "text-foreground/90 group-hover:text-foreground group-hover:drop-shadow-md"
+                            }`} />
                           {isActive && (
-                              <>
-                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-2 h-0.5 bg-primary/80 rounded-full shadow-lg shadow-primary/30" />
-                                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-2 h-0.5 bg-primary/60 rounded-full animate-pulse" />
-                              </>
-                            )}
+                            <>
+                              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-2 h-0.5 bg-primary/80 rounded-full shadow-lg shadow-primary/30" />
+                              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-2 h-0.5 bg-primary/60 rounded-full animate-pulse" />
+                            </>
+                          )}
                         </div>
                       </Link>
                     </TooltipTrigger>

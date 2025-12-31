@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { chat as geminiChat, ChatMessage } from "@/integrations/gemini/client";
+import { chatWithAIML, AIMLMessage } from "@/integrations/aiml";
 import { Bot, Send, Loader2 } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 
 export function AIChat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const [messages, setMessages] = useState<AIMLMessage[]>([
     { role: "system", content: "Você é um assistente de IA focado em gerar insights práticos sobre clientes, projetos, agenda e financeiro da Noxus. IMPORTANTE: Sempre responda em português brasileiro (pt-BR), usando linguagem clara e profissional." },
   ]);
   const [input, setInput] = useState("");
@@ -126,7 +126,7 @@ export function AIChat() {
     const trimmed = input.trim();
     if (!trimmed || loading) return;
     setError(null);
-    const next = [...messages, { role: "user", content: trimmed }];
+    const next: AIMLMessage[] = [...messages, { role: "user" as const, content: trimmed }];
     setMessages(next);
     setInput("");
     setLoading(true);
@@ -134,12 +134,12 @@ export function AIChat() {
       // Injeta contexto de dados do sistema no primeiro system message
       const sys = messages[0];
       const context = includeContext && !dataLoading ? buildContextSummary() : "";
-      const sysWithCtx: ChatMessage = context
-        ? { role: "system", content: `${sys.content}\n\nContexto do sistema (30d):\n${context}\n\nUse o contexto acima para responder com recomendações práticas.` }
+      const sysWithCtx: AIMLMessage = context
+        ? { role: "system" as const, content: `${sys.content}\n\nContexto do sistema (30d):\n${context}\n\nUse o contexto acima para responder com recomendações práticas.` }
         : sys;
-      const msgsForAI = [sysWithCtx, ...messages.slice(1), { role: "user", content: trimmed }];
-      const reply = await geminiChat(msgsForAI);
-      setMessages([...next, reply]);
+      const msgsForAI: AIMLMessage[] = [sysWithCtx, ...messages.slice(1), { role: "user" as const, content: trimmed }];
+      const replyText = await chatWithAIML(msgsForAI);
+      setMessages([...next, { role: "assistant" as const, content: replyText }]);
     } catch (e: any) {
       setError(e?.message || "Falha ao consultar a IA");
     } finally {
@@ -225,7 +225,7 @@ export function AIChat() {
             <Bot className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <CardTitle className="text-base">Chat de IA (Insights)</CardTitle>
+            <CardTitle className="text-base">Assistente IA</CardTitle>
             <p className="text-[11px] leading-tight text-muted-foreground">Converse com a IA para obter recomendações e análises.</p>
           </div>
         </div>

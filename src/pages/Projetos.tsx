@@ -86,52 +86,74 @@ export default function Projetos() {
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const { user } = useAuth();
+  const { user, masterId } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Atualização de status (usado pelo Kanban)
-  const handleStatusChange = async (projetoId: string, newStatus: Status) => {
+  // ... (existing code)
+
+  const fetchProjetos = async () => {
+    if (!masterId) return; // Wait for masterId
+
+    setLoading(true);
+
     try {
-      // Atualiza otimisticamente no estado local
-      setProjetos((prev) => prev.map((p) => (p.id === projetoId ? { ...p, status: newStatus } : p)));
+      // 1. Tenta buscar projetos via RPC otimizado (v4)
+      // O RPC já retorna: projetos + cliente.nome + sessoes_realizadas + valor_pago + fotos_count
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('get_projects_v4', { p_user_id: masterId });
 
-      // Persistir no Supabase
-      const { error } = await supabase
-        .from("projetos")
-        .update({ status: newStatus })
-        .eq("id", projetoId);
+      if (rpcError) throw rpcError;
 
-      if (error) throw error;
+      const projectsRaw = (rpcData as any[]) || [];
 
-      toast({
-        title: "Status atualizado",
-        description: `Projeto movido para ${statusLabels[newStatus]}`,
+      // 2. Processa os dados recebidos para formatar campos calculados se necessário
+      const processedProjects = projectsRaw.map((item: any) => {
+        const sessoesTotal = item.quantidade_sessoes || 0;
+        const sessoesRealizadas = item.sessoes_realizadas || 0;
+
+        // Cálculo de progresso
+        let progressoCalc = 0;
+        if (sessoesTotal > 0) {
+          progressoCalc = Math.round((sessoesRealizadas / sessoesTotal) * 100);
+          if (progressoCalc > 100) progressoCalc = 100;
+        }
+
+        return {
+          ...item,
+          status: item.status as Status,
+          valor_total: item.valor_total || 0,
+          valor_pago: item.valor_pago || 0, // Vem do RPC
+          sessoes_total: sessoesTotal,
+          sessoes_realizadas: sessoesRealizadas, // Vem do RPC
+          fotos_count: item.fotos_count || 0, // Vem do RPC
+          feedback_count: item.feedback_count || 0, // Vem do RPC
+          progresso: progressoCalc,
+        } as Projeto;
       });
-    } catch (err) {
-      console.error("Erro ao atualizar status:", err);
+
+      // Filtros de Status (Client-side ainda, mas rápido pois já temos todos os dados)
+      setProjetos(processedProjects);
+
+    } catch (error) {
+      console.error("Erro ao carregar projetos:", error);
       toast({
-        title: "Erro ao atualizar status",
-        description: "Não foi possível alterar o status do projeto.",
+        title: "Erro ao carregar projetos",
+        description: "Não foi possível carregar a lista de projetos.",
         variant: "destructive",
       });
-      // Em caso de erro, recarrega dados para voltar estado
-      fetchProjetos();
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchClientes();
-      fetchProjetos();
-    }
-  }, [user, clienteIdFilter]);
-
   const fetchClientes = async () => {
+    if (!masterId) return;
     try {
       const { data, error } = await supabase
         .from("clientes")
         .select("id, nome")
+        .eq("user_id", masterId)
         .order("nome");
 
       if (error) throw error;
@@ -141,113 +163,12 @@ export default function Projetos() {
     }
   };
 
-  const fetchProjetos = async () => {
-    try {
-      let query = supabase
-        .from("projetos")
-        .select(`
-          *,
-          clientes (
-            nome
-          )
-        `)
-        .order("created_at", { ascending: false });
-
-      if (clienteIdFilter) {
-        query = query.eq("cliente_id", clienteIdFilter);
-      }
-
-      const { data, error } = await query;
-
-      if (error) throw error;
-
-      // Para cada projeto, calcular métricas reais a partir das tabelas relacionadas
-      const enriched = await Promise.all((data || []).map(async (item: any) => {
-        const projetoId = item.id;
-
-        // Valor pago (soma das sessões com status_pagamento = 'pago')
-        let valorPago = 0;
-        try {
-          const { data: sessoesPagas } = await supabase
-            .from('projeto_sessoes')
-            .select('valor_sessao')
-            .eq('projeto_id', projetoId)
-            .eq('status_pagamento', 'pago');
-          valorPago = (sessoesPagas || []).reduce((sum, s: any) => sum + (s.valor_sessao || 0), 0);
-        } catch (_) { }
-
-        // Contagem de sessões realizadas
-        let sessoesRealizadas = 0;
-        try {
-          const { count } = await supabase
-            .from('projeto_sessoes')
-            .select('id', { count: 'exact' })
-            .eq('projeto_id', projetoId);
-          if (typeof count === 'number') {
-            sessoesRealizadas = count;
-          }
-        } catch (_) { }
-
-        // Total de sessões planejadas
-        const sessoesTotal = item.quantidade_sessoes || 0;
-
-        // Progresso (em %) calculado localmente, se possível
-        let progressoCalc = 0;
-        if (sessoesTotal > 0) {
-          progressoCalc = Math.round((sessoesRealizadas / sessoesTotal) * 100);
-          if (progressoCalc > 100) progressoCalc = 100;
-        }
-
-        // Contagem de fotos do projeto
-        let fotosCount = 0;
-        try {
-          const { count } = await supabase
-            .from('projeto_fotos')
-            .select('id', { count: 'exact' })
-            .eq('projeto_id', projetoId);
-          if (typeof count === 'number') {
-            fotosCount = count;
-          }
-        } catch (_) { }
-
-        // Contagem de feedbacks (sessões com feedback_cliente não nulo)
-        let feedbackCount = 0;
-        try {
-          const { count } = await supabase
-            .from('projeto_sessoes')
-            .select('id', { count: 'exact' })
-            .eq('projeto_id', projetoId)
-            .not('feedback_cliente', 'is', null);
-          if (typeof count === 'number') {
-            feedbackCount = count;
-          }
-        } catch (_) { }
-
-        return {
-          ...item,
-          status: item.status as Status,
-          valor_total: item.valor_total || 0,
-          valor_pago: valorPago || 0,
-          sessoes_total: sessoesTotal,
-          sessoes_realizadas: sessoesRealizadas,
-          fotos_count: fotosCount,
-          feedback_count: feedbackCount,
-          progresso: progressoCalc,
-        } as Projeto;
-      }));
-
-      setProjetos(enriched);
-    } catch (error) {
-      console.error("Erro ao buscar projetos:", error);
-      toast({
-        title: "Erro ao carregar projetos",
-        description: "Não foi possível carregar os projetos.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (masterId) {
+      fetchProjetos();
+      fetchClientes();
     }
-  };
+  }, [masterId]);
 
   const handleOpenBuilder = (projetoId?: string) => {
     setEditingProjetoId(projetoId);

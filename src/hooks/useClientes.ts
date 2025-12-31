@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useTemporaryReferrals } from "@/hooks/useTemporaryReferrals";
+import { useAssistantActivityLogger } from "@/hooks/useAssistantActivityLogger";
 import { ClientesService, type ClienteComLTV } from "@/services/clientes.service";
 
 export interface Cliente {
@@ -43,10 +44,10 @@ export interface ClienteFormData {
   data_aniversario: string;
 }
 
-export type CidadeOption = { 
-  id?: string; 
-  nome: string; 
-  created_at?: string 
+export type CidadeOption = {
+  id?: string;
+  nome: string;
+  created_at?: string
 };
 
 const initialFilters: FiltrosClientes = {
@@ -73,9 +74,10 @@ const initialFormData: ClienteFormData = {
 };
 
 export function useClientes() {
-  const { user } = useAuth();
+  const { user, masterId } = useAuth();
   const { toast } = useToast();
   const { setReferral, getReferral } = useTemporaryReferrals();
+  const { addLog } = useAssistantActivityLogger();
 
   // State
   const [clientes, setClientes] = useState<ClienteComLTV[]>([]);
@@ -96,10 +98,10 @@ export function useClientes() {
         .select("id, nome, created_at")
         .order("nome", { ascending: true });
       if (error) throw error;
-      setAvailableCities((data || []).map((c: any) => ({ 
-        id: c.id, 
-        nome: c.nome, 
-        created_at: c.created_at 
+      setAvailableCities((data || []).map((c: any) => ({
+        id: c.id,
+        nome: c.nome,
+        created_at: c.created_at
       })));
     } catch (err) {
       console.warn("Tabela 'cidades' indisponível. Multiselect funcionará localmente.");
@@ -109,9 +111,9 @@ export function useClientes() {
   // Fetch clientes
   const fetchClientes = useCallback(async () => {
     try {
-      if (!user) return;
+      if (!user || !masterId) return;
 
-      const data = await ClientesService.fetchAll(user.id);
+      const data = await ClientesService.fetchAll(masterId);
 
       // Adicionar fallback para indicado_por usando hook local
       const dataWithFallback = data.map(c => ({
@@ -142,7 +144,7 @@ export function useClientes() {
     } finally {
       setLoading(false);
     }
-  }, [user, getReferral, toast]);
+  }, [user, masterId, getReferral, toast]);
 
   // Create cliente
   const createCliente = useCallback(async (
@@ -150,11 +152,11 @@ export function useClientes() {
     selectedCities: CidadeOption[],
     cityQuery: string
   ): Promise<boolean> => {
-    if (!user) return false;
-    
+    if (!user || !masterId) return false;
+
     try {
       const payload: any = {
-        user_id: user.id,
+        user_id: masterId, // Use masterId (Admin's ID) as owner
         nome: formData.nome,
       };
       if (formData.email) payload.email = formData.email;
@@ -188,21 +190,21 @@ export function useClientes() {
             } else {
               const { data: created, error: createErr } = await supabase
                 .from("cidades")
-                .insert([{ user_id: user.id, nome }])
+                .insert([{ user_id: masterId, nome }]) // Cities also belong to masterId
                 .select();
               if (createErr) throw createErr;
               const createdId = created && created[0] ? created[0].id : undefined;
               if (createdId) {
                 ensuredCityIds.push(createdId);
-                setAvailableCities(prev => prev.some(x => (x.nome || '').toLowerCase() === nome.toLowerCase()) 
-                  ? prev 
+                setAvailableCities(prev => prev.some(x => (x.nome || '').toLowerCase() === nome.toLowerCase())
+                  ? prev
                   : [...prev, { id: createdId, nome, created_at: created?.[0]?.created_at }]
                 );
               }
             }
           }
           if (ensuredCityIds.length > 0) {
-            const rows = ensuredCityIds.map(cid => ({ user_id: user.id, cliente_id: data[0].id, cidade_id: cid }));
+            const rows = ensuredCityIds.map(cid => ({ user_id: masterId, cliente_id: data[0].id, cidade_id: cid }));
             await supabase.from("clientes_cidades").insert(rows);
           }
         } catch (linkError) {
@@ -221,22 +223,44 @@ export function useClientes() {
           cidades: cityNames.length > 0 ? cityNames : undefined
         };
         setClientes(prev => [novoCliente, ...prev]);
+
+        // Rastrear atividade do assistente usando localStorage
+        try {
+          const { data: assistantData } = await supabase
+            .from('assistants')
+            .select('user_id, assistant_email')
+            .eq('assistant_id', user.id)
+            .maybeSingle();
+
+          if (assistantData) {
+            addLog({
+              assistant_id: user.id,
+              assistant_email: assistantData.assistant_email,
+              admin_id: assistantData.user_id,
+              action_type: 'CREATE_CLIENT',
+              entity_id: data[0].id,
+              details: { table: 'clientes', client_name: formData.nome }
+            });
+          }
+        } catch (logError) {
+          console.error('Erro ao registrar atividade do assistente:', logError);
+        }
       }
-      
+
       toast({
         title: "Cliente criado!",
         description: "O cliente foi adicionado com sucesso."
       });
-      
+
       return true;
     } catch (error) {
       console.error("Erro ao criar cliente:", error);
-      
+
       // Fallback mínimo
       try {
         const { data } = await supabase
           .from("clientes")
-          .insert([{ user_id: user.id, nome: formData.nome }])
+          .insert([{ user_id: masterId, nome: formData.nome }])
           .select();
         if (data && data[0]) {
           const novoCliente: ClienteComLTV = {
@@ -259,7 +283,7 @@ export function useClientes() {
       } catch (e2) {
         console.error("Fallback falhou ao criar cliente:", e2);
       }
-      
+
       toast({
         title: "Erro ao criar cliente",
         description: "Não foi possível criar o cliente.",
@@ -267,7 +291,7 @@ export function useClientes() {
       });
       return false;
     }
-  }, [user, availableCities, toast]);
+  }, [user, masterId, availableCities, toast]);
 
   // Delete cliente
   const deleteCliente = useCallback(async (id: string) => {
@@ -324,7 +348,7 @@ export function useClientes() {
   const saveEdit = useCallback(async (clienteId: string) => {
     const data = editedData[clienteId];
     if (!data) return;
-    
+
     try {
       const { indicado_por, ...clienteData } = data;
 
@@ -359,7 +383,7 @@ export function useClientes() {
           ...clienteData
         } : cliente));
       }
-      
+
       toast({
         title: "Cliente atualizado!",
         description: "As alterações foram salvas com sucesso."
@@ -367,7 +391,7 @@ export function useClientes() {
       cancelEditing(clienteId);
     } catch (error) {
       console.error("Erro ao atualizar cliente:", error);
-      
+
       // Fallback
       try {
         const { error } = await supabase.from("clientes").update({
@@ -394,7 +418,7 @@ export function useClientes() {
       } catch (e2) {
         console.error("Fallback falhou ao atualizar cliente:", e2);
       }
-      
+
       toast({
         title: "Erro ao atualizar cliente",
         description: "Não foi possível salvar as alterações.",
@@ -423,9 +447,9 @@ export function useClientes() {
   // Filter and sort
   const filteredClientes = clientes.filter(cliente => {
     const term = searchTerm.trim().toLowerCase();
-    const passesSearch = term === "" || 
-      cliente.nome.toLowerCase().includes(term) || 
-      cliente.email?.toLowerCase().includes(term) || 
+    const passesSearch = term === "" ||
+      cliente.nome.toLowerCase().includes(term) ||
+      cliente.email?.toLowerCase().includes(term) ||
       cliente.telefone?.toLowerCase().includes(term);
     if (!passesSearch) return false;
 
@@ -433,7 +457,7 @@ export function useClientes() {
       const clientCities = (cliente.cidades && cliente.cidades.length > 0)
         ? cliente.cidades
         : (cliente.cidade ? [cliente.cidade] : []);
-      const hasMatch = clientCities.some(cc => 
+      const hasMatch = clientCities.some(cc =>
         filtros.cidades.some(fc => (cc || "").toLowerCase() === fc.toLowerCase())
       );
       if (!hasMatch) return false;
@@ -500,11 +524,13 @@ export function useClientes() {
 
   // Initial load
   useEffect(() => {
-    if (user) {
+    if (user && masterId) {
       fetchClientes();
       fetchAvailableCities();
     }
-  }, [user, fetchClientes, fetchAvailableCities]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, masterId]); // Apenas user e masterId como dependências
+
 
   return {
     // State
@@ -519,19 +545,19 @@ export function useClientes() {
     cityUsageCounts,
     editingRows,
     editedData,
-    
+
     // Stats
     totalLTV,
     maxLTV,
     avgLTV,
     activeFiltersCount,
-    
+
     // Setters
     setFiltros,
     setSearchTerm,
     setSortBy,
     setAvailableCities,
-    
+
     // Actions
     fetchClientes,
     createCliente,
@@ -542,7 +568,7 @@ export function useClientes() {
     updateEditedData,
     saveAllEdits,
     resetFilters,
-    
+
     // Constants
     initialFormData
   };

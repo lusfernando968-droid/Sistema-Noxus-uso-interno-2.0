@@ -18,6 +18,7 @@ import { UserAvatar } from "@/components/profile/UserAvatar";
 import { Camera, Loader2, Menu, Volume2, VolumeX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { AssistantsSettings } from "@/components/settings/AssistantsSettings";
 // import removed: ColorInput (tema personalizado removido)
 
 export default function Perfil() {
@@ -105,7 +106,32 @@ export default function Perfil() {
     user: "Usuário",
   };
 
-  if (!profile) return null;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border-destructive/50 bg-destructive/10">
+          <CardHeader>
+            <CardTitle className="text-destructive">Perfil não encontrado</CardTitle>
+            <CardDescription>Não foi possível carregar os dados do seu perfil.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm mb-4">ID do Usuário: {user?.id}</p>
+            <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
+              Recarregar Página
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -114,6 +140,17 @@ export default function Perfil() {
           <h1 className="text-3xl font-bold">Meu Perfil</h1>
           <p className="text-muted-foreground">Gerencie suas informações pessoais</p>
         </div>
+
+        {/* Settings moved to top for visibility */}
+        {/* Settings moved to top for visibility */}
+        {userRole !== 'assistant' && (
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-primary mb-4 p-2 bg-primary/10 rounded-lg border border-primary">
+              👇 GERENCIAR ASSISTENTES AQUI 👇
+            </h2>
+            <AssistantsSettings />
+          </div>
+        )}
 
         <Card className="rounded-2xl border-border">
           <CardHeader>
@@ -237,8 +274,8 @@ export default function Perfil() {
                   key={theme.id}
                   onClick={() => setColorTheme(theme.id)}
                   className={`relative group rounded-xl p-4 border-2 transition-all ${colorTheme === theme.id
-                      ? "border-primary scale-105"
-                      : "border-border hover:border-primary/50"
+                    ? "border-primary scale-105"
+                    : "border-border hover:border-primary/50"
                     }`}
                 >
                   <div className={`w-full h-20 rounded-lg ${theme.colors} mb-3`} />
@@ -265,6 +302,9 @@ export default function Perfil() {
             {/* Tema Personalizado removido */}
           </CardContent>
         </Card>
+
+        {/* Debug: Showing settings unconditionally via code edit */}
+
 
         <Card className="rounded-2xl border-border">
           <CardHeader>

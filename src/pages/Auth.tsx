@@ -16,7 +16,7 @@ import { useBrandingContext } from "@/contexts/BrandingContext";
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
-  const { user, signIn, signUp, signInWithGoogle } = useAuth();
+  const { user, signIn, signUp, signInWithGoogle, checkAssistantEmail, userRole } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { theme, setTheme } = useTheme();
@@ -34,9 +34,13 @@ export default function Auth() {
 
   useEffect(() => {
     if (user) {
-      navigate("/");
+      if (userRole === "assistant") {
+        navigate("/agendamentos");
+      } else {
+        navigate("/");
+      }
     }
-  }, [user, navigate]);
+  }, [user, userRole, navigate]);
 
   const loginForm = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -96,6 +100,54 @@ export default function Auth() {
     }
   };
 
+  const onAssistantLogin = async (data: LoginInput) => {
+    setIsLoading(true);
+
+    // 1. Check if email is a valid assistant email
+    const isValidAssistant = await checkAssistantEmail(data.email);
+
+    if (!isValidAssistant) {
+      toast({
+        variant: "destructive",
+        title: "Acesso negado",
+        description: "Este email não está cadastrado como assistente.",
+      });
+      setIsLoading(false);
+      return;
+    }
+
+    // 2. Try to login
+    const { error: signInError } = await signIn(data.email, data.password);
+
+    if (signInError) {
+      // If login fails, check if we should offer signup (create password)
+      const { error: signUpError } = await signUp(data.email, data.password, "Assistente");
+
+      if (signUpError) {
+        if (signUpError.message.includes("already registered")) {
+          toast({
+            variant: "destructive",
+            title: "Senha incorreta",
+            description: "Senha inválida para este assistente.",
+          });
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Erro no acesso",
+            description: signUpError.message,
+          });
+        }
+      } else {
+        toast({
+          title: "Bem-vindo!",
+          description: "Primeiro acesso configurado com sucesso.",
+        });
+      }
+    }
+
+    setIsLoading(false);
+  };
+
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     const { error } = await signInWithGoogle();
@@ -136,12 +188,15 @@ export default function Auth() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 rounded-xl">
-              <TabsTrigger value="login" className="rounded-lg">
+            <TabsList className="grid w-full grid-cols-3 rounded-xl h-auto p-1">
+              <TabsTrigger value="login" className="rounded-lg text-xs sm:text-sm py-2">
                 Entrar
               </TabsTrigger>
-              <TabsTrigger value="signup" className="rounded-lg">
+              <TabsTrigger value="signup" className="rounded-lg text-xs sm:text-sm py-2">
                 Cadastrar
+              </TabsTrigger>
+              <TabsTrigger value="assistant" className="rounded-lg text-xs sm:text-sm py-2">
+                Assistente
               </TabsTrigger>
             </TabsList>
 
@@ -372,6 +427,66 @@ export default function Auth() {
                 </svg>
                 Google
               </Button>
+            </TabsContent>
+            <TabsContent value="assistant">
+              <Form {...loginForm}>
+                <form onSubmit={loginForm.handleSubmit(onAssistantLogin)} className="space-y-4 mt-4">
+                  <div className="bg-blue-50 p-4 rounded-xl mb-4 border border-blue-100">
+                    <p className="text-sm text-blue-700 font-medium text-center">
+                      Acesso restrito para assistentes autorizados.
+                    </p>
+                  </div>
+
+                  <FormField
+                    control={loginForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email do Assistente</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="seu.email@exemplo.com"
+                            type="text"
+                            inputMode="email"
+                            autoCorrect="off"
+                            autoCapitalize="none"
+                            autoComplete="email"
+                            className="rounded-xl"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={loginForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Senha</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="••••••••"
+                            type="password"
+                            className="rounded-xl"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button
+                    type="submit"
+                    className="w-full rounded-xl"
+                    disabled={isLoading}
+                  >
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Entrar como Assistente
+                  </Button>
+                </form>
+              </Form>
             </TabsContent>
           </Tabs>
         </CardContent>

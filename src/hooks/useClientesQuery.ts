@@ -82,9 +82,9 @@ export interface ClienteFormData {
   data_aniversario: string;
 }
 
-export type CidadeOption = { 
-  id?: string; 
-  nome: string; 
+export type CidadeOption = {
+  id?: string;
+  nome: string;
   created_at?: string;
 };
 
@@ -128,13 +128,13 @@ async function fetchCidades(): Promise<CidadeOption[]> {
     .from("cidades")
     .select("id, nome, created_at")
     .order("nome", { ascending: true });
-  
+
   if (error) throw error;
-  
-  return (data || []).map((c: any) => ({ 
-    id: c.id, 
-    nome: c.nome, 
-    created_at: c.created_at 
+
+  return (data || []).map((c: any) => ({
+    id: c.id,
+    nome: c.nome,
+    created_at: c.created_at
   }));
 }
 
@@ -169,8 +169,8 @@ export function useClientesQuery() {
     queryKey: clientesKeys.list(user?.id || ''),
     queryFn: () => fetchClientes(user!.id),
     enabled: !!user,
-    staleTime: 1000 * 60 * 2, // 2 minutos
-    gcTime: 1000 * 60 * 5, // 5 minutos
+    staleTime: 1000 * 60 * 10, // 10 minutos (aumentado de 2min)
+    gcTime: 1000 * 60 * 15, // 15 minutos (aumentado de 5min)
   });
 
   // Query de cidades
@@ -180,7 +180,8 @@ export function useClientesQuery() {
     queryKey: clientesKeys.citiesList(user?.id || ''),
     queryFn: fetchCidades,
     enabled: !!user,
-    staleTime: 1000 * 60 * 5, // 5 minutos
+    staleTime: 1000 * 60 * 10, // 10 minutos (aumentado de 5min)
+    gcTime: 1000 * 60 * 15, // 15 minutos
   });
 
   // Adicionar fallback para indicado_por
@@ -211,13 +212,13 @@ export function useClientesQuery() {
 
   // Mutation para criar cliente
   const createMutation = useMutation({
-    mutationFn: async ({ 
-      formData, 
-      selectedCities, 
-      cityQuery 
-    }: { 
-      formData: ClienteFormData; 
-      selectedCities: CidadeOption[]; 
+    mutationFn: async ({
+      formData,
+      selectedCities,
+      cityQuery
+    }: {
+      formData: ClienteFormData;
+      selectedCities: CidadeOption[];
       cityQuery: string;
     }) => {
       if (!user) throw new Error("Usuário não autenticado");
@@ -264,19 +265,19 @@ export function useClientesQuery() {
           }
         }
         if (ensuredCityIds.length > 0) {
-          const rows = ensuredCityIds.map(cid => ({ 
-            user_id: user.id, 
-            cliente_id: data[0].id, 
-            cidade_id: cid 
+          const rows = ensuredCityIds.map(cid => ({
+            user_id: user.id,
+            cliente_id: data[0].id,
+            cidade_id: cid
           }));
           await supabase.from("clientes_cidades").insert(rows);
         }
       }
 
-      return { 
-        cliente: data?.[0], 
+      return {
+        cliente: data?.[0],
         cityNames,
-        indicado_por: formData.indicado_por && formData.indicado_por !== "none" ? formData.indicado_por : null 
+        indicado_por: formData.indicado_por && formData.indicado_por !== "none" ? formData.indicado_por : null
       };
     },
     onSuccess: () => {
@@ -299,15 +300,15 @@ export function useClientesQuery() {
 
   // Mutation para atualizar cliente
   const updateMutation = useMutation({
-    mutationFn: async ({ 
-      clienteId, 
-      data 
-    }: { 
-      clienteId: string; 
+    mutationFn: async ({
+      clienteId,
+      data
+    }: {
+      clienteId: string;
       data: Partial<Cliente>;
     }) => {
       const { indicado_por, ...clienteData } = data;
-      
+
       const { error } = await supabase
         .from("clientes")
         .update(clienteData)
@@ -320,7 +321,7 @@ export function useClientesQuery() {
           .from("clientes")
           .update({ indicado_por: referralValue as any })
           .eq("id", clienteId);
-        
+
         if (refErr) {
           // Fallback para armazenamento local
           setReferral(clienteId, referralValue);
@@ -429,7 +430,7 @@ export function useClientesQuery() {
   const saveEdit = useCallback(async (clienteId: string) => {
     const data = editedData[clienteId];
     if (!data) return;
-    
+
     try {
       await updateMutation.mutateAsync({ clienteId, data });
       cancelEditing(clienteId);
@@ -460,9 +461,9 @@ export function useClientesQuery() {
   const filteredClientes = useMemo(() => {
     return clientes.filter(cliente => {
       const term = searchTerm.trim().toLowerCase();
-      const passesSearch = term === "" || 
-        cliente.nome.toLowerCase().includes(term) || 
-        cliente.email?.toLowerCase().includes(term) || 
+      const passesSearch = term === "" ||
+        cliente.nome.toLowerCase().includes(term) ||
+        cliente.email?.toLowerCase().includes(term) ||
         cliente.telefone?.toLowerCase().includes(term);
       if (!passesSearch) return false;
 
@@ -470,7 +471,7 @@ export function useClientesQuery() {
         const clientCities = (cliente.cidades && cliente.cidades.length > 0)
           ? cliente.cidades
           : (cliente.cidade ? [cliente.cidade] : []);
-        const hasMatch = clientCities.some(cc => 
+        const hasMatch = clientCities.some(cc =>
           filtros.cidades.some(fc => (cc || "").toLowerCase() === fc.toLowerCase())
         );
         if (!hasMatch) return false;
@@ -517,18 +518,18 @@ export function useClientesQuery() {
   // STATS
   // ============================================================
 
-  const totalLTV = useMemo(() => 
-    filteredClientes.reduce((sum, c) => sum + c.ltv, 0), 
+  const totalLTV = useMemo(() =>
+    filteredClientes.reduce((sum, c) => sum + c.ltv, 0),
     [filteredClientes]
   );
 
-  const maxLTV = useMemo(() => 
-    Math.max(...filteredClientes.map(c => c.ltv), 0), 
+  const maxLTV = useMemo(() =>
+    Math.max(...filteredClientes.map(c => c.ltv), 0),
     [filteredClientes]
   );
 
-  const avgLTV = useMemo(() => 
-    filteredClientes.length > 0 ? totalLTV / filteredClientes.length : 0, 
+  const avgLTV = useMemo(() =>
+    filteredClientes.length > 0 ? totalLTV / filteredClientes.length : 0,
     [filteredClientes, totalLTV]
   );
 
@@ -570,19 +571,19 @@ export function useClientesQuery() {
     cityUsageCounts,
     editingRows,
     editedData,
-    
+
     // Stats
     totalLTV,
     maxLTV,
     avgLTV,
     activeFiltersCount,
-    
+
     // Setters
     setFiltros,
     setSearchTerm,
     setSortBy,
-    setAvailableCities: () => {}, // Mantido para compatibilidade
-    
+    setAvailableCities: () => { }, // Mantido para compatibilidade
+
     // Actions
     fetchClientes: refetchClientes,
     createCliente,
@@ -593,12 +594,12 @@ export function useClientesQuery() {
     updateEditedData,
     saveAllEdits,
     resetFilters,
-    
+
     // Mutations status
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
-    
+
     // Constants
     initialFormData
   };

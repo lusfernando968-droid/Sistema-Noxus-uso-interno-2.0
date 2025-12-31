@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Evolution API - WhatsApp Gateway
+  evolution-api:
+    image: evolution-api/evolution-api:latest
+    container_name: noxus-evolution-api
+    ports:
+      - "8080:8080"
+    environment:
+      # API Configuration
+      - SERVER_URL=http://localhost:8080
+      - AUTHENTICATION_API_KEY=noxus-evolution-key-2025
+
+      # Database (opcional - usa SQLite por padrão)
+      - DATABASE_ENABLED=false
+
+      # Webhook
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_GLOBAL_URL=http://chatbot-backend:3001/webhook
+      - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=true
+
+      # QR Code
+      - QRCODE_LIMIT=30
+      - QRCODE_COLOR=#198754
+
+      # Logs
+      - LOG_LEVEL=ERROR
+      - LOG_COLOR=true
+
+    volumes:
+      - evolution_instances:/evolution/instances
+      - evolution_store:/evolution/store
+    networks:
+      - noxus-network
+    restart: unless-stopped
+
+  # Chatbot Backend
+  chatbot-backend:
+    build: .
+    container_name: noxus-chatbot-backend
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - AIML_API_KEY=${AIML_API_KEY}
+      - EVOLUTION_API_URL=http://evolution-api:8080
+      - EVOLUTION_API_KEY=noxus-evolution-key-2025
+      - EVOLUTION_INSTANCE_NAME=noxus-bot
+      - WEBHOOK_VERIFY_TOKEN=noxus-webhook-secret-2025
+    depends_on:
+      - evolution-api
+    networks:
+      - noxus-network
+    restart: unless-stopped
+
+volumes:
+  evolution_instances:
+  evolution_store:
+
+
+networks:
+  noxus-network:
+    driver: bridge

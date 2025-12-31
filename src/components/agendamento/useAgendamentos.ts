@@ -86,20 +86,20 @@ export function useAgendamentos() {
     clientes,
     projetos,
     loading,
-    
+
     // Form
     formData,
     setFormData,
     editingAgendamento,
     isDialogOpen,
     setIsDialogOpen,
-    
+
     // Filtros
     filtroStatus,
     setFiltroStatus,
     busca,
     setBusca,
-    
+
     // Feedback
     isFeedbackPromptOpen,
     setIsFeedbackPromptOpen,
@@ -115,7 +115,7 @@ export function useAgendamentos() {
     setAgendamentoParaAnalise,
     isAnaliseDialogOpen,
     setIsAnaliseDialogOpen,
-    
+
     // Handlers
     handleSubmit,
     handleEdit,

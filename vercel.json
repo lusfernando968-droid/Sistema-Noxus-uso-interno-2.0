@@ -1,24 +1,5 @@
 {
-  "buildCommand": "npm run build",
-  "installCommand": "npm install",
-  "outputDirectory": "dist",
   "rewrites": [
-    {
-      "source": "/assets/:path*",
-      "destination": "/assets/:path*"
-    },
-    {
-      "source": "/favicon.ico",
-      "destination": "/favicon.ico"
-    },
-    {
-      "source": "/robots.txt",
-      "destination": "/robots.txt"
-    },
-    {
-      "source": "/placeholder.svg",
-      "destination": "/placeholder.svg"
-    },
     {
       "source": "/(.*)",
       "destination": "/index.html"

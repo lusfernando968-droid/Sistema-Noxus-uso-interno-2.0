@@ -37,7 +37,8 @@ export function AgendamentoFormDialog({
   onSubmit,
   onCancel,
   onVincularAnalise,
-}: AgendamentoFormDialogProps) {
+  isSubmitting,
+}: AgendamentoFormDialogProps & { isSubmitting?: boolean }) {
   const navigate = useNavigate();
 
   const handleTimeChange = (field: 'hora_inicio' | 'hora_fim', value: string) => {
@@ -308,15 +309,14 @@ export function AgendamentoFormDialog({
               Vincular Análise
             </Button>
           )}
-          <Button variant="outline" onClick={onCancel} className="rounded-xl">
+          <Button variant="outline" onClick={onCancel} className="rounded-xl" disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button onClick={onSubmit} className="rounded-xl">
-            {editingAgendamento ? "Atualizar" : "Criar"}
+          <Button onClick={onSubmit} className="rounded-xl" disabled={isSubmitting}>
+            {isSubmitting ? "Salvando..." : (editingAgendamento ? "Atualizar" : "Criar")}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
-

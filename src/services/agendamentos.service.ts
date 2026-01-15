@@ -370,8 +370,8 @@ export class AgendamentosService {
                 );
             }
 
-            // Criar transação se houver valor
-            if (agendamento.valor_estimado && agendamento.valor_estimado > 0) {
+            // Criar transação mesmo que o valor seja 0 (conforme solicitado)
+            if (agendamento.valor_estimado !== undefined && agendamento.valor_estimado !== null) {
                 const clienteNome = cliente?.nome || 'Cliente';
                 await this.createTransacaoOtimizada(
                     userId,

@@ -9,16 +9,16 @@ import { ClientesService, type ClienteComLTV } from "@/services/clientes.service
 export interface Cliente {
   id: string;
   nome: string;
-  email: string;
-  telefone: string;
+  email?: string;
+  telefone?: string;
   documento?: string;
   endereco?: string;
   instagram?: string;
   cidade?: string;
   cidades?: string[];
-  indicado_por?: string;
+  indicado_por?: string | null;
   data_aniversario?: string;
-  created_at: string;
+  created_at?: string;
 }
 
 export interface FiltrosClientes {
@@ -158,6 +158,7 @@ export function useClientes() {
       const payload: any = {
         user_id: masterId, // Use masterId (Admin's ID) as owner
         nome: formData.nome,
+        status: 'cliente',
       };
       if (formData.email) payload.email = formData.email;
       if (formData.telefone) payload.telefone = formData.telefone;

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Filter, CheckCircle, XCircle, ArrowRight, Calendar } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, ArrowRight, Calendar, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { LeadOrcamentoForm } from "@/components/orcamentos/LeadOrcamentoForm";
@@ -286,6 +286,20 @@ export default function LeadsOrcamentos() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-2">
+                                                    <LeadOrcamentoForm
+                                                        orcamento={o}
+                                                        onSave={fetchOrcamentos}
+                                                        trigger={
+                                                            <Button
+                                                                size="sm"
+                                                                variant="ghost"
+                                                                className="h-8"
+                                                                title="Editar orçamento"
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </Button>
+                                                        }
+                                                    />
                                                     {o.status === 'pendente' && (
                                                         <>
                                                             <Button

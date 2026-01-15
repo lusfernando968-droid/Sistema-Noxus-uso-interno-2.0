@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
 import {
   Plus, Trash2, Edit, Calendar as CalendarIcon, LayoutGrid, List, Table2,
   Search, DollarSign, Clock, Camera, MessageSquare, TrendingUp, Users,
-  Eye, FileText, CheckCircle, AlertCircle, XCircle, PlayCircle
+  Eye, FileText, CheckCircle, AlertCircle, XCircle, PlayCircle, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ type Projeto = {
   fotos_count?: number;
   feedback_count?: number;
   progresso?: number;
+  capa_url?: string;
 };
 
 type Cliente = {
@@ -60,10 +62,10 @@ const statusLabels: Record<Status, string> = {
 };
 
 const statusColors: Record<Status, string> = {
-  planejamento: "bg-muted text-foreground",
-  andamento: "bg-muted text-foreground",
-  concluido: "bg-muted text-foreground",
-  cancelado: "bg-muted text-foreground",
+  planejamento: "bg-transparent text-muted-foreground border-muted-foreground/30 hover:bg-muted/10",
+  andamento: "bg-blue-500/15 text-blue-700 border-blue-200 hover:bg-blue-500/25",
+  concluido: "bg-emerald-500/15 text-emerald-700 border-emerald-200 hover:bg-emerald-500/25",
+  cancelado: "bg-red-500/15 text-red-700 border-red-200 hover:bg-red-500/25",
 };
 
 const statusIcons: Record<Status, any> = {
@@ -86,20 +88,30 @@ export default function Projetos() {
   const [statusFilter, setStatusFilter] = useState<Status | "all">("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
   const { user, masterId } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // ... (existing code)
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const fetchProjetos = async () => {
+    // ... (logic remains same)
     if (!masterId) return; // Wait for masterId
 
     setLoading(true);
 
     try {
       // 1. Tenta buscar projetos via RPC otimizado (v4)
-      // O RPC já retorna: projetos + cliente.nome + sessoes_realizadas + valor_pago + fotos_count
       const { data: rpcData, error: rpcError } = await supabase
         .rpc('get_projects_v4', { p_user_id: masterId });
 
@@ -107,7 +119,7 @@ export default function Projetos() {
 
       const projectsRaw = (rpcData as any[]) || [];
 
-      // 2. Processa os dados recebidos para formatar campos calculados se necessário
+      // 2. Processa os dados recebidos
       const processedProjects = projectsRaw.map((item: any) => {
         const sessoesTotal = item.quantidade_sessoes || 0;
         const sessoesRealizadas = item.sessoes_realizadas || 0;
@@ -123,16 +135,15 @@ export default function Projetos() {
           ...item,
           status: item.status as Status,
           valor_total: item.valor_total || 0,
-          valor_pago: item.valor_pago || 0, // Vem do RPC
+          valor_pago: item.valor_pago || 0,
           sessoes_total: sessoesTotal,
-          sessoes_realizadas: sessoesRealizadas, // Vem do RPC
-          fotos_count: item.fotos_count || 0, // Vem do RPC
-          feedback_count: item.feedback_count || 0, // Vem do RPC
+          sessoes_realizadas: sessoesRealizadas,
+          fotos_count: item.fotos_count || 0,
+          feedback_count: item.feedback_count || 0,
           progresso: progressoCalc,
         } as Projeto;
       });
 
-      // Filtros de Status (Client-side ainda, mas rápido pois já temos todos os dados)
       setProjetos(processedProjects);
 
     } catch (error) {
@@ -170,6 +181,10 @@ export default function Projetos() {
     }
   }, [masterId]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, clienteFilter, debouncedSearchTerm]); // Updated dependency
+
   const handleOpenBuilder = (projetoId?: string) => {
     setEditingProjetoId(projetoId);
     setBuilderOpen(true);
@@ -203,13 +218,38 @@ export default function Projetos() {
     }
   };
 
+  const handleStatusChange = async (id: string, newStatus: Status) => {
+    try {
+      const { error } = await supabase
+        .from("projetos")
+        .update({ status: newStatus })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Status atualizado",
+        description: "O status do projeto foi atualizado com sucesso.",
+      });
+
+      fetchProjetos();
+    } catch (error) {
+      console.error("Erro ao atualizar status:", error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível atualizar o status.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Filtros
   const filteredProjetos = projetos.filter(projeto => {
     const matchesStatus = statusFilter === "all" || projeto.status === statusFilter;
     const matchesCliente = clienteFilter === "all" || projeto.cliente_id === clienteFilter;
-    const matchesSearch = searchTerm === "" ||
-      projeto.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      projeto.clientes?.nome.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = debouncedSearchTerm === "" || // Updated to use debounced term
+      projeto.titulo.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      projeto.clientes?.nome.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
 
     return matchesStatus && matchesCliente && matchesSearch;
   });
@@ -224,11 +264,6 @@ export default function Projetos() {
     valorTotal: filteredProjetos.reduce((acc, p) => acc + (p.valor_total || 0), 0),
     valorPago: filteredProjetos.reduce((acc, p) => acc + (p.valor_pago || 0), 0),
   };
-
-  // Loading state com skeleton que reflete o layout
-  if (loading) {
-    return <ProjetosSkeleton />;
-  }
 
   // ===== Kanban =====
   const kanbanStatuses: Status[] = ["planejamento", "andamento", "concluido", "cancelado"];
@@ -348,136 +383,158 @@ export default function Projetos() {
     const statusLabel = statusLabels[projeto.status] || projeto.status;
     const valorPendente = (projeto.valor_total || 0) - (projeto.valor_pago || 0);
 
+    // Removed motion.div wrapper for performance
     return (
-      <Card key={projeto.id} className="rounded-xl hover:shadow-lg transition-all duration-300 group">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between">
-            <div className="space-y-2 flex-1">
-              <div className="flex items-center gap-2">
-                <StatusIcon className="w-4 h-4 text-muted-foreground" />
-                <CardTitle className="text-lg line-clamp-1">{projeto.titulo}</CardTitle>
+      <div key={projeto.id} className="h-full">
+        <Card className="h-full rounded-2xl border border-muted/40 shadow-sm hover:shadow-xl transition-all duration-300 group bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col">
+
+          {projeto.capa_url && (
+            <div className="w-full h-32 relative overflow-hidden">
+              <img
+                src={projeto.capa_url}
+                alt={projeto.titulo}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/90 to-transparent" />
+            </div>
+          )}
+
+          <CardHeader className="pb-3 pt-5 relative">
+
+
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusColor}`}>
+                    {statusLabel}
+                  </Badge>
+                </div>
+                <CardTitle className="text-lg font-bold line-clamp-1 group-hover:text-primary transition-colors">
+                  {projeto.titulo}
+                </CardTitle>
+                <div
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground group/client cursor-pointer hover:text-primary transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/clientes/${projeto.cliente_id}`);
+                  }}
+                  title="Ver perfil do cliente"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span className="truncate group-hover/client:underline">{projeto.clientes?.nome}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className={statusColor}>
-                  {statusLabel}
-                </Badge>
-                <span className="text-sm text-muted-foreground">
-                  {projeto.clientes?.nome}
+
+              <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary"
+                  onClick={() => handleOpenBuilder(projeto.id)}
+                  title="Editar"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => handleDelete(projeto.id)}
+                  title="Excluir"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-5 pb-5">
+            {/* Progresso */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs font-medium">
+                <span className="text-muted-foreground">Progresso</span>
+                <span className={projeto.progresso === 100 ? "text-emerald-500" : "text-primary"}>
+                  {projeto.progresso}%
                 </span>
               </div>
+              <Progress
+                value={projeto.progresso}
+                className="h-2 rounded-full bg-muted/50"
+              // Note: The inner bar color is controlled by the Progress component or CSS vars, 
+              // generally adhering to --primary. We can rely on that or wrap it to customize.
+              />
             </div>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-lg"
-                onClick={() => navigate(`/projetos/${projeto.id}`)}
-              >
-                <Eye className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-lg"
-                onClick={() => handleOpenBuilder(projeto.id)}
-              >
-                <Edit className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 rounded-lg text-destructive"
-                onClick={() => handleDelete(projeto.id)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
 
-        <CardContent className="space-y-4">
-          {/* Progresso */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Progresso</span>
-              <span className="font-medium">{projeto.progresso}%</span>
-            </div>
-            <Progress value={projeto.progresso} className="h-2" />
-          </div>
-
-          {/* Métricas */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-1">
-                <DollarSign className="w-3 h-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Financeiro</span>
-              </div>
-              <div className="text-sm">
-                <div className="font-medium text-foreground">
+            {/* Grid de Informações */}
+            <div className="grid grid-cols-2 gap-3 p-3 rounded-xl bg-muted/30 border border-muted/30">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <DollarSign className="w-3 h-3" />
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Pago</span>
+                </div>
+                <div className="font-semibold text-sm">
                   R$ {(projeto.valor_pago || 0).toLocaleString()}
                 </div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-[10px] text-muted-foreground">
                   de R$ {(projeto.valor_total || 0).toLocaleString()}
                 </div>
               </div>
-            </div>
 
-            <div className="space-y-1">
-              <div className="flex items-center gap-1">
-                <CalendarIcon className="w-3 h-3 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Sessões</span>
-              </div>
-              <div className="text-sm">
-                <div className="font-medium">
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <div className="p-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <CalendarIcon className="w-3 h-3" />
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Sessões</span>
+                </div>
+                <div className="font-semibold text-sm">
                   {projeto.sessoes_realizadas}/{projeto.sessoes_total}
                 </div>
-                <div className="text-xs text-muted-foreground">realizadas</div>
+                <div className="text-[10px] text-muted-foreground">
+                  realizadas
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Documentação */}
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1">
-                <Camera className="w-3 h-3" />
-                <span>{projeto.fotos_count} fotos</span>
+            {/* Footer / Ações */}
+            <div className="flex items-center justify-between pt-1 gap-2">
+              <div className="flex -space-x-2 overflow-hidden">
+                {/* Placeholder para avatares ou ícones extras, por enquanto apenas info */}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground pl-1">
+                  <span className="flex items-center gap-1" title="Fotos">
+                    <Camera className="w-3.5 h-3.5" /> {projeto.fotos_count}
+                  </span>
+                  <span className="flex items-center gap-1" title="Feedbacks">
+                    <MessageSquare className="w-3.5 h-3.5" /> {projeto.feedback_count}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-1">
-                <MessageSquare className="w-3 h-3" />
-                <span>{projeto.feedback_count} feedbacks</span>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm" // smaller button
+                  className="rounded-lg h-9 text-xs font-medium px-3"
+                  onClick={() => navigate(`/projetos/${projeto.id}`)}
+                >
+                  <Eye className="w-3.5 h-3.5 mr-1.5" />
+                  Detalhes
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="rounded-lg h-9 text-xs font-medium shadow-sm bg-primary hover:bg-primary/90"
+                  onClick={() => navigate(`/agendamentos?projeto=${projeto.id}`)}
+                >
+                  Agendar
+                </Button>
               </div>
             </div>
-            {valorPendente > 0 && (
-              <div className="text-foreground font-medium">
-                R$ {valorPendente.toLocaleString()} pendente
-              </div>
-            )}
-          </div>
-
-          {/* Ações */}
-          <div className="flex gap-2 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 rounded-lg"
-              onClick={() => navigate(`/agendamentos?projeto=${projeto.id}`)}
-            >
-              <CalendarIcon className="w-3 h-3 mr-1" />
-              Agendar
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 rounded-lg"
-              onClick={() => navigate(`/projetos/${projeto.id}`)}
-            >
-              <Eye className="w-3 h-3 mr-1" />
-              Detalhes
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     );
   };
 
@@ -516,143 +573,167 @@ export default function Projetos() {
 
       {/* Cards de Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/20 rounded-lg">
-                <FileText className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total de Projetos</p>
-                <p className="text-2xl font-bold">{stats.total}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {[
+          {
+            title: "Total",
+            value: stats.total,
+            icon: FileText,
+            color: "text-muted-foreground",
+            bgColor: "bg-muted/50",
+            subtitle: "Cadastrados"
+          },
+          {
+            title: "Em Andamento",
+            value: stats.andamento,
+            icon: PlayCircle,
+            color: "text-primary",
+            bgColor: "bg-primary/10",
+            subtitle: "Ativos"
+          },
+          {
+            title: "Concluídos",
+            value: stats.concluido,
+            icon: CheckCircle,
+            color: "text-muted-foreground",
+            bgColor: "bg-muted/50",
+            subtitle: "Finalizados"
+          },
+          {
+            title: "Total",
+            value: `R$ ${(stats.valorTotal / 1000).toFixed(1)}K`,
+            icon: DollarSign,
+            color: "text-muted-foreground",
+            bgColor: "bg-muted/50",
+            subtitle: "Valor Total"
+          },
+          {
+            title: "Recebido",
+            value: `R$ ${(stats.valorPago / 1000).toFixed(1)}K`,
+            icon: TrendingUp,
+            color: "text-muted-foreground",
+            bgColor: "bg-muted/50",
+            subtitle: "Valor Pago"
+          }
+        ].map((stat) => (
+          <div
+            key={stat.title}
+          >
+            <Card className="rounded-2xl border shadow-sm bg-card">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className={`p-2.5 rounded-xl ${stat.bgColor} shrink-0`}>
+                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                </div>
 
-        <Card className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/20 rounded-lg">
-                <PlayCircle className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Em Andamento</p>
-                <p className="text-2xl font-bold">{stats.andamento}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/20 rounded-lg">
-                <CheckCircle className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Concluídos</p>
-                <p className="text-2xl font-bold">{stats.concluido}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/20 rounded-lg">
-                <DollarSign className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Valor Total</p>
-                <p className="text-2xl font-bold">R$ {stats.valorTotal.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-xl bg-gradient-to-br from-primary/10 to-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/20 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Valor Pago</p>
-                <p className="text-2xl font-bold">R$ {stats.valorPago.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{stat.title}</p>
+                  <p className="text-xl font-bold tracking-tight text-foreground">{stat.value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ))}
       </div>
 
       {/* Filtros e Visualização */}
-      <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-3 flex-1">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar projetos..."
-              className="pl-10 rounded-lg"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      <div className="bg-background border rounded-2xl p-4 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 flex-1 w-full">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar projetos..."
+                className="pl-10 rounded-xl bg-background border-muted-foreground/20 focus-visible:ring-1 focus-visible:ring-primary"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status | "all")}>
+              <SelectTrigger className="w-full sm:w-48 rounded-xl bg-background border-muted-foreground/20">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">Todos os Status</SelectItem>
+                <SelectItem value="planejamento">Planejamento</SelectItem>
+                <SelectItem value="andamento">Em Andamento</SelectItem>
+                <SelectItem value="concluido">Concluído</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={clienteFilter} onValueChange={setClienteFilter}>
+              <SelectTrigger className="w-full sm:w-48 rounded-xl bg-background border-muted-foreground/20">
+                <SelectValue placeholder="Cliente" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="all">Todos os Clientes</SelectItem>
+                {clientes.map((cliente) => (
+                  <SelectItem key={cliente.id} value={cliente.id}>
+                    {cliente.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as Status | "all")}>
-            <SelectTrigger className="w-full sm:w-48 rounded-lg">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Status</SelectItem>
-              <SelectItem value="planejamento">Planejamento</SelectItem>
-              <SelectItem value="andamento">Em Andamento</SelectItem>
-              <SelectItem value="concluido">Concluído</SelectItem>
-              <SelectItem value="cancelado">Cancelado</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            {/* Pagination Controls */}
+            {filteredProjetos.length > itemsPerPage && viewMode !== "kanban" && (
+              <div className="flex items-center gap-1 bg-background border rounded-xl p-1 shadow-sm">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs font-medium px-2 min-w-[3rem] text-center text-muted-foreground">
+                  {currentPage} / {Math.ceil(filteredProjetos.length / itemsPerPage)}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredProjetos.length / itemsPerPage), p + 1))}
+                  disabled={currentPage === Math.ceil(filteredProjetos.length / itemsPerPage)}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
 
-          <Select value={clienteFilter} onValueChange={setClienteFilter}>
-            <SelectTrigger className="w-full sm:w-48 rounded-lg">
-              <SelectValue placeholder="Cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Clientes</SelectItem>
-              {clientes.map((cliente) => (
-                <SelectItem key={cliente.id} value={cliente.id}>
-                  {cliente.nome}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex gap-2">
-          <Button
-            variant={viewMode === "cards" ? "default" : "outline"}
-            size="icon"
-            className="rounded-lg"
-            onClick={() => setViewMode("cards")}
-          >
-            <LayoutGrid className="w-4 h-4" />
-          </Button>
-          <Button
-            variant={viewMode === "table" ? "default" : "outline"}
-            size="icon"
-            className="rounded-lg"
-            onClick={() => setViewMode("table")}
-          >
-            <Table2 className="w-4 h-4" />
-          </Button>
-          <Button
-            variant={viewMode === "kanban" ? "default" : "outline"}
-            size="icon"
-            className="rounded-lg"
-            onClick={() => setViewMode("kanban")}
-          >
-            <List className="w-4 h-4 rotate-90" />
-          </Button>
+            <div className="flex gap-1 bg-muted/50 p-1 rounded-xl">
+              <Button
+                variant={viewMode === "cards" ? "secondary" : "ghost"}
+                size="sm"
+                className={`rounded-lg transition-all ${viewMode === "cards" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                onClick={() => setViewMode("cards")}
+                title="Cards"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={viewMode === "table" ? "secondary" : "ghost"}
+                size="sm"
+                className={`rounded-lg transition-all ${viewMode === "table" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                onClick={() => setViewMode("table")}
+                title="Lista"
+              >
+                <Table2 className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={viewMode === "kanban" ? "secondary" : "ghost"}
+                size="sm"
+                className={`rounded-lg transition-all ${viewMode === "kanban" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                onClick={() => setViewMode("kanban")}
+                title="Kanban"
+              >
+                <List className="w-4 h-4 rotate-90" />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -674,125 +755,135 @@ export default function Projetos() {
             </Button>
           </CardContent>
         </Card>
-      ) : viewMode === "cards" ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {filteredProjetos.map(renderProjectCard)}
-        </div>
-      ) : viewMode === "kanban" ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {kanbanStatuses
-            .filter((s) => (statusFilter === "all" ? true : s === statusFilter))
-            .map(renderKanbanColumn)}
-        </div>
       ) : (
-        <Card className="rounded-xl">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Projeto</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Progresso</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Sessões</TableHead>
-                  <TableHead>Documentação</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredProjetos.map((projeto) => {
-                  const StatusIcon = statusIcons[projeto.status] || AlertCircle;
-                  const statusColor = statusColors[projeto.status] || "bg-muted text-foreground";
-                  const statusLabel = statusLabels[projeto.status] || projeto.status;
-                  return (
-                    <TableRow key={projeto.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <StatusIcon className="w-4 h-4 text-muted-foreground" />
-                          <div>
-                            <div className="font-medium">{projeto.titulo}</div>
-                            <div className="text-sm text-muted-foreground line-clamp-1">
-                              {projeto.descricao}
-                            </div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{projeto.clientes?.nome}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={statusColor}>
-                          {statusLabel}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Progress value={projeto.progresso} className="h-2 w-16" />
-                          <span className="text-sm">{projeto.progresso}%</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <div className="font-medium text-foreground">
-                            R$ {(projeto.valor_pago || 0).toLocaleString()}
-                          </div>
-                          <div className="text-muted-foreground">
-                            de R$ {(projeto.valor_total || 0).toLocaleString()}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <div>{projeto.sessoes_realizadas}/{projeto.sessoes_total}</div>
-                          <div className="text-muted-foreground">realizadas</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-3 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Camera className="w-3 h-3" />
-                            {projeto.fotos_count}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <MessageSquare className="w-3 h-3" />
-                            {projeto.feedback_count}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-1 justify-end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => navigate(`/projetos/${projeto.id}`)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleOpenBuilder(projeto.id)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => handleDelete(projeto.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+        <>
+          {viewMode === "cards" ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {filteredProjetos
+                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                .map(renderProjectCard)}
+            </div>
+          ) : viewMode === "kanban" ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {kanbanStatuses
+                .filter((s) => (statusFilter === "all" ? true : s === statusFilter))
+                .map(renderKanbanColumn)}
+            </div>
+          ) : (
+            <Card className="rounded-xl">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Projeto</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Progresso</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Sessões</TableHead>
+                      <TableHead>Documentação</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProjetos
+                      .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                      .map((projeto) => {
+                        const StatusIcon = statusIcons[projeto.status] || AlertCircle;
+                        const statusColor = statusColors[projeto.status] || "bg-muted text-foreground";
+                        const statusLabel = statusLabels[projeto.status] || projeto.status;
+                        return (
+                          <TableRow key={projeto.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <StatusIcon className="w-4 h-4 text-muted-foreground" />
+                                <div>
+                                  <div className="font-medium">{projeto.titulo}</div>
+                                  <div className="text-sm text-muted-foreground line-clamp-1">
+                                    {projeto.descricao}
+                                  </div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>{projeto.clientes?.nome}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={statusColor}>
+                                {statusLabel}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Progress value={projeto.progresso} className="h-2 w-16" />
+                                <span className="text-sm">{projeto.progresso}%</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <div className="font-medium text-foreground">
+                                  R$ {(projeto.valor_pago || 0).toLocaleString()}
+                                </div>
+                                <div className="text-muted-foreground">
+                                  de R$ {(projeto.valor_total || 0).toLocaleString()}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <div>{projeto.sessoes_realizadas}/{projeto.sessoes_total}</div>
+                                <div className="text-muted-foreground">realizadas</div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-3 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-1">
+                                  <Camera className="w-3 h-3" />
+                                  {projeto.fotos_count}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <MessageSquare className="w-3 h-3" />
+                                  {projeto.feedback_count}
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex gap-1 justify-end">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => navigate(`/projetos/${projeto.id}`)}
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleOpenBuilder(projeto.id)}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive"
+                                  onClick={() => handleDelete(projeto.id)}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
+              </div>
+            </Card>
+          )}
+
+          {/* Pagination Controls */}
+        </>
       )}
     </div>
   );

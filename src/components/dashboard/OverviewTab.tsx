@@ -13,21 +13,32 @@ interface OverviewTabProps {
   prevClientes?: any[];
   prevTransacoes?: any[];
   prevAgendamentos?: any[];
+  allProjetos?: any[];
+  allClientes?: any[];
+  allTransacoes?: any[];
+  allAgendamentos?: any[];
   onOpenMetasTab?: () => void;
   onCreateMeta?: () => void;
 }
 
-export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prevProjetos = [], prevClientes = [], prevTransacoes = [], prevAgendamentos = [], onOpenMetasTab, onCreateMeta }: OverviewTabProps) {
+export function OverviewTab({
+  projetos, clientes, transacoes, agendamentos,
+  prevProjetos = [], prevClientes = [], prevTransacoes = [], prevAgendamentos = [],
+  allProjetos, allClientes, allTransacoes, allAgendamentos,
+  onOpenMetasTab, onCreateMeta
+}: OverviewTabProps) {
   const norm = (v: any) => String(v || '').toLowerCase();
-  const projetosAtivos = projetos.filter(p => norm(p.status) !== "concluido" && norm(p.status) !== "cancelado").length;
-  const receitas = transacoes.filter(t => norm(t.tipo) === "receita").reduce((sum, t) => sum + Number(t.valor || 0), 0);
-  const agendamentosAtivos = agendamentos.filter(a => a.status === "agendado").length;
 
-  const prevProjetosAtivos = (prevProjetos || []).filter(p => norm(p.status) !== "concluido" && norm(p.status) !== "cancelado").length;
+  // Métricas PERIÓDICAS (para cálculo de tendência/fluxo)
+  const projetosAtivosPeriodo = projetos.filter(p => norm(p.status) !== "concluido" && norm(p.status) !== "cancelado").length;
+  const receitas = transacoes.filter(t => norm(t.tipo) === "receita").reduce((sum, t) => sum + Number(t.valor || 0), 0);
+  const agendamentosAtivosPeriodo = agendamentos.filter(a => a.status === "agendado").length;
+
+  const prevProjetosAtivosPeriodo = (prevProjetos || []).filter(p => norm(p.status) !== "concluido" && norm(p.status) !== "cancelado").length;
   const prevReceitas = (prevTransacoes || [])
     .filter(t => norm(t.tipo) === "receita")
     .reduce((sum, t) => sum + Number(t.valor || 0), 0);
-  const prevAgendamentosAtivos = (prevAgendamentos || []).filter(a => a.status === "agendado").length;
+  const prevAgendamentosAtivosPeriodo = (prevAgendamentos || []).filter(a => a.status === "agendado").length;
 
   const calcChange = (current: number, previous: number) => {
     if (!previous && current) return { change: 100, trend: "up" as const };
@@ -37,30 +48,45 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
     return { change: Math.abs(Number(percent.toFixed(1))), trend: diff >= 0 ? "up" as const : "down" as const };
   };
 
+  // Métricas TOTAIS (para exibição do valor absoluto)
+  const totalClientes = allClientes ? allClientes.length : clientes.length;
+
+  const totalProjetosAtivos = (allProjetos || projetos).filter(p => {
+    const s = norm(p.status);
+    return s === 'planejamento' || s === 'em-andamento' || s === 'andamento';
+  }).length;
+
+  const totalAgendamentosAtivos = (allAgendamentos || agendamentos).filter(a => {
+    return a.status === 'agendado';
+  }).length;
+
   const stats = [
     {
       icon: Users,
       label: "Total de Clientes",
-      value: clientes.length.toString(),
+      value: totalClientes.toString(),
       color: "text-primary",
       bgColor: "bg-primary/20",
+      subtitle: "Total registrado",
       ...calcChange(clientes.length, (prevClientes || []).length)
     },
     {
       icon: Briefcase,
       label: "Projetos Ativos",
-      value: projetosAtivos.toString(),
+      value: totalProjetosAtivos.toString(),
       color: "text-primary",
       bgColor: "bg-primary/20",
-      ...calcChange(projetosAtivos, prevProjetosAtivos)
+      subtitle: "Em andamento",
+      ...calcChange(projetosAtivosPeriodo, prevProjetosAtivosPeriodo)
     },
     {
       icon: Calendar,
       label: "Agendamentos",
-      value: agendamentosAtivos.toString(),
+      value: totalAgendamentosAtivos.toString(),
       color: "text-primary",
       bgColor: "bg-primary/20",
-      ...calcChange(agendamentosAtivos, prevAgendamentosAtivos)
+      subtitle: "Agendados/Futuros",
+      ...calcChange(agendamentosAtivosPeriodo, prevAgendamentosAtivosPeriodo)
     },
     {
       icon: DollarSign,
@@ -68,6 +94,7 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
       value: `R$ ${(receitas / 1000).toFixed(1)}K`,
       color: "text-primary",
       bgColor: "bg-primary/20",
+      subtitle: "Neste período",
       ...calcChange(receitas, prevReceitas)
     },
   ];
@@ -108,7 +135,7 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
                   </p>
                   <div className="flex items-baseline gap-2">
                     <p className="text-3xl font-bold tracking-tight">{stat.value}</p>
-                    <span className="text-xs text-muted-foreground">este mês</span>
+                    <span className="text-xs text-muted-foreground">{stat.subtitle}</span>
                   </div>
                 </div>
 
@@ -132,10 +159,10 @@ export function OverviewTab({ projetos, clientes, transacoes, agendamentos, prev
 
         <TabsContent value="analytics" className="space-y-6">
           <AdvancedCharts
-            transacoes={transacoes}
-            clientes={clientes}
-            projetos={projetos}
-            agendamentos={agendamentos}
+            transacoes={allTransacoes || transacoes}
+            clientes={allClientes || clientes}
+            projetos={allProjetos || projetos}
+            agendamentos={allAgendamentos || agendamentos}
           />
         </TabsContent>
       </Tabs>

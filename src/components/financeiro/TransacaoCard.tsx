@@ -34,11 +34,10 @@ export function TransacaoCard({
         <div className="space-y-2 flex-1">
           <div className="flex items-center gap-3 flex-wrap">
             <Badge
-              className={`rounded-full ${
-                transacao.tipo === "RECEITA"
+              className={`rounded-full ${transacao.tipo === "RECEITA"
                   ? "bg-success/10 text-success"
                   : "bg-destructive/10 text-destructive"
-              }`}
+                }`}
             >
               {transacao.tipo}
             </Badge>
@@ -66,16 +65,7 @@ export function TransacaoCard({
           </div>
         </div>
         <div className="flex gap-2">
-          {!transacao.data_liquidacao && (
-            <Button
-              onClick={() => onLiquidar(transacao)}
-              className="rounded-xl gap-2"
-              size="sm"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Liquidar
-            </Button>
-          )}
+          {/* Botão Liquidar removido */}
           <Button
             onClick={() => onEdit(transacao)}
             variant="outline"

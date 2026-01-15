@@ -5,16 +5,16 @@ export { ClienteCards } from "./ClienteCards";
 export { ClienteGrid } from "./ClienteGrid";
 export { ClienteFilters } from "./ClienteFilters";
 export { CitySelector } from "./CitySelector";
-export { ClienteLTVBadge } from "./ClienteLTVBadge";
+export { ClienteStatusBadge } from "./ClienteStatusBadge";
 export { ReferralNetwork } from "./ReferralNetwork";
 
 // Skeletons
-export { 
-  StatCardsSkeleton, 
-  ClienteCardsSkeleton, 
-  ClienteGridSkeleton, 
+export {
+  StatCardsSkeleton,
+  ClienteCardsSkeleton,
+  ClienteGridSkeleton,
   ClienteTableSkeleton,
   ClienteControlsSkeleton,
-  ReferralNetworkSkeleton 
+  ReferralNetworkSkeleton
 } from "./ClientesSkeleton";
 

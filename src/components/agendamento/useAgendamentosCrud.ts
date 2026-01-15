@@ -34,6 +34,7 @@ export function useAgendamentosCrud({
   const supabaseClient = isSupabaseLocalConfigured ? supabaseLocal : supabase;
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingAgendamento, setEditingAgendamento] = useState<Agendamento | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const [busca, setBusca] = useState('');
@@ -65,6 +66,9 @@ export function useAgendamentosCrud({
   });
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
     const scrollContainer = document.querySelector('main.flex-1') as HTMLElement | null;
     const prevScrollTop = scrollContainer ? scrollContainer.scrollTop : window.scrollY;
     sessionStorage.setItem('agendamentos-scroll-y', String(prevScrollTop));
@@ -119,6 +123,38 @@ export function useAgendamentosCrud({
           if (!updatedOk) {
             toast({ title: "Atualização não aplicada", description: "Nenhuma linha foi atualizada.", variant: "destructive" });
           } else {
+            // Sincronizar transação se concluído
+            if (formData.status === 'concluido') {
+              const clienteNome = formData.cliente_nome || clientes.find(c => c.id === formData.cliente_id)?.nome || "Cliente";
+              const transacaoPayload = {
+                user_id: masterId,
+                tipo: 'RECEITA',
+                categoria: 'Serviços',
+                valor: formData.valor_estimado || 0,
+                data_vencimento: formData.data_agendamento,
+                descricao: `Sessão: ${formData.servico} - ${clienteNome}`,
+                agendamento_id: editingAgendamento.id,
+              };
+
+              // Verificar se já existe
+              const { data: existingTr } = await supabaseClient
+                .from('transacoes')
+                .select('id')
+                .eq('agendamento_id', editingAgendamento.id)
+                .maybeSingle();
+
+              if (existingTr) {
+                await supabaseClient
+                  .from('transacoes')
+                  .update(transacaoPayload)
+                  .eq('id', existingTr.id);
+              } else {
+                await supabaseClient
+                  .from('transacoes')
+                  .insert(transacaoPayload);
+              }
+            }
+
             toast({ title: "Agendamento atualizado com sucesso!" });
           }
         } else {
@@ -134,6 +170,7 @@ export function useAgendamentosCrud({
           const projeto = projetos.find(p => p.titulo === formData.tatuador);
           if (!projeto?.id) {
             toast({ title: 'Selecione um projeto', description: 'É necessário escolher um projeto para salvar.' });
+            setIsSubmitting(false);
             return;
           }
 
@@ -221,6 +258,7 @@ export function useAgendamentosCrud({
     setIsDialogOpen(false);
     setEditingAgendamento(null);
     setFormData(INITIAL_FORM_DATA);
+    setIsSubmitting(false);
 
     requestAnimationFrame(() => {
       if (scrollContainer) {
@@ -247,6 +285,95 @@ export function useAgendamentosCrud({
       local: agendamento.local
     });
     setIsDialogOpen(true);
+  };
+
+  const handleDuplicate = async (agendamento: Agendamento) => {
+    // Se tiver masterId, salva no banco imediatamente
+    if (masterId) {
+      try {
+        const projeto = projetos.find(p => p.titulo === agendamento.tatuador);
+        if (!projeto?.id) {
+          toast({
+            title: 'Erro ao duplicar',
+            description: 'Projeto não encontrado. Verifique o tatuador associado.',
+            variant: 'destructive'
+          });
+          return;
+        }
+
+        // Insere no banco de dados
+        const { data: inserted, error } = await supabase
+          .from('agendamentos')
+          .insert({
+            user_id: masterId,
+            projeto_id: projeto.id,
+            titulo: agendamento.servico || agendamento.cliente_nome,
+            descricao: agendamento.observacoes,
+            data: agendamento.data_agendamento,
+            hora: agendamento.hora_inicio,
+            status: 'agendado', // Sempre reseta para 'agendado' ao duplicar
+            valor_estimado: agendamento.valor_estimado || 0,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Cria o agendamento com o ID real do banco
+        const novoAgendamento: Agendamento = {
+          id: inserted.id,
+          cliente_nome: agendamento.cliente_nome,
+          cliente_id: agendamento.cliente_id,
+          data_agendamento: agendamento.data_agendamento,
+          hora_inicio: agendamento.hora_inicio,
+          hora_fim: agendamento.hora_fim,
+          servico: agendamento.servico,
+          status: 'agendado', // Sempre reseta para 'agendado' ao duplicar
+          observacoes: agendamento.observacoes,
+          valor_estimado: agendamento.valor_estimado,
+          tatuador: agendamento.tatuador,
+          local: agendamento.local
+        };
+
+        // Adiciona ao estado local
+        setAgendamentos(prev => [...prev, novoAgendamento]);
+
+        toast({
+          title: "Agendamento duplicado com sucesso!",
+          description: "O agendamento foi salvo e pode ser arrastado para outra data se necessário."
+        });
+      } catch (err) {
+        console.error('Erro ao duplicar agendamento:', err);
+        toast({
+          title: 'Erro ao duplicar agendamento',
+          description: 'Não foi possível salvar o agendamento duplicado.',
+          variant: 'destructive'
+        });
+      }
+    } else {
+      // Fallback: cria localmente se não tiver masterId
+      const novoAgendamento: Agendamento = {
+        id: Date.now().toString(),
+        cliente_nome: agendamento.cliente_nome,
+        cliente_id: agendamento.cliente_id,
+        data_agendamento: agendamento.data_agendamento,
+        hora_inicio: agendamento.hora_inicio,
+        hora_fim: agendamento.hora_fim,
+        servico: agendamento.servico,
+        status: 'agendado',
+        observacoes: agendamento.observacoes,
+        valor_estimado: agendamento.valor_estimado,
+        tatuador: agendamento.tatuador,
+        local: agendamento.local
+      };
+
+      setAgendamentos(prev => [...prev, novoAgendamento]);
+
+      toast({
+        title: "Agendamento duplicado localmente",
+        description: "Faça login para salvar permanentemente."
+      });
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -355,6 +482,7 @@ export function useAgendamentosCrud({
     editingAgendamento,
     isDialogOpen,
     setIsDialogOpen,
+    isSubmitting, // Added
 
     // Filtros
     filtroStatus,
@@ -366,6 +494,7 @@ export function useAgendamentosCrud({
     // Handlers
     handleSubmit,
     handleEdit,
+    handleDuplicate,
     handleDelete,
     handleStatusChange,
     handleAppointmentMove,

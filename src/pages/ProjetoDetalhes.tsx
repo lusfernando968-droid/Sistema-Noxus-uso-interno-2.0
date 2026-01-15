@@ -13,12 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
-import { ArrowLeft, Calendar, DollarSign, User, Clock, FileText, Image, CheckCircle, MessageSquare, Star } from "lucide-react";
+import { ArrowLeft, Calendar, DollarSign, User, Clock, FileText, Image, CheckCircle, MessageSquare, Star, MoveVertical, Save, X, ExternalLink, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { FeedbackManager } from "@/components/projetos/FeedbackManager";
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu";
 import { ProjetoDetalhesSkeleton } from "@/components/ui/skeletons";
+import { ProjectBuilder } from "@/components/projetos/ProjectBuilder";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Interfaces
 interface Projeto {
@@ -36,6 +38,9 @@ interface Projeto {
   prioridade: 'baixa' | 'media' | 'alta';
   observacoes: string;
   quantidade_sessoes: number;
+  capa_url?: string;
+  capa_posicao?: number;
+  drive_link?: string;
 }
 
 interface Sessao {
@@ -65,12 +70,25 @@ export default function ProjetoDetalhes() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   // Dados do servidor
   const [projeto, setProjeto] = useState<Projeto | null>(null);
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
   const [agendamentos, setAgendamentos] = useState<AgendamentoProjeto[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Estados para reposicionamento da capa
+  const [isRepositioning, setIsRepositioning] = useState(false);
+  const [coverPosition, setCoverPosition] = useState(50);
+  const [dragStartY, setDragStartY] = useState<number | null>(null);
+  const [originalPosition, setOriginalPosition] = useState(50);
+
+  // Estado para edição do projeto
+  const [editProjectDialogOpen, setEditProjectDialogOpen] = useState(false);
+  const [clientes, setClientes] = useState<any[]>([]);
+
+
 
   // Reducer para estados de UI complexos (dialogs, formulários de edição)
   const { state: uiState, actions: uiActions } = useProjetoDetalhesReducer();
@@ -120,7 +138,9 @@ export default function ProjetoDetalhes() {
   // Normaliza a descrição para ajustar rótulos antigos como "Local:" para o novo texto
   const formatDescricao = (d?: string) => {
     if (!d) return '';
-    return d.replace(/^Local:\s*/i, 'Estúdio: ');
+    const texto = d.replace(/^Local:\s*/i, 'Estúdio: ');
+    // Capitaliza apenas a primeira letra
+    return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
   };
 
   // Usa a observação/descrição do agendamento vinculado, se existir
@@ -435,6 +455,66 @@ export default function ProjetoDetalhes() {
     }
   };
 
+  const startRepositioning = () => {
+    if (!projeto) return;
+    setIsRepositioning(true);
+    setOriginalPosition(coverPosition);
+  };
+
+  const cancelRepositioning = () => {
+    setIsRepositioning(false);
+    setCoverPosition(originalPosition);
+  };
+
+  const saveRepositioning = async () => {
+    if (!id) return;
+    setIsRepositioning(false);
+
+    try {
+      const { error } = await supabase
+        .from('projetos')
+        .update({ capa_posicao: Math.round(coverPosition) })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({ title: "Capa atualizada", description: "Posição da capa salva com sucesso." });
+    } catch (error) {
+      console.error("Erro ao salvar posição da capa:", error);
+      toast({ variant: "destructive", title: "Erro", description: "Não foi possível salvar a posição da capa." });
+      setCoverPosition(originalPosition);
+    }
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isRepositioning) return;
+    setDragStartY(e.clientY);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isRepositioning || dragStartY === null) return;
+
+    const deltaY = e.clientY - dragStartY;
+    const sensitivity = 0.2; // Ajuste para suavidade
+
+    let newPosition = coverPosition - (deltaY * sensitivity);
+
+    // Limitar entre 0 e 100
+    if (newPosition < 0) newPosition = 0;
+    if (newPosition > 100) newPosition = 100;
+
+    setCoverPosition(newPosition);
+    setDragStartY(e.clientY); // Reset para movimento relativo contínuo
+  };
+
+  const handleMouseUp = () => {
+    setDragStartY(null);
+  };
+
+  const handleMouseLeave = () => {
+    setDragStartY(null);
+  };
+
   useEffect(() => {
     const carregarProjeto = async () => {
       if (!id) {
@@ -475,13 +555,17 @@ export default function ProjetoDetalhes() {
           .single();
 
         // Calcular valor pago
-        const { data: sessoes } = await supabase
+        const { data: sessoesPagamento } = await supabase
           .from('projeto_sessoes')
-          .select('valor_sessao')
-          .eq('projeto_id', id)
-          .eq('status_pagamento', 'pago');
+          .select('valor_sessao, data_sessao, status_pagamento')
+          .eq('projeto_id', id);
 
-        const valorPago = (sessoes || []).reduce((sum, s) => sum + (s.valor_sessao || 0), 0);
+        const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+        const valorPago = (sessoesPagamento || []).reduce((sum, s) => {
+          const isPastOrToday = s.data_sessao <= today;
+          const isPago = s.status_pagamento === 'pago' || (s.status_pagamento === 'pendente' && isPastOrToday);
+          return isPago ? sum + (s.valor_sessao || 0) : sum;
+        }, 0);
 
         // Montar dados do projeto
         const projetoCompleto: Projeto = {
@@ -499,14 +583,30 @@ export default function ProjetoDetalhes() {
           prioridade: 'media',
           observacoes: projetoEncontrado.notas || '',
           quantidade_sessoes: projetoEncontrado.quantidade_sessoes || 0,
+          capa_url: projetoEncontrado.capa_url,
+          capa_posicao: projetoEncontrado.capa_posicao || 50,
+          drive_link: projetoEncontrado.drive_link,
         };
 
         setProjeto(projetoCompleto);
+
+
 
         // Carregar sessões
         await loadSessoes();
         // Carregar agendamentos do projeto
         await loadAgendamentos();
+
+        // Carregar clientes para o ProjectBuilder
+        const { data: clientesData } = await supabase
+          .from('clientes')
+          .select('*')
+          .eq('user_id', user?.id || '')
+          .order('nome');
+
+        if (clientesData) {
+          setClientes(clientesData);
+        }
 
       } catch (error) {
         console.error('Erro ao carregar projeto:', error);
@@ -606,6 +706,17 @@ export default function ProjetoDetalhes() {
             <p className="text-muted-foreground">Cliente: {projeto.cliente_nome}</p>
           </div>
           <div className="flex gap-2">
+            {projeto.drive_link && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 rounded-xl"
+                onClick={() => window.open(projeto.drive_link, '_blank')}
+              >
+                <ExternalLink className="w-4 h-4" />
+                Acessar Drive
+              </Button>
+            )}
             <Badge variant="outline" className={`rounded-xl ${getStatusColor(projeto.status)}`}>
               {getStatusLabel(projeto.status)}
             </Badge>
@@ -614,6 +725,69 @@ export default function ProjetoDetalhes() {
             </Badge>
           </div>
         </div>
+
+        {/* Capa do Projeto */}
+        {projeto.capa_url && (
+          <div
+            className={`w-full h-48 md:h-64 relative rounded-2xl overflow-hidden shadow-sm border border-muted/20 group select-none ${isRepositioning ? 'cursor-move ring-2 ring-primary ring-offset-2' : ''}`}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+          >
+            <img
+              src={projeto.capa_url}
+              alt={`Capa do projeto ${projeto.titulo}`}
+              className="w-full h-full object-cover transition-none pointer-events-none"
+              style={{ objectPosition: `center ${coverPosition}%` }}
+            />
+            <div className={`absolute inset-0 bg-gradient-to-t from-background/80 to-transparent transition-opacity duration-300 ${isRepositioning ? 'opacity-0' : 'opacity-100'}`} />
+
+            {/* Botão Reposicionar (aparece no hover se não estiver editando) */}
+            {!isRepositioning && (
+              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="bg-background/80 backdrop-blur-sm hover:bg-background shadow-sm text-xs h-8"
+                  onClick={startRepositioning}
+                >
+                  <MoveVertical className="w-3 h-3 mr-1.5" />
+                  Reposicionar
+                </Button>
+              </div>
+            )}
+
+            {/* Controles de Edição (aparecem apenas quando editando) */}
+            {isRepositioning && (
+              <div className="absolute bottom-4 right-4 flex gap-2 z-10">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="bg-background/90 backdrop-blur-sm shadow-sm h-8"
+                  onClick={cancelRepositioning}
+                >
+                  <X className="w-4 h-4 mr-1.5" />
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-8 shadow-sm"
+                  onClick={saveRepositioning}
+                >
+                  <Save className="w-4 h-4 mr-1.5" />
+                  Salvar Posição
+                </Button>
+              </div>
+            )}
+
+            {isRepositioning && (
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/50 text-white text-xs px-3 py-1 rounded-full backdrop-blur-sm pointer-events-none">
+                Arraste para mover
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Cards de Resumo */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -681,10 +855,21 @@ export default function ProjetoDetalhes() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="rounded-2xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="w-5 h-5" />
-                    Informações do Projeto
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Informações do Projeto
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEditProjectDialogOpen(true)}
+                      className="rounded-xl"
+                    >
+                      <Edit className="w-4 h-4 mr-2" />
+                      Editar
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
@@ -1067,6 +1252,18 @@ export default function ProjetoDetalhes() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* ProjectBuilder para edição do projeto */}
+        <ProjectBuilder
+          open={editProjectDialogOpen}
+          onOpenChange={setEditProjectDialogOpen}
+          projetoId={projeto?.id}
+          clientes={clientes}
+          onSuccess={() => {
+            // Recarregar dados do projeto após edição
+            window.location.reload();
+          }}
+        />
       </div>
     </div>
   );

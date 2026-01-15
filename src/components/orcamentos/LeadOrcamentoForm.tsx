@@ -5,17 +5,49 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Save } from "lucide-react";
+import { Plus, Save, Calendar, User, Palette, DollarSign, FileText } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuCheckboxItem,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
+import { ClientSelect } from "@/components/orcamentos/ClientSelect";
+import { Cliente } from "@/services/clientes.service";
 
 interface LeadOrcamentoFormProps {
     onSave?: () => void;
+    orcamento?: {
+        id: string;
+        nome: string;
+        numero: string;
+        plataforma_contato: string;
+        local_tatuagem?: string;
+        tamanho?: number;
+        estilo?: string;
+        cor?: string;
+        locais?: string[];
+        quantidade_sessoes?: number;
+        valor_por_sessao?: number;
+        valor_total?: number;
+        observacoes?: string;
+        data_contato?: string;
+    };
+    trigger?: React.ReactNode;
 }
 
-export function LeadOrcamentoForm({ onSave }: LeadOrcamentoFormProps) {
+export function LeadOrcamentoForm({ onSave, orcamento, trigger }: LeadOrcamentoFormProps) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    // Cliente selecionado
+    const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
 
     // Dados do Lead
     const [nome, setNome] = useState("");
@@ -23,17 +55,85 @@ export function LeadOrcamentoForm({ onSave }: LeadOrcamentoFormProps) {
     const [plataforma, setPlataforma] = useState<string>("");
 
     // Dados do Projeto
-    const [localTatuagem, setLocalTatuagem] = useState("");
     const [tamanho, setTamanho] = useState("");
-    const [estilo, setEstilo] = useState("");
+    const [estilos, setEstilos] = useState<string[]>([]);
     const [cor, setCor] = useState<string>("");
-    const [locais, setLocais] = useState<string[]>([]);
+    const [locaisCorpo, setLocaisCorpo] = useState<string[]>([]);
     const [quantidadeSessoes, setQuantidadeSessoes] = useState("");
     const [valorPorSessao, setValorPorSessao] = useState("");
     const [observacoes, setObservacoes] = useState("");
+    const [dataContato, setDataContato] = useState("");
+
+    // Opções predefinidas para locais do corpo
+    const locaisCorpoOptions = [
+        "Braço",
+        "Antebraço",
+        "Perna",
+        "Coxa",
+        "Panturrilha",
+        "Peito",
+        "Costas",
+        "Ombro",
+        "Pescoço",
+        "Mão",
+        "Pé",
+        "Barriga",
+        "Costela",
+        "Nuca",
+        "Outro"
+    ];
+
+    // Opções de estilo
+    const estiloOptions = [
+        "Realismo",
+        "Fineline",
+        "Old School",
+        "Blackwork",
+        "Tribal",
+        "Pontilhismo",
+        "Geométrico",
+        "Oriental",
+        "Aquarela",
+        "Lettering",
+        "Sketch",
+        "Minimalista",
+        "Outro"
+    ];
 
     // Cálculo automático do valor total
     const [valorTotal, setValorTotal] = useState(0);
+
+    // Load existing data when editing
+    useEffect(() => {
+        if (orcamento) {
+            setNome(orcamento.nome || "");
+            setNumero(orcamento.numero || "");
+            setPlataforma(orcamento.plataforma_contato || "");
+            setTamanho(orcamento.tamanho ? String(orcamento.tamanho) : "");
+
+            // Converter string de estilos separada por vírgula em array
+            if (orcamento.estilo) {
+                setEstilos(orcamento.estilo.split(',').map(s => s.trim()));
+            } else {
+                setEstilos([]);
+            }
+
+            setCor(orcamento.cor || "");
+            setLocaisCorpo(orcamento.locais || []);
+            setQuantidadeSessoes(orcamento.quantidade_sessoes ? String(orcamento.quantidade_sessoes) : "");
+            setValorPorSessao(orcamento.valor_por_sessao ? String(orcamento.valor_por_sessao) : "");
+            setObservacoes(orcamento.observacoes || "");
+            setDataContato(orcamento.data_contato ? orcamento.data_contato.split('T')[0] : "");
+        }
+    }, [orcamento]);
+
+    // Sync selected client data with form fields
+    useEffect(() => {
+        if (selectedCliente) {
+            setNome(selectedCliente.nome);
+            setNumero(selectedCliente.telefone || "");
+        }
+    }, [selectedCliente]);
 
     useEffect(() => {
         const sessoes = parseInt(quantidadeSessoes) || 0;
@@ -43,19 +143,10 @@ export function LeadOrcamentoForm({ onSave }: LeadOrcamentoFormProps) {
 
     const handleSave = async () => {
         // Validações
-        if (!nome.trim()) {
+        if (!selectedCliente) {
             toast({
                 title: "Erro",
-                description: "Nome é obrigatório",
-                variant: "destructive"
-            });
-            return;
-        }
-
-        if (!numero.trim()) {
-            toast({
-                title: "Erro",
-                description: "Número de contato é obrigatório",
+                description: "Selecione um cliente ou crie um novo lead",
                 variant: "destructive"
             });
             return;
@@ -73,46 +164,75 @@ export function LeadOrcamentoForm({ onSave }: LeadOrcamentoFormProps) {
         try {
             setLoading(true);
 
-            const { data, error } = await supabase
-                .from('orcamentos')
-                .insert({
-                    nome,
-                    numero,
-                    plataforma_contato: plataforma,
-                    local_tatuagem: localTatuagem || null,
-                    tamanho: tamanho ? parseFloat(tamanho) : null,
-                    estilo: estilo || null,
-                    cor: cor || null,
-                    locais: locais.length > 0 ? locais : null,
-                    quantidade_sessoes: quantidadeSessoes ? parseInt(quantidadeSessoes) : null,
-                    valor_por_sessao: valorPorSessao ? parseFloat(valorPorSessao) : null,
-                    valor_total: valorTotal || null,
-                    observacoes: observacoes || null,
-                    status: 'pendente',
-                    data_contato: new Date().toISOString()
-                })
-                .select()
-                .single();
+            if (orcamento?.id) {
+                // Update existing budget
+                const { error } = await supabase
+                    .from('orcamentos')
+                    .update({
+                        nome,
+                        numero,
+                        plataforma_contato: plataforma,
+                        tamanho: tamanho ? parseFloat(tamanho) : null,
+                        estilo: estilos.length > 0 ? estilos.join(', ') : null,
+                        cor: cor || null,
+                        locais: locaisCorpo.length > 0 ? locaisCorpo : null,
+                        quantidade_sessoes: quantidadeSessoes ? parseInt(quantidadeSessoes) : null,
+                        valor_por_sessao: valorPorSessao ? parseFloat(valorPorSessao) : null,
+                        valor_total: valorTotal || null,
+                        observacoes: observacoes || null,
+                        data_contato: dataContato || null,
+                    })
+                    .eq('id', orcamento.id);
 
-            if (error) throw error;
+                if (error) throw error;
 
-            toast({
-                title: "Sucesso!",
-                description: "Lead/Orçamento criado com sucesso",
-            });
+                toast({
+                    title: "Sucesso!",
+                    description: "Orçamento atualizado com sucesso",
+                });
+            } else {
+                // Create new budget
+                const { data, error } = await supabase
+                    .from('orcamentos')
+                    .insert({
+                        nome,
+                        numero,
+                        plataforma_contato: plataforma,
+                        tamanho: tamanho ? parseFloat(tamanho) : null,
+                        estilo: estilos.length > 0 ? estilos.join(', ') : null,
+                        cor: cor || null,
+                        locais: locaisCorpo.length > 0 ? locaisCorpo : null,
+                        quantidade_sessoes: quantidadeSessoes ? parseInt(quantidadeSessoes) : null,
+                        valor_por_sessao: valorPorSessao ? parseFloat(valorPorSessao) : null,
+                        valor_total: valorTotal || null,
+                        observacoes: observacoes || null,
+                        status: 'pendente',
+                        data_contato: dataContato || new Date().toISOString().split('T')[0]
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                toast({
+                    title: "Sucesso!",
+                    description: "Lead/Orçamento criado com sucesso",
+                });
+            }
 
             // Reset form
             setNome("");
             setNumero("");
             setPlataforma("");
-            setLocalTatuagem("");
             setTamanho("");
-            setEstilo("");
+            setEstilos([]);
             setCor("");
-            setLocais([]);
+            setLocaisCorpo([]);
             setQuantidadeSessoes("");
             setValorPorSessao("");
             setObservacoes("");
+            setDataContato("");
+            setSelectedCliente(null);
 
             setOpen(false);
             onSave?.();
@@ -131,191 +251,241 @@ export function LeadOrcamentoForm({ onSave }: LeadOrcamentoFormProps) {
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button className="rounded-xl shadow-lg hover:shadow-xl transition-all">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Novo Lead/Orçamento
-                </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[600px] rounded-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>Novo Lead/Orçamento</DialogTitle>
+            {trigger ? (
+                <DialogTrigger asChild>
+                    {trigger}
+                </DialogTrigger>
+            ) : (
+                <DialogTrigger asChild>
+                    <Button className="rounded-xl shadow-lg hover:shadow-xl transition-all">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Novo Lead/Orçamento
+                    </Button>
+                </DialogTrigger>
+            )}
+            <DialogContent className="sm:max-w-[700px] rounded-2xl max-h-[90vh] flex flex-col p-0 gap-0 bg-white">
+                <DialogHeader className="p-6 pb-2 border-b mb-4">
+                    <DialogTitle className="text-xl font-bold text-gray-900">
+                        {orcamento ? "Editar Orçamento" : "Novo Orçamento"}
+                    </DialogTitle>
                     <DialogDescription>
-                        Registre um novo contato e orçamento para rastreamento
+                        {orcamento ? "Atualize as informações do orçamento abaixo" : "Preencha os dados do novo orçamento"}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid gap-6 py-4">
-                    {/* Dados do Lead */}
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-sm text-muted-foreground uppercase">Dados do Contato</h3>
+                <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6">
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2 col-span-2">
-                                <Label htmlFor="nome">Nome *</Label>
-                                <Input
-                                    id="nome"
-                                    placeholder="Nome do cliente"
-                                    value={nome}
-                                    onChange={(e) => setNome(e.target.value)}
-                                    className="rounded-xl"
-                                />
+                    {/* Seção: Informações do Contato */}
+                    <div className="border rounded-xl p-4 space-y-4 bg-white shadow-sm">
+                        <h3 className="flex items-center gap-2 font-semibold text-slate-700">
+                            <User className="h-4 w-4 text-primary" /> Informações do Contato
+                        </h3>
+                        <div className="space-y-4">
+                            <ClientSelect
+                                onSelect={setSelectedCliente}
+                                selectedClienteId={selectedCliente?.id}
+                            />
+
+                            {selectedCliente && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="plataforma" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Plataforma</Label>
+                                        <Select value={plataforma} onValueChange={setPlataforma}>
+                                            <SelectTrigger id="plataforma" className="rounded-xl bg-slate-50 border-slate-200 focus:bg-white transition-all">
+                                                <SelectValue placeholder="Selecione..." />
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl">
+                                                <SelectItem value="instagram">Instagram</SelectItem>
+                                                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                                                <SelectItem value="presencial">Presencial</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label htmlFor="data-contato" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data do Contato</Label>
+                                        <DatePickerInput
+                                            value={dataContato}
+                                            onChange={setDataContato}
+                                            placeholder="Selecione data..."
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Seção: Detalhes do Projeto */}
+                    <div className="border rounded-xl p-4 space-y-4 bg-white shadow-sm">
+                        <h3 className="flex items-center gap-2 font-semibold text-slate-700">
+                            <Palette className="h-4 w-4 text-primary" /> Detalhes do Projeto
+                        </h3>
+
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Locais do Corpo</Label>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    {locaisCorpoOptions.map((local) => (
+                                        <div
+                                            key={local}
+                                            onClick={() => {
+                                                if (locaisCorpo.includes(local)) {
+                                                    setLocaisCorpo(locaisCorpo.filter(l => l !== local));
+                                                } else {
+                                                    setLocaisCorpo([...locaisCorpo, local]);
+                                                }
+                                            }}
+                                            className={`
+                                                flex items-center justify-center p-2 rounded-lg border text-sm cursor-pointer transition-all
+                                                ${locaisCorpo.includes(local)
+                                                    ? 'bg-primary/10 border-primary text-primary font-medium'
+                                                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'}
+                                            `}
+                                        >
+                                            {local}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="numero">Número *</Label>
-                                <Input
-                                    id="numero"
-                                    placeholder="(00) 00000-0000"
-                                    value={numero}
-                                    onChange={(e) => setNumero(e.target.value)}
-                                    className="rounded-xl"
-                                />
-                            </div>
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="tamanho" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Tamanho (cm)</Label>
+                                    <div className="relative">
+                                        <Input
+                                            id="tamanho"
+                                            type="number"
+                                            placeholder="Ex: 15"
+                                            value={tamanho}
+                                            onChange={(e) => setTamanho(e.target.value)}
+                                            className="rounded-xl bg-slate-50 border-slate-200 focus:bg-white transition-all pr-8"
+                                        />
+                                        <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">cm</span>
+                                    </div>
+                                </div>
 
-                            <div className="space-y-2">
-                                <Label htmlFor="plataforma">Plataforma *</Label>
-                                <Select value={plataforma} onValueChange={setPlataforma}>
-                                    <SelectTrigger id="plataforma" className="rounded-xl">
-                                        <SelectValue placeholder="Selecione" />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl">
-                                        <SelectItem value="instagram">Instagram</SelectItem>
-                                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                                        <SelectItem value="presencial">Presencial</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <div className="space-y-2">
+                                    <Label htmlFor="estilo" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estilo</Label>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-between rounded-xl bg-slate-50 border-slate-200 hover:bg-white text-left font-normal">
+                                                <span className="truncate">
+                                                    {estilos.length > 0 ? estilos.join(', ') : "Selecione..."}
+                                                </span>
+                                                <ChevronDown className="h-4 w-4 opacity-50" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent className="w-56 max-h-[300px] overflow-y-auto rounded-xl">
+                                            {estiloOptions.map((option) => (
+                                                <DropdownMenuCheckboxItem
+                                                    key={option}
+                                                    checked={estilos.includes(option)}
+                                                    onCheckedChange={(checked) => {
+                                                        if (checked) {
+                                                            setEstilos([...estilos, option]);
+                                                        } else {
+                                                            setEstilos(estilos.filter((e) => e !== option));
+                                                        }
+                                                    }}
+                                                >
+                                                    {option}
+                                                </DropdownMenuCheckboxItem>
+                                            ))}
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="cor" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cor</Label>
+                                    <Select value={cor} onValueChange={setCor}>
+                                        <SelectTrigger id="cor" className="rounded-xl bg-slate-50 border-slate-200 focus:bg-white transition-all">
+                                            <SelectValue placeholder="Selecione..." />
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl">
+                                            <SelectItem value="pb">Preto e Branco</SelectItem>
+                                            <SelectItem value="colorido">Colorido</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Dados do Projeto */}
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-sm text-muted-foreground uppercase">Detalhes do Projeto</h3>
+                    {/* Seção: Valores e Sessões */}
+                    <div className="border rounded-xl p-4 space-y-4 bg-white shadow-sm">
+                        <h3 className="flex items-center gap-2 font-semibold text-slate-700">
+                            <DollarSign className="h-4 w-4 text-primary" /> Valores e Sessões
+                        </h3>
 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="local">Local da Tatuagem</Label>
-                                <Input
-                                    id="local"
-                                    placeholder="Ex: Braço, Perna..."
-                                    value={localTatuagem}
-                                    onChange={(e) => setLocalTatuagem(e.target.value)}
-                                    className="rounded-xl"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="tamanho">Tamanho (cm)</Label>
-                                <Input
-                                    id="tamanho"
-                                    type="number"
-                                    placeholder="Ex: 15"
-                                    value={tamanho}
-                                    onChange={(e) => setTamanho(e.target.value)}
-                                    className="rounded-xl"
-                                />
-                            </div>
-
-                            <div className="space-y-2 col-span-2">
-                                <Label htmlFor="estilo">Estilo</Label>
-                                <Input
-                                    id="estilo"
-                                    placeholder="Ex: Realismo, Fineline..."
-                                    value={estilo}
-                                    onChange={(e) => setEstilo(e.target.value)}
-                                    className="rounded-xl"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="cor">Cor</Label>
-                                <Select value={cor} onValueChange={setCor}>
-                                    <SelectTrigger id="cor" className="rounded-xl">
-                                        <SelectValue placeholder="Selecione" />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl">
-                                        <SelectItem value="pb">Preto e Branco</SelectItem>
-                                        <SelectItem value="colorido">Colorido</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="locais">Locais do Corpo</Label>
-                                <Input
-                                    id="locais"
-                                    placeholder="Ex: Braço, Perna (separados por vírgula)"
-                                    value={locais.join(', ')}
-                                    onChange={(e) => setLocais(e.target.value.split(',').map(l => l.trim()).filter(l => l))}
-                                    className="rounded-xl"
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="sessoes">Quantidade de Sessões</Label>
+                                <Label htmlFor="sessoes" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nº Sessões</Label>
                                 <Input
                                     id="sessoes"
                                     type="number"
                                     placeholder="Ex: 3"
                                     value={quantidadeSessoes}
                                     onChange={(e) => setQuantidadeSessoes(e.target.value)}
-                                    className="rounded-xl"
+                                    className="rounded-xl bg-slate-50 border-slate-200 focus:bg-white transition-all"
                                 />
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="valor-sessao">Valor por Sessão (R$)</Label>
-                                <Input
-                                    id="valor-sessao"
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="Ex: 500.00"
-                                    value={valorPorSessao}
-                                    onChange={(e) => setValorPorSessao(e.target.value)}
-                                    className="rounded-xl"
-                                />
-                            </div>
-
-                            {valorTotal > 0 && (
-                                <div className="col-span-2 p-4 bg-primary/5 rounded-xl border border-primary/20">
-                                    <div className="flex justify-between items-center">
-                                        <span className="font-medium">Valor Total:</span>
-                                        <span className="text-2xl font-bold text-primary">
-                                            {valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                        </span>
-                                    </div>
+                                <Label htmlFor="valor-sessao" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Valor Sessão</Label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-2.5 text-sm font-medium text-slate-500">R$</span>
+                                    <Input
+                                        id="valor-sessao"
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0,00"
+                                        value={valorPorSessao}
+                                        onChange={(e) => setValorPorSessao(e.target.value)}
+                                        className="rounded-xl bg-slate-50 border-slate-200 focus:bg-white transition-all pl-9"
+                                    />
                                 </div>
-                            )}
-
-                            <div className="space-y-2 col-span-2">
-                                <Label htmlFor="observacoes">Observações</Label>
-                                <Textarea
-                                    id="observacoes"
-                                    placeholder="Detalhes adicionais sobre o projeto..."
-                                    value={observacoes}
-                                    onChange={(e) => setObservacoes(e.target.value)}
-                                    className="rounded-xl min-h-[80px]"
-                                />
                             </div>
                         </div>
+
+                        {valorTotal > 0 && (
+                            <div className="flex justify-between items-center p-4 bg-slate-900 text-white rounded-xl shadow-lg mt-2">
+                                <span className="font-medium">Valor Total Estimado</span>
+                                <span className="text-2xl font-bold">
+                                    {valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Seção: Observações */}
+                    <div className="border rounded-xl p-4 space-y-4 bg-white shadow-sm">
+                        <h3 className="flex items-center gap-2 font-semibold text-slate-700">
+                            <FileText className="h-4 w-4 text-primary" /> Observações
+                        </h3>
+                        <Textarea
+                            id="observacoes"
+                            placeholder="Detalhes adicionais sobre o projeto..."
+                            value={observacoes}
+                            onChange={(e) => setObservacoes(e.target.value)}
+                            className="rounded-xl min-h-[100px] bg-slate-50 border-slate-200 focus:bg-white transition-all resize-none"
+                        />
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-3">
-                    <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl">
-                        Cancelar
-                    </Button>
+                <div className="p-6 pt-2 border-t bg-white">
                     <Button
-                        className="rounded-xl"
+                        className="w-full h-12 rounded-xl text-base font-semibold shadow-lg hover:shadow-xl transition-all"
                         onClick={handleSave}
                         disabled={loading}
                     >
-                        <Save className="w-4 h-4 mr-2" />
-                        {loading ? "Salvando..." : "Salvar Lead"}
+                        {loading ? (
+                            "Processando..."
+                        ) : (
+                            orcamento ? "Confirmar Alterações" : "Confirmar Orçamento"
+                        )}
                     </Button>
                 </div>
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }

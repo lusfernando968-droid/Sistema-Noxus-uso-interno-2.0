@@ -35,6 +35,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
@@ -67,6 +74,9 @@ export default function MaterialFormDialog({ trigger, initial, onSubmit, open, o
       validade: "",
       local_armazenamento: "",
       observacoes: "",
+      unidade_embalagem: "",
+      fator_conversao: 0,
+      quantidade_embalagens: 0,
     },
   });
 
@@ -78,7 +88,7 @@ export default function MaterialFormDialog({ trigger, initial, onSubmit, open, o
     console.log('🔍 handleSelectProduto chamado com:', produtoNome);
     console.log('📦 Produtos disponíveis:', produtos);
 
-    const produto = produtos.find((p) => p.nome.toLowerCase() === produtoNome.toLowerCase());
+    const produto = produtos.find((p) => p.nome.trim().toLowerCase() === produtoNome.trim().toLowerCase());
     console.log('✅ Produto encontrado:', produto);
 
     if (produto) {
@@ -86,6 +96,8 @@ export default function MaterialFormDialog({ trigger, initial, onSubmit, open, o
       form.setValue("marca", produto.marca || "");
       form.setValue("tipo_material", produto.tipo_material);
       form.setValue("unidade", produto.unidade);
+      form.setValue("unidade_embalagem", produto.unidade_embalagem || "");
+      form.setValue("fator_conversao", produto.fator_conversao || 0);
       setOpenCombobox(false);
       console.log('✨ Campos preenchidos com sucesso!');
     } else {
@@ -105,6 +117,8 @@ export default function MaterialFormDialog({ trigger, initial, onSubmit, open, o
         marca: values.marca,
         tipo_material: values.tipo_material,
         unidade: values.unidade,
+        unidade_embalagem: values.unidade_embalagem,
+        fator_conversao: values.fator_conversao,
       });
     } catch (error) {
       // Erro já tratado no hook
@@ -131,7 +145,7 @@ export default function MaterialFormDialog({ trigger, initial, onSubmit, open, o
                   <Tag className="h-4 w-4" /> Informações do Material
                 </h3>
                 {!initial && (
-                  <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                  <Popover open={openCombobox} onOpenChange={setOpenCombobox} modal={true}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
@@ -143,7 +157,7 @@ export default function MaterialFormDialog({ trigger, initial, onSubmit, open, o
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[200px] p-0">
+                    <PopoverContent className="w-[200px] p-0 z-[9999] pointer-events-auto">
                       <Command>
                         <CommandInput placeholder="Buscar produto..." />
                         <CommandList>
@@ -209,6 +223,7 @@ export default function MaterialFormDialog({ trigger, initial, onSubmit, open, o
                     <FormMessage />
                   </FormItem>
                 )} />
+
               </div>
 
               {!initial && (
@@ -224,6 +239,185 @@ export default function MaterialFormDialog({ trigger, initial, onSubmit, open, o
                   </Button>
                 </div>
               )}
+            </div>
+
+            {/* Grupo: Estoque e Custos */}
+            <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+              <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                <Scale className="h-4 w-4" /> Estoque e Custos
+              </h3>
+
+              {/* Campos de Embalagem e Conversão */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField name="unidade_embalagem" control={form.control} render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Embalagem</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o tipo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Caixa">Caixa</SelectItem>
+                        <SelectItem value="Pacote">Pacote</SelectItem>
+                        <SelectItem value="Rolo">Rolo</SelectItem>
+                        <SelectItem value="Frasco">Frasco</SelectItem>
+                        <SelectItem value="Tubo">Tubo</SelectItem>
+                        <SelectItem value="Galão">Galão</SelectItem>
+                        <SelectItem value="Pote">Pote</SelectItem>
+                        <SelectItem value="Sachê">Sachê</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                {form.watch("unidade_embalagem") && (
+                  <>
+                    <FormField name="unidade" control={form.control} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Unidade</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="mL">mL (mililitros)</SelectItem>
+                            <SelectItem value="L">L (litros)</SelectItem>
+                            <SelectItem value="g">g (gramas)</SelectItem>
+                            <SelectItem value="kg">kg (quilogramas)</SelectItem>
+                            <SelectItem value="un">un (unidades)</SelectItem>
+                            <SelectItem value="m">m (metros)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+
+                    <FormField name="fator_conversao" control={form.control} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {form.watch("unidade") === "mL" ? "Capacidade (mL)" :
+                            form.watch("unidade") === "g" ? "Peso (g)" :
+                              form.watch("unidade") === "L" ? "Capacidade (L)" :
+                                "Qtd por Embalagem"}
+                        </FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Layers className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              step="1"
+                              placeholder="100"
+                              className="pl-9"
+                              {...field}
+                              value={field.value || ""}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                const fator = Number(e.target.value) || 0;
+                                const qtdEmb = Number(form.getValues("quantidade_embalagens")) || 0;
+                                if (fator > 0 && qtdEmb > 0) {
+                                  form.setValue("quantidade", fator * qtdEmb);
+                                }
+                              }}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+
+                    <FormField name="quantidade_embalagens" control={form.control} render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Qtd de Embalagens</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Package className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              step="1"
+                              placeholder="1"
+                              className="pl-9"
+                              {...field}
+                              value={field.value || ""}
+                              onChange={(e) => {
+                                field.onChange(e);
+                                const qtdEmb = Number(e.target.value) || 0;
+                                const fator = Number(form.getValues("fator_conversao")) || 0;
+                                if (fator > 0 && qtdEmb > 0) {
+                                  form.setValue("quantidade", fator * qtdEmb);
+                                }
+                              }}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                  </>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <FormField name="quantidade" control={form.control} render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quantidade</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <Layers className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input type="number" step="0.01" className="pl-9" {...field} />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField name="custo_unitario" control={form.control} render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Custo unitário (R$)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input type="number" step="0.000001" className="pl-9" {...field} />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
+                {/* Campo de Valor Total do Produto - calcula custo unitário automaticamente */}
+                {form.watch("unidade_embalagem") && form.watch("fator_conversao") && (
+                  <FormItem>
+                    <FormLabel>Valor Total do {form.watch("unidade_embalagem")} (R$)</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="50.00"
+                          className="pl-9"
+                          onChange={(e) => {
+                            const valorTotal = Number(e.target.value) || 0;
+                            const capacidade = Number(form.getValues("fator_conversao")) || 0;
+                            if (capacidade > 0 && valorTotal > 0) {
+                              const custoPorUnidade = valorTotal / capacidade;
+                              console.log('💰 Cálculo:', { valorTotal, capacidade, custoPorUnidade, precisao: custoPorUnidade.toFixed(10) });
+                              form.setValue("custo_unitario", custoPorUnidade);
+                            }
+                          }}
+                        />
+                      </div>
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      {form.watch("unidade") === "mL"
+                        ? `Ex: Frasco de ${form.watch("fator_conversao") || 100} mL por R$ 50`
+                        : "Valor total da embalagem"}
+                    </p>
+                  </FormItem>
+                )}
+              </div>
             </div>
 
             {/* Grupo: Aquisição e Validade */}
@@ -275,51 +469,6 @@ export default function MaterialFormDialog({ trigger, initial, onSubmit, open, o
                       <div className="relative">
                         <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input type="date" className="pl-9" {...field} />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-              </div>
-            </div>
-
-            {/* Grupo: Estoque e Custos */}
-            <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
-              <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
-                <Scale className="h-4 w-4" /> Estoque e Custos
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField name="quantidade" control={form.control} render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Quantidade</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Layers className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input type="number" step="0.01" className="pl-9" {...field} />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField name="unidade" control={form.control} render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Unidade</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Scale className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="un, ml, g" className="pl-9" {...field} />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )} />
-                <FormField name="custo_unitario" control={form.control} render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Custo unitário (R$)</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input type="number" step="0.01" className="pl-9" {...field} />
                       </div>
                     </FormControl>
                     <FormMessage />

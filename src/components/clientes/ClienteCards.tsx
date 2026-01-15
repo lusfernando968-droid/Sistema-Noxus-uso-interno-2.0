@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Trash2, FolderOpen, Check, X } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { formatCurrency } from "@/utils/formatters";
-import { ClienteLTVBadge } from "./ClienteLTVBadge";
+import { ClienteStatusBadge } from "./ClienteStatusBadge";
 import type { Cliente, ClienteComLTV } from "@/hooks/useClientes";
 
 interface ClienteCardsProps {
@@ -33,7 +33,7 @@ export function ClienteCards({
 }: ClienteCardsProps) {
   const navigate = useNavigate();
   const { colorTheme } = useTheme();
-  
+
   const strongAccentThemes = ["ocean", "sunset", "forest", "purple", "rose"];
   const hoverClass = strongAccentThemes.includes(colorTheme) ? "hover:bg-muted/20" : "hover:bg-muted/30";
 
@@ -60,7 +60,7 @@ export function ClienteCards({
       {sortedClientes.map(cliente => {
         const isEditing = editingRows.has(cliente.id);
         const editData = editedData[cliente.id] || cliente;
-        
+
         return (
           <Card
             key={cliente.id}
@@ -73,41 +73,41 @@ export function ClienteCards({
                   <div className="flex-1 min-w-[220px]">
                     {isEditing ? (
                       <div className="space-y-2">
-                        <Input 
-                          value={editData.nome || ""} 
-                          onChange={e => updateEditedData(cliente.id, 'nome', e.target.value)} 
-                          onKeyDown={handleKeyDownSave(cliente.id)} 
-                          className="rounded-xl h-9" 
+                        <Input
+                          value={editData.nome || ""}
+                          onChange={e => updateEditedData(cliente.id, 'nome', e.target.value)}
+                          onKeyDown={handleKeyDownSave(cliente.id)}
+                          className="rounded-xl h-9"
                           placeholder="Nome"
                         />
-                        <Input 
-                          type="email" 
-                          value={editData.email || ""} 
-                          onChange={e => updateEditedData(cliente.id, 'email', e.target.value)} 
-                          onKeyDown={handleKeyDownSave(cliente.id)} 
-                          className="rounded-xl h-9" 
+                        <Input
+                          type="email"
+                          value={editData.email || ""}
+                          onChange={e => updateEditedData(cliente.id, 'email', e.target.value)}
+                          onKeyDown={handleKeyDownSave(cliente.id)}
+                          className="rounded-xl h-9"
                           placeholder="Email"
                         />
-                        <Input 
-                          value={editData.telefone || ""} 
-                          onChange={e => updateEditedData(cliente.id, 'telefone', e.target.value)} 
-                          onKeyDown={handleKeyDownSave(cliente.id)} 
-                          className="rounded-xl h-9" 
+                        <Input
+                          value={editData.telefone || ""}
+                          onChange={e => updateEditedData(cliente.id, 'telefone', e.target.value)}
+                          onKeyDown={handleKeyDownSave(cliente.id)}
+                          className="rounded-xl h-9"
                           placeholder="Telefone"
                         />
-                        <Input 
-                          value={(editData as any).instagram || ""} 
-                          onChange={e => updateEditedData(cliente.id, 'instagram' as any, e.target.value)} 
-                          onKeyDown={handleKeyDownSave(cliente.id)} 
-                          className="rounded-xl h-9" 
-                          placeholder="Instagram (link)" 
+                        <Input
+                          value={(editData as any).instagram || ""}
+                          onChange={e => updateEditedData(cliente.id, 'instagram' as any, e.target.value)}
+                          onKeyDown={handleKeyDownSave(cliente.id)}
+                          className="rounded-xl h-9"
+                          placeholder="Instagram (link)"
                         />
-                        <Input 
-                          value={(editData as any).cidade || ""} 
-                          onChange={e => updateEditedData(cliente.id, 'cidade' as any, e.target.value)} 
-                          onKeyDown={handleKeyDownSave(cliente.id)} 
-                          className="rounded-xl h-9" 
-                          placeholder="Cidade" 
+                        <Input
+                          value={(editData as any).cidade || ""}
+                          onChange={e => updateEditedData(cliente.id, 'cidade' as any, e.target.value)}
+                          onKeyDown={handleKeyDownSave(cliente.id)}
+                          className="rounded-xl h-9"
+                          placeholder="Cidade"
                         />
                       </div>
                     ) : (
@@ -118,7 +118,7 @@ export function ClienteCards({
                       </>
                     )}
                   </div>
-                  <ClienteLTVBadge ltv={cliente.ltv} maxLTV={maxLTV} showValue />
+                  <ClienteStatusBadge status={cliente.status || 'lead'} />
                 </div>
 
                 {!isEditing && (
@@ -135,20 +135,20 @@ export function ClienteCards({
               <div className="flex gap-2">
                 {isEditing ? (
                   <>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="rounded-xl h-8 w-8 text-success" 
-                      onClick={() => saveEdit(cliente.id)} 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-xl h-8 w-8 text-success"
+                      onClick={() => saveEdit(cliente.id)}
                       title="Salvar"
                     >
                       <Check className="w-3 h-3" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="rounded-xl h-8 w-8" 
-                      onClick={() => cancelEditing(cliente.id)} 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-xl h-8 w-8"
+                      onClick={() => cancelEditing(cliente.id)}
                       title="Cancelar"
                     >
                       <X className="w-3 h-3" />
@@ -156,18 +156,18 @@ export function ClienteCards({
                   </>
                 ) : (
                   <>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="rounded-xl h-8 w-8" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-xl h-8 w-8"
                       onClick={() => navigate(`/projetos?cliente=${cliente.id}`)}
                     >
                       <FolderOpen className="w-3 h-3" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="rounded-xl h-8 w-8 text-destructive" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-xl h-8 w-8 text-destructive"
                       onClick={() => deleteCliente(cliente.id)}
                     >
                       <Trash2 className="w-3 h-3" />

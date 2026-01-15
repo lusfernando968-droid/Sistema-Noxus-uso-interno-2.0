@@ -34,12 +34,14 @@ export function useAgendamentos() {
     agendamentosFiltrados,
     handleSubmit,
     handleEdit,
+    handleDuplicate,
     handleDelete,
     handleStatusChange,
     handleAppointmentMove,
     handleAppointmentClick,
     handleDateClick,
     resetForm,
+    isSubmitting,
   } = useAgendamentosCrud({
     agendamentos,
     setAgendamentos,
@@ -119,6 +121,7 @@ export function useAgendamentos() {
     // Handlers
     handleSubmit,
     handleEdit,
+    handleDuplicate,
     handleDelete,
     handleStatusChange,
     handleConfirmSessao,
@@ -130,8 +133,10 @@ export function useAgendamentos() {
     handleAnaliseDialogConfirm,
     handleAppointmentMove,
     handleAppointmentClick,
+
     handleDateClick,
     resetForm,
     openVincularAnalise,
+    isSubmitting,
   };
 }

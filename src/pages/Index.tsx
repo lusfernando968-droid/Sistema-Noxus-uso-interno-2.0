@@ -13,6 +13,8 @@ import { MetasTab } from "@/components/dashboard/MetasTab";
 import { MetaFormDialog } from "@/components/dashboard/MetaFormDialog";
 import { SmartInsights } from "@/components/dashboard/SmartInsights";
 import { InventoryTab } from "@/components/dashboard/InventoryTab";
+import { OrcamentosTab } from "@/components/dashboard/OrcamentosTab";
+import { RelatoriosTab } from "@/components/dashboard/RelatoriosTab";
 import { DashboardSkeleton } from "@/components/ui/skeletons";
 import { MetaComProgresso } from "@/hooks/useMetas";
 import { ENABLE_METAS } from "@/lib/config";
@@ -20,10 +22,11 @@ import { ENABLE_METAS } from "@/lib/config";
 const Index = () => {
   const [dateRange, setDateRange] = useState<DateRange>("30d");
   const {
-    projetos, prevProjetos,
-    clientes, prevClientes,
-    transacoes, prevTransacoes,
-    agendamentos, prevAgendamentos,
+    projetos, allProjetos, prevProjetos,
+    clientes, allClientes, prevClientes,
+    transacoes, allTransacoes, prevTransacoes,
+    agendamentos, allAgendamentos, prevAgendamentos,
+    orcamentos, allOrcamentos, prevOrcamentos,
     isLoading
   } = useDashboardData(dateRange);
 
@@ -108,11 +111,13 @@ const Index = () => {
             <TabsTrigger value="overview" className="rounded-xl">Visão Geral</TabsTrigger>
             <TabsTrigger value="insights" className="rounded-xl">Insights</TabsTrigger>
             {ENABLE_METAS && (<TabsTrigger value="metas" className="rounded-xl">Metas</TabsTrigger>)}
+            <TabsTrigger value="orcamentos" className="rounded-xl">Orçamentos</TabsTrigger>
             <TabsTrigger value="clients" className="rounded-xl">Clientes</TabsTrigger>
             <TabsTrigger value="projects" className="rounded-xl">Projetos</TabsTrigger>
             <TabsTrigger value="schedules" className="rounded-xl">Agendamentos</TabsTrigger>
             <TabsTrigger value="estoque" className="rounded-xl">Estoque</TabsTrigger>
             <TabsTrigger value="finance" className="rounded-xl">Financeiro</TabsTrigger>
+            <TabsTrigger value="relatorios" className="rounded-xl">Relatórios</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -125,6 +130,10 @@ const Index = () => {
               prevClientes={prevClientes}
               prevTransacoes={prevTransacoes}
               prevAgendamentos={prevAgendamentos}
+              allProjetos={allProjetos}
+              allClientes={allClientes}
+              allTransacoes={allTransacoes}
+              allAgendamentos={allAgendamentos}
               onOpenMetasTab={handleOpenMetasTab}
               onCreateMeta={handleCreateMeta}
             />
@@ -140,20 +149,24 @@ const Index = () => {
           )}
 
           <TabsContent value="projects" className="space-y-4">
-            <ProjectsTab projetos={projetos} />
+            <ProjectsTab projetos={allProjetos} />
+          </TabsContent>
+
+          <TabsContent value="orcamentos" className="space-y-4">
+            <OrcamentosTab orcamentos={allOrcamentos} prevOrcamentos={prevOrcamentos} />
           </TabsContent>
 
           <TabsContent value="finance" className="space-y-4">
-            <FinanceTab transacoes={transacoes} />
+            <FinanceTab transacoes={allTransacoes} />
           </TabsContent>
 
 
           <TabsContent value="clients" className="space-y-4">
-            <ClientsTab clientes={clientes} />
+            <ClientsTab clientes={allClientes} />
           </TabsContent>
 
           <TabsContent value="schedules" className="space-y-4">
-            <SchedulesTab agendamentos={agendamentos} />
+            <SchedulesTab agendamentos={allAgendamentos} />
           </TabsContent>
 
           <TabsContent value="estoque" className="space-y-4">
@@ -168,6 +181,10 @@ const Index = () => {
               projetos={projetos}
               agendamentos={agendamentos}
             />
+          </TabsContent>
+
+          <TabsContent value="relatorios" className="space-y-4">
+            <RelatoriosTab />
           </TabsContent>
         </Tabs>
       )}

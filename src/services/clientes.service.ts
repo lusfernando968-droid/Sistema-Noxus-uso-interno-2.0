@@ -17,7 +17,7 @@ export interface Cliente {
     indicado_por?: string | null;
     data_aniversario?: string;
     foto_url?: string;
-    status: 'lead' | 'cliente' | 'efetivado';
+    status: 'lead' | 'cliente' | 'desativado';
     created_at?: string;
     updated_at?: string;
 }
@@ -37,7 +37,7 @@ export interface CreateClienteDTO {
     cidades?: string[];
     indicado_por?: string;
     data_aniversario?: string;
-    status?: 'lead' | 'cliente' | 'efetivado';
+    status?: 'lead' | 'cliente' | 'desativado';
 }
 
 export interface UpdateClienteDTO {
@@ -233,7 +233,7 @@ export class ClientesService {
             const payload: any = {
                 user_id: userId,
                 nome: data.nome,
-                status: data.status || 'lead',
+                status: data.status || 'cliente',
             };
 
             if (data.email) payload.email = data.email;

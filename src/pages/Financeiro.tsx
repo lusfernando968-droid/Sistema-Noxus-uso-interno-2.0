@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
 import { FinancialCalendar } from "@/components/calendar/FinancialCalendar";
 import { FinanceiroSkeleton } from "@/components/ui/skeletons";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +10,10 @@ import { useContasBancarias } from "@/hooks/useContasBancarias";
 import { useCarteira } from "@/hooks/useCarteira";
 import { useFinanceiroReducer } from "@/hooks/useFinanceiroReducer";
 import { calcularSaldoConta, saldoPosTransacao } from "@/utils/saldoPorConta";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 // Componentes do financeiro
 import {
@@ -45,6 +51,12 @@ const Financeiro = () => {
   const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Filtro de Mês
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  const handlePreviousMonth = () => setCurrentDate(prev => subMonths(prev, 1));
+  const handleNextMonth = () => setCurrentDate(prev => addMonths(prev, 1));
+
   // Cálculos de saldo (derivados do estado)
   const contaSelecionadaId = state.formData.conta_id || "";
   const saldoConta = calcularSaldoConta(
@@ -75,7 +87,15 @@ const Financeiro = () => {
         TransacoesService.fetchAgendamentos(),
       ]);
       setTransacoes(transacoesData);
-      setAgendamentos(agendamentosData);
+
+      // Filtrar agendamentos cancelados para não aparecerem na lista de "A Vencer" ou para vincular
+      const agendamentosAtivos = agendamentosData.filter(a => {
+        const s = (a.status || '').toLowerCase();
+        return s !== 'cancelado' && s !== 'cancelada';
+      });
+      setAgendamentos(agendamentosAtivos);
+
+
 
       // Sincronizar com carteira em background
       TransacoesService.syncAllToCarteira(transacoesData);
@@ -222,11 +242,35 @@ const Financeiro = () => {
     }
   };
 
-  // Filtragem de transações (memoizado para performance)
+  // Filtragem de transações by Month (memoizado para performance)
   const transacoesFiltradas = useMemo(() => {
     const { filtroTipo, filtroCategoria, filtroStatus, filtroContaId } = state;
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
 
     return transacoes.filter((t) => {
+      // Filtro de Mês (Prioritário)
+      if (!t.data_vencimento) return false;
+
+      // Fix: Usar split para evitar problemas de timezone com new Date("YYYY-MM-DD")
+      // que interpreta como UTC e pode recuar um dia (ex: dia 01 vira dia 30/31 do mês anterior)
+      const [anoStr, mesStr] = t.data_vencimento.split('-');
+      const ano = parseInt(anoStr);
+      const mes = parseInt(mesStr) - 1; // Mês 0-indexado para comparar com getMonth()
+
+      if (
+        ano !== currentDate.getFullYear() ||
+        mes !== currentDate.getMonth()
+      ) {
+        return false;
+      }
+
+      // Filtro de Status do Agendamento (conforme solicitado pelo usuário)
+      // Se a transação estiver vinculada a um agendamento, só mostrar se estiver 'concluido'
+      if (t.agendamentos && t.agendamentos.status !== 'concluido') {
+        return false;
+      }
+
       if (filtroTipo !== "TODOS" && t.tipo !== filtroTipo) return false;
       if (filtroCategoria !== "TODOS" && t.categoria !== filtroCategoria) return false;
       if (filtroStatus === "LIQUIDADAS" && !t.data_liquidacao) return false;
@@ -234,109 +278,146 @@ const Financeiro = () => {
       if (filtroContaId !== "TODAS" && (t.conta_id ?? "") !== filtroContaId) return false;
       return true;
     });
-  }, [transacoes, state.filtroTipo, state.filtroCategoria, state.filtroStatus, state.filtroContaId]);
+  }, [transacoes, state.filtroTipo, state.filtroCategoria, state.filtroStatus, state.filtroContaId, currentDate]);
+
+
 
   // Loading state
   if (loading || loadingContas || loadingCarteira) {
     return <FinanceiroSkeleton />;
   }
 
+
+
+
   return (
-    <div className="space-y-6 pb-20">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 pb-20">
+      {/* Header com Navegação de Mês Integrada */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Financeiro Tattoo</h1>
-          <p className="text-muted-foreground mt-1">
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">Financeiro Tattoo</h1>
+
+          </div>
+          <p className="text-muted-foreground mt-1 text-lg">
             Gestão completa de receitas e despesas
           </p>
+        </div>
+
+        {/* Month Navigator Integrado */}
+        <div className="flex items-center bg-background border shadow-sm rounded-full p-1 pl-4">
+          <div className="text-sm font-semibold capitalize mr-2">
+            {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+          </div>
+          <div className="flex gap-1">
+            <Button variant="ghost" size="icon" onClick={handlePreviousMonth} className="h-8 w-8 rounded-full hover:bg-muted">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8 rounded-full hover:bg-muted">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* Cards de Resumo */}
-      <FinanceiroSummaryCards transacoes={transacoesFiltradas} />
+      <FinanceiroSummaryCards
+        transacoes={transacoesFiltradas}
+        agendamentos={agendamentos.filter(a => {
+          // Excluir agendamentos cancelados do cálculo de pendentes
+          const s = (a.status || '').toLowerCase();
+          if (s === 'cancelado' || s === 'cancelada') return false;
 
-      {/* Tabs */}
-      <Tabs defaultValue="tabela" className="space-y-4">
-        <div className="flex justify-center">
-          <TabsList className="inline-flex w-auto rounded-2xl bg-gradient-to-r from-muted/30 to-muted/10 p-1.5 backdrop-blur-sm border border-border/20 shadow-lg">
-            <TabsTrigger value="tabela" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">
+          if (!a.data) return false;
+          const [anoStr, mesStr] = a.data.split('-');
+          const ano = parseInt(anoStr);
+          const mes = parseInt(mesStr) - 1;
+          return (
+            ano === currentDate.getFullYear() &&
+            mes === currentDate.getMonth()
+          );
+        })}
+      />
+
+      {/* Main Content Area */}
+      <Tabs defaultValue="tabela" className="space-y-6">
+        <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-6">
+          {/* Custom Tabs List */}
+          <TabsList className="bg-background/50 backdrop-blur-sm p-1 rounded-full border shadow-sm inline-flex h-auto">
+            <TabsTrigger value="tabela" className="rounded-full px-6 py-2.5 data-[state=active]:bg-foreground data-[state=active]:text-background transition-all">
               Tabela
             </TabsTrigger>
-            <TabsTrigger value="agenda" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">
+            <TabsTrigger value="agenda" className="rounded-full px-6 py-2.5 data-[state=active]:bg-foreground data-[state=active]:text-background transition-all">
               Calendário
             </TabsTrigger>
-            <TabsTrigger value="lista" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">
+            <TabsTrigger value="lista" className="rounded-full px-6 py-2.5 data-[state=active]:bg-foreground data-[state=active]:text-background transition-all">
               Lista
             </TabsTrigger>
-            <TabsTrigger value="bancos" className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50 flex items-center">
-              Bancos
-            </TabsTrigger>
           </TabsList>
+
+          {/* Unified Action Toolbar */}
+          <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+            <TransacoesFilters
+              filtroTipo={state.filtroTipo}
+              setFiltroTipo={actions.setFiltroTipo}
+              filtroCategoria={state.filtroCategoria}
+              setFiltroCategoria={actions.setFiltroCategoria}
+              filtroStatus={state.filtroStatus}
+              setFiltroStatus={actions.setFiltroStatus}
+              filtroContaId={state.filtroContaId}
+              setFiltroContaId={actions.setFiltroContaId}
+              contas={contas as Array<{ id: string; nome: string; banco_detalhes?: { nome_curto?: string } | null; banco?: string }>}
+              resultCount={transacoesFiltradas.length}
+            />
+
+            <div className="h-8 w-px bg-border hidden sm:block mx-1" />
+
+            <TransacaoFormDialog
+              isOpen={state.isDialogOpen}
+              onOpenChange={actions.setDialogOpen}
+              isEditMode={state.isEditMode}
+              formData={state.formData}
+              setFormData={actions.setFormData}
+              onSubmit={handleSubmit}
+              contas={contas as Array<{ id: string; nome: string; banco_detalhes?: { nome_curto?: string } | null; banco?: string }>}
+              agendamentos={agendamentos}
+              saldoConta={saldoConta}
+              previewSaldoPos={previewSaldoPos}
+              onOpenNew={actions.openNewDialog}
+            />
+          </div>
         </div>
 
-        {/* Barra de ações */}
-        <div className="flex justify-end gap-2">
-          <TransacoesFilters
-            filtroTipo={state.filtroTipo}
-            setFiltroTipo={actions.setFiltroTipo}
-            filtroCategoria={state.filtroCategoria}
-            setFiltroCategoria={actions.setFiltroCategoria}
-            filtroStatus={state.filtroStatus}
-            setFiltroStatus={actions.setFiltroStatus}
-            filtroContaId={state.filtroContaId}
-            setFiltroContaId={actions.setFiltroContaId}
-            contas={contas as Array<{ id: string; nome: string; banco_detalhes?: { nome_curto?: string } | null; banco?: string }>}
-            resultCount={transacoesFiltradas.length}
-          />
-          <TransacaoFormDialog
-            isOpen={state.isDialogOpen}
-            onOpenChange={actions.setDialogOpen}
-            isEditMode={state.isEditMode}
-            formData={state.formData}
-            setFormData={actions.setFormData}
-            onSubmit={handleSubmit}
-            contas={contas as Array<{ id: string; nome: string; banco_detalhes?: { nome_curto?: string } | null; banco?: string }>}
-            agendamentos={agendamentos}
-            saldoConta={saldoConta}
-            previewSaldoPos={previewSaldoPos}
-            onOpenNew={actions.openNewDialog}
-          />
+        {/* Tab Content Areas */}
+        <div className="min-h-[500px]">
+          <TabsContent value="lista" className="mt-0">
+            <TransacoesListView
+              transacoes={transacoesFiltradas}
+              onLiquidar={actions.openLiquidarDialog}
+              onEdit={actions.openEditDialog}
+              onDelete={handleDelete}
+            />
+          </TabsContent>
+
+          <TabsContent value="tabela" className="mt-0">
+            <TransacoesTableView
+              transacoes={transacoesFiltradas}
+              onLiquidar={actions.openLiquidarDialog}
+              onEdit={actions.openEditDialog}
+              onDelete={handleDelete}
+            />
+          </TabsContent>
+
+          <TabsContent value="agenda" className="mt-0 space-y-6">
+            <Card className="p-6 rounded-3xl border-0 shadow-xl overflow-hidden bg-background/50 backdrop-blur-sm">
+              <FinancialCalendar
+                transacoes={transacoesFiltradas}
+                onTransacaoClick={actions.openEditDialog}
+                onDateClick={actions.openNewDialogWithDate}
+              />
+            </Card>
+          </TabsContent>
         </div>
-
-        {/* Tab: Lista */}
-        <TabsContent value="lista">
-          <TransacoesListView
-            transacoes={transacoesFiltradas}
-            onLiquidar={actions.openLiquidarDialog}
-            onEdit={actions.openEditDialog}
-            onDelete={handleDelete}
-          />
-        </TabsContent>
-
-        {/* Tab: Tabela */}
-        <TabsContent value="tabela">
-          <TransacoesTableView
-            transacoes={transacoesFiltradas}
-            onLiquidar={actions.openLiquidarDialog}
-            onEdit={actions.openEditDialog}
-            onDelete={handleDelete}
-          />
-        </TabsContent>
-
-        {/* Tab: Calendário */}
-        <TabsContent value="agenda" className="space-y-6">
-          <FinancialCalendar
-            transacoes={transacoesFiltradas}
-            onTransacaoClick={actions.openEditDialog}
-            onDateClick={actions.openNewDialogWithDate}
-          />
-        </TabsContent>
-
-        {/* Tab: Bancos */}
-        <TabsContent value="bancos" className="space-y-6">
-          <TabelaGestaoBancos />
-        </TabsContent>
       </Tabs>
 
       {/* Dialog de Liquidação */}

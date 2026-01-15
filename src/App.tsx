@@ -27,6 +27,7 @@ import CentralAtendente from "./pages/CentralAtendente";
 import AssistantDetails from "./pages/AssistantDetails";
 import ConversasWhatsApp from "./pages/ConversasWhatsApp";
 import LeadsOrcamentos from "./pages/LeadsOrcamentos";
+import Relatorios from "./pages/Relatorios";
 
 import NotFound from "./pages/NotFound";
 import Vendas from "./pages/Vendas";
@@ -64,6 +65,7 @@ const AppContent = () => {
       <Route path="/settings/assistants/:id" element={<ProtectedRoute><Layout><AssistantDetails /></Layout></ProtectedRoute>} />
       <Route path="/conversas-whatsapp" element={<ProtectedRoute allowedRoles={['admin', 'assistant']}><Layout><ConversasWhatsApp /></Layout></ProtectedRoute>} />
       <Route path="/leads-orcamentos" element={<ProtectedRoute allowedRoles={['admin', 'assistant']}><Layout><LeadsOrcamentos /></Layout></ProtectedRoute>} />
+      <Route path="/relatorios" element={<ProtectedRoute allowedRoles={['admin', 'manager']}><Layout><Relatorios /></Layout></ProtectedRoute>} />
 
       {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />

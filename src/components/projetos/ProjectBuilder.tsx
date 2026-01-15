@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,19 +9,207 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
+import {
+  Link as LinkIcon,
+  ExternalLink,
+  Trash2,
+  Upload,
+  FileText,
+  Download,
+  Loader2,
+  Type,
+  User,
+  Activity,
+  Calendar,
+  DollarSign,
+  Layers,
+  Target,
+  Briefcase
+} from "lucide-react";
+import { formatCurrency } from "@/lib/utils";
 
-// ... imports remain the same
+interface Cliente {
+  id: string;
+  nome: string;
+}
+
+interface ProjectBuilderProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  projetoId?: string;
+  clientes: Cliente[];
+  onSuccess: () => void;
+}
+
+interface Referencia {
+  id: string;
+  titulo: string;
+  url: string;
+  descricao?: string;
+}
+
+interface Anexo {
+  id: string;
+  nome: string;
+  url: string;
+  tipo: string;
+  tamanho: number;
+}
+
+// Utilitários auxiliares
+const formatCurrencyBR = (val: string | number | undefined | null) => {
+  if (val === undefined || val === null) return "";
+  const num = typeof val === "string" ? parseFloat(val) : val;
+  if (isNaN(num)) return "";
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(num);
+};
+
+const parseDateOnly = (dateStr: string) => {
+  if (!dateStr) return undefined;
+  return new Date(dateStr + "T12:00:00");
+};
 
 export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSuccess }: ProjectBuilderProps) {
   const { toast } = useToast();
   const { user, masterId } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
-  // ... state declarations remain the same
+  // Estados do Formulário
+  const [titulo, setTitulo] = useState("");
+  const [clienteId, setClienteId] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [notas, setNotas] = useState("");
+  const [status, setStatus] = useState("planejamento");
+  const [categoria, setCategoria] = useState("tatuagem");
+  const [capaUrl, setCapaUrl] = useState<string>("");
+  const [dataInicio, setDataInicio] = useState("");
+  const [dataFim, setDataFim] = useState("");
+  const [driveLink, setDriveLink] = useState("");
 
-  // ... useEffect and resetForm remain the same
+  const [valorPorSessao, setValorPorSessao] = useState("");
+  const [valorTotal, setValorTotal] = useState("");
+  const [quantidadeSessoes, setQuantidadeSessoes] = useState("");
 
-  // ... loadProjeto remains the same (fetching is fine if RLS works)
+  // Referências
+  const [referencias, setReferencias] = useState<Referencia[]>([]);
+  const [novaRefTitulo, setNovaRefTitulo] = useState("");
+  const [novaRefUrl, setNovaRefUrl] = useState("");
+  const [novaRefDescricao, setNovaRefDescricao] = useState("");
+
+  // Anexos
+  const [anexos, setAnexos] = useState<Anexo[]>([]);
+
+  // Cálculo automático do valor total
+  useEffect(() => {
+    const vSessao = parseFloat(valorPorSessao);
+    const qtd = parseInt(quantidadeSessoes);
+
+    if (!isNaN(vSessao) && !isNaN(qtd) && vSessao >= 0 && qtd > 0) {
+      const total = vSessao * qtd;
+      setValorTotal(total.toString());
+    }
+  }, [valorPorSessao, quantidadeSessoes]);
+
+  // Resetar formulário ao abrir/fechar ou mudar projetoId
+  useEffect(() => {
+    if (open) {
+      if (projetoId) {
+        loadProjeto(projetoId);
+      } else {
+        resetForm();
+      }
+    }
+  }, [open, projetoId]);
+
+  const resetForm = () => {
+    setTitulo("");
+    setClienteId("");
+    setDescricao("");
+    setNotas("");
+    setStatus("planejamento");
+    setCategoria("tatuagem");
+    setCapaUrl("");
+    setDataInicio("");
+    setDataFim("");
+    setDriveLink("");
+    setValorPorSessao("");
+    setValorTotal("");
+    setQuantidadeSessoes("");
+    setReferencias([]);
+    setAnexos([]);
+    setNovaRefTitulo("");
+    setNovaRefUrl("");
+    setNovaRefDescricao("");
+  };
+
+  const loadProjeto = async (id: string) => {
+    setLoading(true);
+    try {
+      if (!masterId) return;
+
+      const [projetoRes, referenciasRes, anexosRes] = await Promise.all([
+        supabase
+          .from("projetos")
+          .select("*")
+          .eq("id", id)
+          .single(),
+        supabase
+          .from("projeto_referencias")
+          .select("*")
+          .eq("projeto_id", id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("projeto_anexos")
+          .select("*")
+          .eq("projeto_id", id)
+          .order("created_at", { ascending: false })
+      ]);
+
+      if (projetoRes.error) throw projetoRes.error;
+
+      const projeto = projetoRes.data;
+      if (projeto) {
+        setTitulo(projeto.titulo);
+        setClienteId(projeto.cliente_id);
+        setDescricao(projeto.descricao || "");
+        setNotas(projeto.notas || "");
+        setStatus(projeto.status);
+        setCategoria(projeto.categoria || "tatuagem");
+        setCapaUrl(projeto.capa_url || "");
+        setDataInicio(projeto.data_inicio || "");
+        setDataFim(projeto.data_fim || "");
+        setDriveLink(projeto.drive_link || "");
+        setValorPorSessao(projeto.valor_por_sessao ? String(projeto.valor_por_sessao) : "");
+        setValorTotal(projeto.valor_total ? String(projeto.valor_total) : "");
+        setQuantidadeSessoes(projeto.quantidade_sessoes ? String(projeto.quantidade_sessoes) : "");
+      }
+
+      if (referenciasRes.data) setReferencias(referenciasRes.data);
+      if (anexosRes.data) setAnexos(anexosRes.data);
+
+    } catch (error: any) {
+      console.error("Erro ao carregar projeto:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar projeto",
+        description: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCurrencyChange = (setter: (val: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "");
+    const numberValue = Number(value) / 100;
+    setter(numberValue.toString());
+  };
 
   const handleSaveProjeto = async () => {
     if (!titulo || !clienteId) {
@@ -40,17 +228,22 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
       const projetoData = {
         titulo,
         descricao,
-        notas,
+        notas: notas,
         status,
         cliente_id: clienteId,
-        user_id: masterId, // Use masterId
+        user_id: masterId,
         valor_total: valorTotal ? parseFloat(valorTotal) : null,
         valor_por_sessao: valorPorSessao ? parseFloat(valorPorSessao) : null,
         quantidade_sessoes: quantidadeSessoes ? parseInt(quantidadeSessoes) : null,
-        data_inicio: dataInicio || null,
-        data_fim: dataFim || null,
-        categoria: categoria || null,
+        categoria,
+        capa_url: capaUrl,
+        drive_link: driveLink || null,
+        data_inicio: parseDateOnly(dataInicio)?.toISOString(),
+        data_fim: parseDateOnly(dataFim)?.toISOString(),
+        updated_at: new Date().toISOString(),
       };
+
+      let newProjetoId = projetoId;
 
       if (projetoId) {
         const { error } = await supabase
@@ -60,11 +253,14 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
 
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("projetos")
-          .insert([projetoData]);
+          .insert([projetoData])
+          .select()
+          .single();
 
         if (error) throw error;
+        newProjetoId = data.id;
       }
 
       toast({
@@ -72,6 +268,9 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
         description: `Projeto ${projetoId ? "atualizado" : "criado"} com sucesso`,
       });
       onSuccess();
+
+      // Se estamos criando, podemos querer fechar ou manter aberto para adicionar referencias.
+      // O comportamento original fechava.
       onOpenChange(false);
     } catch (error: any) {
       toast({
@@ -94,14 +293,14 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
     }
 
     try {
-      if (!user || !masterId) throw new Error("Usuário não autenticado");
+      if (!masterId) throw new Error("Usuário não autenticado");
 
       const { data, error } = await supabase
         .from("projeto_referencias")
         .insert([
           {
             projeto_id: projetoId,
-            user_id: masterId, // Use masterId
+            user_id: masterId,
             titulo: novaRefTitulo,
             url: novaRefUrl,
             descricao: novaRefDescricao,
@@ -129,7 +328,59 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
     }
   };
 
-  // ... handleDeleteReferencia remains the same
+  const handleDeleteReferencia = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from("projeto_referencias")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setReferencias(referencias.filter((r) => r.id !== id));
+      toast({ title: "Referência removida" });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao remover referência",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleCapaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+
+    try {
+      if (!masterId) return;
+
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Math.random()}.${fileExt}`;
+      const filePath = `${masterId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("project-references")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from("project-references")
+        .getPublicUrl(filePath);
+
+      setCapaUrl(data.publicUrl);
+      toast({ title: "Capa enviada com sucesso!" });
+
+    } catch (error: any) {
+      console.error("Erro ao fazer upload da capa:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro no upload",
+        description: error.message,
+      });
+    }
+  };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!projetoId) {
@@ -145,13 +396,10 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
 
     setUploadingFile(true);
     try {
-      if (!user || !masterId) throw new Error("Usuário não autenticado");
+      if (!masterId) throw new Error("Usuário não autenticado");
 
       const fileExt = file.name.split(".").pop();
-      const fileName = `${masterId}/${projetoId}/${Date.now()}.${fileExt}`; // Use masterId for storage path? Maybe keep user.id to separate uploads?
-      // Actually, sticking to masterId for data ownership is safer for visibility.
-      // But for storage path, maybe user.id is fine.
-      // Let's use masterId for folder structure to keep it centralized.
+      const fileName = `${masterId}/${projetoId}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("project-references")
@@ -168,7 +416,7 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
         .insert([
           {
             projeto_id: projetoId,
-            user_id: masterId, // Owner
+            user_id: masterId,
             nome: file.name,
             url: publicUrl,
             tipo: file.type,
@@ -183,6 +431,7 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
       setAnexos([data, ...anexos]);
       toast({ title: "Arquivo enviado com sucesso" });
     } catch (error: any) {
+      console.error(error);
       toast({
         variant: "destructive",
         title: "Erro ao enviar arquivo",
@@ -190,19 +439,22 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
       });
     } finally {
       setUploadingFile(false);
-      event.target.value = "";
+      if (event.target) event.target.value = "";
     }
   };
 
   const handleDeleteAnexo = async (id: string, url: string) => {
     try {
-      const path = url.split("/project-references/")[1];
+      // Extrair path do arquivo da URL se possível, ou assumir estrutura
+      // url format: .../storage/v1/object/public/project-references/path/to/file
+      const pathPart = url.split("/project-references/")[1];
+      if (pathPart) {
+        const { error: storageError } = await supabase.storage
+          .from("project-references")
+          .remove([pathPart]);
 
-      const { error: storageError } = await supabase.storage
-        .from("project-references")
-        .remove([path]);
-
-      if (storageError) throw storageError;
+        if (storageError) console.error("Erro ao remover do storage:", storageError);
+      }
 
       const { error: dbError } = await supabase
         .from("projeto_anexos")
@@ -240,24 +492,55 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
               <TabsTrigger value="anexos">Anexos</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="info" className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="titulo" className="text-sm">Título do Projeto *</Label>
-                <Input
-                  id="titulo"
-                  value={titulo}
-                  onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Nome do projeto"
-                  className="h-9"
-                />
-              </div>
+            <TabsContent value="info" className="space-y-6">
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Grupo: Informações Básicas */}
+              <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" /> Informações Básicas
+                </h3>
+
+                <div className="space-y-2">
+                  <Label>Capa do Projeto</Label>
+                  <div className="flex items-center gap-4">
+                    {capaUrl && (
+                      <img
+                        src={capaUrl}
+                        alt="Capa"
+                        className="w-16 h-16 object-cover rounded-md border"
+                      />
+                    )}
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCapaUpload}
+                      className="cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="titulo" className="text-sm">Título do Projeto *</Label>
+                  <div className="relative">
+                    <Type className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="titulo"
+                      value={titulo}
+                      onChange={(e) => setTitulo(e.target.value)}
+                      placeholder="Nome do projeto"
+                      className="h-9 pl-9"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-1">
                   <Label htmlFor="cliente" className="text-sm">Cliente *</Label>
                   <Select value={clienteId} onValueChange={setClienteId}>
                     <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Selecione um cliente" />
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <SelectValue placeholder="Selecione um cliente" />
+                      </div>
                     </SelectTrigger>
                     <SelectContent>
                       {clientes.map((cliente) => (
@@ -268,112 +551,160 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
-                <div className="space-y-1">
-                  <Label htmlFor="status" className="text-sm">Status</Label>
-                  <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger className="h-9">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="planejamento">Planejamento</SelectItem>
-                      <SelectItem value="andamento">Em Andamento</SelectItem>
-                      <SelectItem value="concluido">Concluído</SelectItem>
-                      <SelectItem value="cancelado">Cancelado</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Grupo: Status e Classificação */}
+              <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                  <Target className="h-4 w-4" /> Status e Classificação
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="status" className="text-sm">Status</Label>
+                    <Select value={status} onValueChange={setStatus}>
+                      <SelectTrigger className="h-9">
+                        <div className="flex items-center gap-2">
+                          <Activity className="h-4 w-4 text-muted-foreground" />
+                          <SelectValue />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="planejamento">Planejamento</SelectItem>
+                        <SelectItem value="andamento">Em Andamento</SelectItem>
+                        <SelectItem value="concluido">Concluído</SelectItem>
+                        <SelectItem value="cancelado">Cancelado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label htmlFor="categoria" className="text-sm">Categoria</Label>
+                    <Select value={categoria} onValueChange={setCategoria}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Selecione uma categoria" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="tatuagem">Tatuagem</SelectItem>
+                        <SelectItem value="piercing">Piercing</SelectItem>
+                        <SelectItem value="design">Design</SelectItem>
+                        <SelectItem value="consultoria">Consultoria</SelectItem>
+                        <SelectItem value="outros">Outros</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="categoria" className="text-sm">Categoria</Label>
-                <Select value={categoria} onValueChange={setCategoria}>
-                  <SelectTrigger className="h-9">
-                    <SelectValue placeholder="Selecione uma categoria" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="tatuagem">Tatuagem</SelectItem>
-                    <SelectItem value="piercing">Piercing</SelectItem>
-                    <SelectItem value="design">Design</SelectItem>
-                    <SelectItem value="consultoria">Consultoria</SelectItem>
-                    <SelectItem value="outros">Outros</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="dataInicio" className="text-sm">Data de Início</Label>
-                  <DatePickerInput
-                    value={dataInicio}
-                    onChange={setDataInicio}
-                    placeholder="dd/mm/aaaa"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="dataFim" className="text-sm">Data de Fim (Prevista)</Label>
-                  <DatePickerInput
-                    value={dataFim}
-                    onChange={setDataFim}
-                    placeholder="dd/mm/aaaa"
-                    minDate={dataInicio ? parseDateOnly(dataInicio) : undefined}
-                  />
+              {/* Grupo: Cronograma */}
+              <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                  <Calendar className="h-4 w-4" /> Cronograma
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="dataInicio" className="text-sm">Data de Início</Label>
+                    <div className="relative">
+                      <DatePickerInput
+                        value={dataInicio}
+                        onChange={setDataInicio}
+                        placeholder="dd/mm/aaaa"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="dataFim" className="text-sm">Data de Fim (Prevista)</Label>
+                    <DatePickerInput
+                      value={dataFim}
+                      onChange={setDataFim}
+                      placeholder="dd/mm/aaaa"
+                      minDate={dataInicio ? parseDateOnly(dataInicio) : undefined}
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                {/* 1º: Valor/Sessão */}
-                <div className="space-y-1">
-                  <Label htmlFor="valorPorSessao" className="text-sm">Valor/Sessão (R$)</Label>
-                  <Input
-                    id="valorPorSessao"
-                    type="text"
-                    inputMode="numeric"
-                    value={formatCurrencyBR(valorPorSessao)}
-                    onChange={handleCurrencyChange(setValorPorSessao)}
-                    placeholder="R$ 0,00"
-                    className="h-9"
-                  />
-                </div>
-                {/* 2º: Valor Total */}
-                <div className="space-y-1">
-                  <Label htmlFor="valorTotal" className="text-sm">Valor Total (R$)</Label>
-                  <Input
-                    id="valorTotal"
-                    type="text"
-                    inputMode="numeric"
-                    value={formatCurrencyBR(valorTotal)}
-                    onChange={handleCurrencyChange(setValorTotal)}
-                    placeholder="R$ 0,00"
-                    className="h-9"
-                  />
-                </div>
-                {/* 3º: Quantidade de Sessões */}
-                <div className="space-y-1">
-                  <Label htmlFor="quantidadeSessoes" className="text-sm">Qtd. Sessões</Label>
-                  <Input
-                    id="quantidadeSessoes"
-                    type="number"
-                    min="1"
-                    value={quantidadeSessoes}
-                    onChange={(e) => setQuantidadeSessoes(e.target.value)}
-                    placeholder="Ex: 5"
-                    className="h-9"
-                  />
+              {/* Grupo: Financeiro */}
+              <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" /> Financeiro
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="valorPorSessao" className="text-sm">Valor/Sessão (R$)</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="valorPorSessao"
+                        value={valorPorSessao ? formatCurrencyBR(valorPorSessao) : ""}
+                        onChange={handleCurrencyChange(setValorPorSessao)}
+                        className="h-9 pl-9"
+                        placeholder="R$ 0,00"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="quantidadeSessoes" className="text-sm">Qtd. Sessões</Label>
+                    <div className="relative">
+                      <Layers className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="quantidadeSessoes"
+                        type="number"
+                        value={quantidadeSessoes}
+                        onChange={(e) => setQuantidadeSessoes(e.target.value)}
+                        className="h-9 pl-9"
+                        placeholder="Ex: 5"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="valorTotal" className="text-sm">Valor Total</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="valorTotal"
+                        value={valorTotal ? formatCurrencyBR(valorTotal) : ""}
+                        onChange={handleCurrencyChange(setValorTotal)}
+                        className="h-9 pl-9 bg-muted/50"
+                        placeholder="R$ 0,00"
+                        readOnly
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <Label htmlFor="descricao" className="text-sm">Descrição Breve</Label>
-                <Textarea
-                  id="descricao"
-                  value={descricao}
-                  onChange={(e) => setDescricao(e.target.value)}
-                  placeholder="Breve descrição do projeto"
-                  rows={2}
-                  className="text-sm"
-                />
+              {/* Descrição - Grupo Final */}
+              <div className="space-y-4 p-4 bg-muted/20 rounded-lg border">
+                <h3 className="font-semibold text-sm text-muted-foreground flex items-center gap-2">
+                  <FileText className="h-4 w-4" /> Detalhes
+                </h3>
+                <div className="space-y-1">
+                  <Label htmlFor="descricao" className="text-sm">Descrição Breve</Label>
+                  <Textarea
+                    id="descricao"
+                    value={descricao}
+                    onChange={(e) => setDescricao(e.target.value)}
+                    placeholder="Breve descrição do projeto"
+                    className="min-h-[80px]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="driveLink" className="text-sm">Link do Google Drive</Label>
+                  <div className="relative">
+                    <LinkIcon className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="driveLink"
+                      value={driveLink}
+                      onChange={(e) => setDriveLink(e.target.value)}
+                      placeholder="https://drive.google.com/..."
+                      className="h-9 pl-9"
+                      type="url"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">Cole o link da pasta do Google Drive com os documentos do projeto</p>
+                </div>
               </div>
+
             </TabsContent>
 
             <TabsContent value="notas" className="space-y-4">
@@ -542,10 +873,11 @@ export function ProjectBuilder({ open, onOpenChange, projetoId, clientes, onSucc
           </Tabs>
 
           <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" onClick={() => onOpenChange(false)} type="button">
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {loading ? "Salvando..." : projetoId ? "Salvar" : "Criar Projeto"}
             </Button>
           </div>

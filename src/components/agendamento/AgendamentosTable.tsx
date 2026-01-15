@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Edit, Trash2, User, FlaskConical } from "lucide-react";
+import { Edit, Trash2, User, FlaskConical, Copy } from "lucide-react";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Agendamento, AgendamentoStatus } from "./types";
@@ -11,6 +11,7 @@ import { formatCurrencyBR, getStatusIconComponent } from "./utils";
 interface AgendamentosTableProps {
   agendamentos: Agendamento[];
   onEdit: (agendamento: Agendamento) => void;
+  onDuplicate: (agendamento: Agendamento) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: AgendamentoStatus) => void;
   onConfirmarSessao: (agendamento: Agendamento) => void;
@@ -20,6 +21,7 @@ interface AgendamentosTableProps {
 export function AgendamentosTable({
   agendamentos,
   onEdit,
+  onDuplicate,
   onDelete,
   onStatusChange,
   onConfirmarSessao,
@@ -64,8 +66,8 @@ export function AgendamentosTable({
                   <TableCell>{agendamento.servico}</TableCell>
                   <TableCell>{agendamento.tatuador}</TableCell>
                   <TableCell>
-                    <Select 
-                      value={agendamento.status} 
+                    <Select
+                      value={agendamento.status}
                       onValueChange={(value) => onStatusChange(agendamento.id, value as AgendamentoStatus)}
                     >
                       <SelectTrigger className="w-32 rounded-xl">
@@ -91,14 +93,25 @@ export function AgendamentosTable({
                         size="icon"
                         onClick={() => onEdit(agendamento)}
                         className="rounded-xl"
+                        title="Editar agendamento"
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
+                        onClick={() => onDuplicate(agendamento)}
+                        className="rounded-xl"
+                        title="Duplicar agendamento"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => onDelete(agendamento.id)}
                         className="rounded-xl text-destructive"
+                        title="Excluir agendamento"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

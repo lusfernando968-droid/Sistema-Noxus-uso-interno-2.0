@@ -18,6 +18,7 @@ export interface Transacao {
   agendamento_id: string | null;
   agendamentos?: {
     titulo: string;
+    status: string;
   };
   conta_id?: string | null;
 }
@@ -26,6 +27,8 @@ export interface Agendamento {
   id: string;
   titulo: string;
   data: string;
+  valor_estimado: number;
+  status: string;
   projetos?: {
     clientes?: {
       nome: string;
@@ -100,7 +103,8 @@ export class TransacoesService {
         .select(`
           *,
           agendamentos (
-            titulo
+            titulo,
+            status
           )
         `)
         .eq("user_id", userId)
@@ -132,6 +136,8 @@ export class TransacoesService {
           id, 
           titulo, 
           data,
+          valor_estimado,
+          status,
           projetos (
             clientes (
               nome
@@ -601,6 +607,7 @@ export const CATEGORIAS_RECEITA = [
 export const CATEGORIAS_DESPESA = [
   "Fornecedor",
   "Salário",
+  "Pró-labore",
   "Infraestrutura",
   "Marketing",
   "Equipamento",

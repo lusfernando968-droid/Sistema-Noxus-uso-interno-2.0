@@ -50,18 +50,18 @@ const Clientes = () => {
     cityUsageCounts,
     editingRows,
     editedData,
-    
+
     // Stats
     totalLTV,
     maxLTV,
     avgLTV,
     activeFiltersCount,
-    
+
     // Setters
     setFiltros,
     setSearchTerm,
     setSortBy,
-    
+
     // Actions
     createCliente,
     deleteCliente,
@@ -71,7 +71,7 @@ const Clientes = () => {
     updateEditedData,
     saveAllEdits,
     resetFilters,
-    
+
     // Constants
     initialFormData
   } = useClientes();
@@ -95,7 +95,7 @@ const Clientes = () => {
   const toggleCol = (key: string) => setVisibleCols(prev => ({ ...prev, [key]: !prev[key as ColKey] }));
 
   const { colorTheme } = useTheme();
-  
+
   // Loading state com skeleton que reflete o layout
   if (loading) {
     return (
@@ -106,9 +106,9 @@ const Clientes = () => {
             Gerencie sua base de clientes e acompanhe o LTV
           </p>
         </div>
-        
+
         <StatCardsSkeleton />
-        
+
         <div className="flex justify-center mb-4">
           <div className="inline-flex w-auto rounded-2xl bg-muted/30 p-1.5 backdrop-blur-sm border border-border/20 shadow-lg">
             {[1, 2, 3, 4].map(i => (
@@ -118,7 +118,7 @@ const Clientes = () => {
             ))}
           </div>
         </div>
-        
+
         <ClienteControlsSkeleton />
         <ClienteTableSkeleton />
       </div>
@@ -144,73 +144,81 @@ const Clientes = () => {
 
       {/* Cards de Estatísticas */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-lg bg-primary/20">
-              <DollarSign className="w-4 h-4 text-primary" />
+        <Card className="p-5 rounded-2xl bg-gradient-to-br from-card to-card/50 border-border/50 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">LTV Total</p>
+              <h3 className="text-2xl font-bold tracking-tight text-foreground">{formatCurrency(totalLTV)}</h3>
             </div>
-            <p className="text-xs text-muted-foreground">LTV Total</p>
+            <div className="p-2 bg-primary/10 rounded-xl text-primary">
+              <DollarSign className="w-5 h-5" />
+            </div>
           </div>
-          <p className="text-xl font-semibold">{formatCurrency(totalLTV)}</p>
         </Card>
 
-        <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-lg bg-primary/20">
-              <TrendingUp className="w-4 h-4 text-primary" />
+        <Card className="p-5 rounded-2xl bg-gradient-to-br from-card to-card/50 border-border/50 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">LTV Médio</p>
+              <h3 className="text-2xl font-bold tracking-tight text-foreground">{formatCurrency(avgLTV)}</h3>
             </div>
-            <p className="text-xs text-muted-foreground">LTV Médio</p>
+            <div className="p-2 bg-blue-500/10 rounded-xl text-blue-500">
+              <TrendingUp className="w-5 h-5" />
+            </div>
           </div>
-          <p className="text-xl font-semibold">{formatCurrency(avgLTV)}</p>
         </Card>
 
-        <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-lg bg-primary/20">
-              <TrendingUp className="w-4 h-4 text-primary" />
+        <Card className="p-5 rounded-2xl bg-gradient-to-br from-card to-card/50 border-border/50 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Maior LTV</p>
+              <h3 className="text-2xl font-bold tracking-tight text-foreground">{formatCurrency(maxLTV)}</h3>
             </div>
-            <p className="text-xs text-muted-foreground">Maior LTV</p>
+            <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-500">
+              <TrendingUp className="w-5 h-5" />
+            </div>
           </div>
-          <p className="text-xl font-semibold">{formatCurrency(maxLTV)}</p>
         </Card>
 
-        <Card className={`p-4 rounded-xl ${cardGradientClass}`}>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-1.5 rounded-lg bg-primary/20">
-              <Users className="w-4 h-4 text-primary" />
+        <Card className="p-5 rounded-2xl bg-gradient-to-br from-card to-card/50 border-border/50 shadow-sm hover:shadow-md transition-all duration-300">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-1">Total Clientes</p>
+              <h3 className="text-2xl font-bold tracking-tight text-foreground">{clientes.length}</h3>
             </div>
-            <p className="text-xs text-muted-foreground">Total Clientes</p>
+            <div className="p-2 bg-violet-500/10 rounded-xl text-violet-500">
+              <Users className="w-5 h-5" />
+            </div>
           </div>
-          <p className="text-xl font-semibold">{clientes.length}</p>
         </Card>
       </div>
 
       <Tabs value={viewMode} onValueChange={v => setViewMode(v as any)} className="w-full">
         <div className="flex justify-center mb-4">
           <TabsList className="inline-flex w-auto rounded-2xl bg-gradient-to-r from-muted/30 to-muted/10 p-1.5 backdrop-blur-sm border border-border/20 shadow-lg">
-            <TabsTrigger 
-              value="table" 
+            <TabsTrigger
+              value="table"
               className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50"
             >
               <Table2 className="w-5 h-5 transition-colors" />
               <span className="font-medium text-sm hidden sm:inline">Tabela</span>
             </TabsTrigger>
-            <TabsTrigger 
-              value="network" 
+            <TabsTrigger
+              value="network"
               className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50"
             >
               <Network className="w-5 h-5 transition-colors" />
               <span className="font-medium text-sm hidden sm:inline">Rede</span>
             </TabsTrigger>
-            <TabsTrigger 
-              value="cards" 
+            <TabsTrigger
+              value="cards"
               className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50"
             >
               <LayoutList className="w-5 h-5 transition-colors" />
               <span className="font-medium text-sm hidden sm:inline">Lista</span>
             </TabsTrigger>
-            <TabsTrigger 
-              value="grid" 
+            <TabsTrigger
+              value="grid"
               className="rounded-xl gap-2 px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=inactive]:hover:bg-muted/50"
             >
               <LayoutGrid className="w-5 h-5 transition-colors" />

@@ -32,7 +32,7 @@ export default function Agendamentos() {
     isDialogOpen,
     setIsDialogOpen,
 
-  // Filtros
+    // Filtros
     filtroStatus,
     setFiltroStatus,
     busca,
@@ -54,9 +54,10 @@ export default function Agendamentos() {
     isAnaliseDialogOpen,
     setIsAnaliseDialogOpen,
 
-  // Handlers
+    // Handlers
     handleSubmit,
     handleEdit,
+    handleDuplicate,
     handleDelete,
     handleStatusChange,
     handleConfirmSessao,
@@ -71,6 +72,7 @@ export default function Agendamentos() {
     handleDateClick,
     resetForm,
     openVincularAnalise,
+    isSubmitting,
   } = useAgendamentos();
 
   // Loading state com skeleton
@@ -169,6 +171,7 @@ export default function Agendamentos() {
                 resetForm();
               }}
               onVincularAnalise={editingAgendamento ? () => openVincularAnalise(editingAgendamento) : undefined}
+              isSubmitting={isSubmitting}
             />
           </div>
 
@@ -178,6 +181,7 @@ export default function Agendamentos() {
               appointments={agendamentosFiltrados}
               onAppointmentMove={handleAppointmentMove}
               onAppointmentClick={handleAppointmentClick}
+              onAppointmentDuplicate={handleDuplicate}
               onDateClick={handleDateClick}
               onAppointmentDelete={handleDelete}
             />
@@ -188,6 +192,7 @@ export default function Agendamentos() {
             <AgendamentosTable
               agendamentos={agendamentosFiltrados}
               onEdit={handleEdit}
+              onDuplicate={handleDuplicate}
               onDelete={handleDelete}
               onStatusChange={handleStatusChange}
               onConfirmarSessao={(a) => handleConfirmSessao(a)}

@@ -24,14 +24,16 @@ interface CalendarViewProps {
   appointments: Agendamento[];
   onAppointmentMove?: (appointmentId: string, newDate: string) => void;
   onAppointmentClick?: (appointment: Agendamento) => void;
+  onAppointmentDuplicate?: (appointment: Agendamento) => void;
   onDateClick?: (date: string) => void;
   onAppointmentDelete?: (appointmentId: string) => void;
 }
 
-export function CalendarView({ 
-  appointments, 
-  onAppointmentMove, 
-  onAppointmentClick, 
+export function CalendarView({
+  appointments,
+  onAppointmentMove,
+  onAppointmentClick,
+  onAppointmentDuplicate,
   onDateClick,
   onAppointmentDelete,
 }: CalendarViewProps) {
@@ -56,35 +58,35 @@ export function CalendarView({
   const calendarData = useMemo(() => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
-    
+
     // Primeiro dia do mês
     const firstDay = new Date(year, month, 1);
     // Último dia do mês
     const lastDay = new Date(year, month + 1, 0);
-    
+
     // Primeiro dia da semana (domingo = 0)
     const startDate = new Date(firstDay);
     startDate.setDate(startDate.getDate() - firstDay.getDay());
-    
+
     // Último dia da semana
     const endDate = new Date(lastDay);
     endDate.setDate(endDate.getDate() + (6 - lastDay.getDay()));
-    
+
     const days = [];
     const current = new Date(startDate);
-    
+
     while (current <= endDate) {
       days.push(new Date(current));
       current.setDate(current.getDate() + 1);
     }
-    
+
     return days;
   }, [currentDate]);
 
   // Agrupar agendamentos por data
   const appointmentsByDate = useMemo(() => {
     const grouped: Record<string, Agendamento[]> = {};
-    
+
     appointments.forEach(appointment => {
       const date = appointment.data_agendamento;
       if (!grouped[date]) {
@@ -92,12 +94,12 @@ export function CalendarView({
       }
       grouped[date].push(appointment);
     });
-    
+
     // Ordenar agendamentos por horário
     Object.keys(grouped).forEach(date => {
       grouped[date].sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
     });
-    
+
     return grouped;
   }, [appointments]);
 
@@ -107,9 +109,9 @@ export function CalendarView({
   };
 
   const formatMonthYear = (date: Date) => {
-    return date.toLocaleDateString('pt-BR', { 
-      month: 'long', 
-      year: 'numeric' 
+    return date.toLocaleDateString('pt-BR', {
+      month: 'long',
+      year: 'numeric'
     });
   };
 
@@ -132,7 +134,7 @@ export function CalendarView({
     setDraggedAppointment(appointmentId);
     e.dataTransfer.setData('text/plain', appointmentId);
     e.dataTransfer.effectAllowed = 'move';
-    
+
     // Adicionar classe CSS para feedback visual
     setTimeout(() => {
       const draggedElement = document.querySelector(`[data-appointment-id="${appointmentId}"]`);
@@ -145,7 +147,7 @@ export function CalendarView({
   const handleDragEnd = () => {
     setDraggedAppointment(null);
     setDragOverDate(null);
-    
+
     // Remover classe CSS
     document.querySelectorAll('.dragging').forEach(el => {
       el.classList.remove('dragging');
@@ -162,12 +164,12 @@ export function CalendarView({
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Só remove o dragOver se realmente saiu do elemento
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const x = e.clientX;
     const y = e.clientY;
-    
+
     if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
       setDragOverDate(null);
     }
@@ -176,15 +178,15 @@ export function CalendarView({
   const handleDrop = (e: React.DragEvent, newDate: string) => {
     e.preventDefault();
     const appointmentId = e.dataTransfer.getData('text/plain');
-    
+
     if (appointmentId && appointmentId !== draggedAppointment) {
       return;
     }
-    
+
     if (draggedAppointment && onAppointmentMove) {
       onAppointmentMove(draggedAppointment, newDate);
     }
-    
+
     setDraggedAppointment(null);
     setDragOverDate(null);
   };
@@ -208,7 +210,7 @@ export function CalendarView({
             Hoje
           </Button>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -279,7 +281,7 @@ export function CalendarView({
                     >
                       {date.getDate()}
                     </span>
-                    
+
                     {/* Botão de adicionar agendamento */}
                     {isCurrentMonthDay && (
                       <Button
@@ -321,12 +323,13 @@ export function CalendarView({
                         </ContextMenuTrigger>
                         <ContextMenuContent>
                           <ContextMenuItem onClick={(e) => { e.stopPropagation(); onAppointmentClick?.(appointment); }}>Editar</ContextMenuItem>
+                          <ContextMenuItem onClick={(e) => { e.stopPropagation(); onAppointmentDuplicate?.(appointment); }}>Duplicar</ContextMenuItem>
                           <ContextMenuSeparator />
                           <ContextMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onAppointmentDelete?.(appointment.id); }}>Excluir</ContextMenuItem>
                         </ContextMenuContent>
                       </ContextMenu>
                     ))}
-                    
+
                     {/* Indicador de mais agendamentos */}
                     {dayAppointments.length > 3 && (
                       <div className="text-xs text-muted-foreground text-center py-1 transition-colors duration-200">

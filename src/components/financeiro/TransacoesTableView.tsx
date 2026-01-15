@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Trash2, Pencil } from "lucide-react";
+import { CheckCircle2, Trash2, Pencil, DollarSign } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -38,75 +38,69 @@ export function TransacoesTableView({
     .reduce((acc, t) => acc + Number(t.valor), 0);
 
   return (
-    <Card className="rounded-2xl">
+    <Card className="rounded-3xl border-0 shadow-xl overflow-hidden bg-background/50 backdrop-blur-sm">
       <div className="p-0">
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Descrição</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Categoria</TableHead>
-              <TableHead>Valor</TableHead>
-              <TableHead>Vencimento</TableHead>
-              <TableHead>Liquidação</TableHead>
-              <TableHead>Agendamento</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
+          <TableHeader className="bg-muted/30">
+            <TableRow className="hover:bg-transparent border-b border-border/5">
+              <TableHead className="py-6 px-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Descrição</TableHead>
+              <TableHead className="py-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tipo</TableHead>
+              <TableHead className="py-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Categoria</TableHead>
+              <TableHead className="py-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Valor</TableHead>
+              <TableHead className="py-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Vencimento</TableHead>
+              <TableHead className="py-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Liquidação</TableHead>
+              <TableHead className="py-6 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Agendamento</TableHead>
+              <TableHead className="py-6 px-6 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {transacoes.map((t) => (
-              <TableRow key={t.id}>
-                <TableCell className="font-medium">{t.descricao}</TableCell>
-                <TableCell>
+              <TableRow key={t.id} className="cursor-pointer hover:bg-muted/40 transition-colors border-b border-border/5">
+                <TableCell className="py-4 px-6 font-medium text-foreground">{t.descricao}</TableCell>
+                <TableCell className="py-4">
                   <Badge
-                    className={`rounded-full ${
-                      t.tipo === "RECEITA"
-                        ? "bg-success/10 text-success"
-                        : "bg-destructive/10 text-destructive"
-                    }`}
+                    variant="outline"
+                    className={`rounded-lg px-2.5 py-0.5 border-0 font-medium ${t.tipo === "RECEITA"
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                      }`}
                   >
                     {t.tipo}
                   </Badge>
                 </TableCell>
-                <TableCell>{t.categoria}</TableCell>
-                <TableCell>R$ {Number(t.valor).toFixed(2)}</TableCell>
-                <TableCell>{new Date(t.data_vencimento).toLocaleDateString()}</TableCell>
-                <TableCell>
-                  {t.data_liquidacao ? new Date(t.data_liquidacao).toLocaleDateString() : "—"}
+                <TableCell className="py-4 text-muted-foreground">{t.categoria}</TableCell>
+                <TableCell className="py-4 font-semibold text-foreground">R$ {Number(t.valor).toFixed(2)}</TableCell>
+                <TableCell className="py-4 text-muted-foreground">{new Date(t.data_vencimento).toLocaleDateString()}</TableCell>
+                <TableCell className="py-4 text-muted-foreground">
+                  {t.data_liquidacao ? (
+                    <span className="flex items-center gap-1.5 text-xs text-emerald-600 bg-emerald-500/5 px-2 py-0.5 rounded-full w-fit">
+                      <CheckCircle2 className="w-3 h-3" />
+                      {new Date(t.data_liquidacao).toLocaleDateString()}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground/50">—</span>
+                  )}
                 </TableCell>
-                <TableCell>{t.agendamentos?.titulo || "—"}</TableCell>
-                <TableCell className="text-right">
+                <TableCell className="py-4 text-muted-foreground">{t.agendamentos?.titulo || "—"}</TableCell>
+                <TableCell className="py-4 px-6 text-right">
                   <div className="flex justify-end gap-2">
-                    {!t.data_liquidacao && (
-                      <Button
-                        onClick={() => onLiquidar(t)}
-                        className="rounded-xl gap-2"
-                        size="sm"
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        Liquidar
-                      </Button>
-                    )}
                     <Button
                       onClick={() => onEdit(t)}
-                      variant="outline"
-                      className="rounded-xl gap-2"
-                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0 rounded-full hover:bg-muted hover:text-foreground text-muted-foreground"
                     >
                       <Pencil className="w-4 h-4" />
-                      Editar
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
-                          variant="destructive"
-                          className="rounded-xl gap-2"
-                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 rounded-full hover:bg-rose-500/10 hover:text-rose-600 text-muted-foreground/70"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent className="rounded-xl">
+                      <AlertDialogContent className="rounded-3xl border-0 shadow-2xl">
                         <AlertDialogHeader>
                           <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
                           <AlertDialogDescription>
@@ -114,9 +108,9 @@ export function TransacoesTableView({
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+                          <AlertDialogCancel className="rounded-xl border-0 bg-muted hover:bg-muted/80">Cancelar</AlertDialogCancel>
                           <AlertDialogAction
-                            className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-lg shadow-destructive/20"
                             onClick={() => onDelete(t.id)}
                           >
                             Excluir
@@ -130,23 +124,28 @@ export function TransacoesTableView({
             ))}
             {transacoes.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
-                  Nenhuma transação encontrada.
+                <TableCell colSpan={8} className="text-center text-muted-foreground py-16">
+                  <div className="flex flex-col items-center gap-3 opacity-50">
+                    <div className="p-4 rounded-full bg-muted">
+                      <DollarSign className="w-8 h-8" />
+                    </div>
+                    <p>Nenhuma transação encontrada.</p>
+                  </div>
                 </TableCell>
               </TableRow>
             )}
             {transacoes.length > 0 && (
-              <TableRow className="bg-muted/30 font-semibold border-t-2">
-                <TableCell colSpan={3} className="text-right">Total:</TableCell>
-                <TableCell>
+              <TableRow className="bg-muted/10 font-semibold border-t">
+                <TableCell colSpan={3} className="text-right py-6 px-6 text-muted-foreground">Total:</TableCell>
+                <TableCell className="py-6">
                   <div className="space-y-1">
-                    <div className="text-success">
+                    <div className="text-emerald-600 dark:text-emerald-400 text-xs">
                       + R$ {totalReceitas.toFixed(2)}
                     </div>
-                    <div className="text-destructive">
+                    <div className="text-rose-600 dark:text-rose-400 text-xs">
                       - R$ {totalDespesas.toFixed(2)}
                     </div>
-                    <div className="border-t pt-1">
+                    <div className="border-t border-border/10 pt-1 text-sm">
                       R$ {(totalReceitas - totalDespesas).toFixed(2)}
                     </div>
                   </div>

@@ -12,6 +12,8 @@ export type ProdutoRecord = {
     marca?: string | null;
     tipo_material: string;
     unidade: string;
+    unidade_embalagem?: string | null;
+    fator_conversao?: number | null;
     created_at?: string;
     updated_at?: string;
 };
@@ -21,6 +23,8 @@ export const produtoSchema = z.object({
     marca: z.string().optional().nullable(),
     tipo_material: z.string().min(1, "Tipo é obrigatório"),
     unidade: z.string().min(1, "Unidade é obrigatória"),
+    unidade_embalagem: z.string().optional().nullable(),
+    fator_conversao: z.number().positive().optional().nullable(),
 });
 
 export function useProdutos() {
@@ -66,6 +70,8 @@ export function useProdutos() {
                 marca: parsed.marca ?? null,
                 tipo_material: parsed.tipo_material,
                 unidade: parsed.unidade,
+                unidade_embalagem: parsed.unidade_embalagem ?? null,
+                fator_conversao: parsed.fator_conversao ?? null,
             };
             const { data: rows, error } = await sb
                 .from("produtos")

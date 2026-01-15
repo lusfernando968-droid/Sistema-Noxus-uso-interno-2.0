@@ -26,11 +26,27 @@ import {
   Thermometer,
   Clock,
   Brain,
-  PieChart
+  PieChart,
+  Check,
+  ChevronsUpDown
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 interface Cliente {
   id: string;
@@ -77,6 +93,9 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
   const [highlightedNodes, setHighlightedNodes] = useState<Set<string>>(new Set());
   const [layoutMode, setLayoutMode] = useState<'hierarchical' | 'circular'>('hierarchical');
 
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  const [openCombobox, setOpenCombobox] = useState(false);
+
   // Estados para filtros avançados
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [periodFilter, setPeriodFilter] = useState<string>("all");
@@ -108,7 +127,70 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     topPerformers: [] as Array<{ id: string; name: string; indicacoes_count: number }>
   });
 
-  // Função para obter cores do tema atual
+  // Função auxiliar para encontrar toda a linhagem (ancestrais e descendentes)
+  const getLineage = (rootId: string, allClientes: Cliente[]): Set<string> => {
+    const lineage = new Set<string>();
+    const queue = [rootId];
+
+    // Adicionar o nó raiz
+    lineage.add(rootId);
+
+    // Encontrar descendentes (quem este cliente indicou, recursivamente)
+    const findDescendants = (parentId: string) => {
+      const children = allClientes.filter(c => c.indicado_por === parentId);
+      children.forEach(child => {
+        if (!lineage.has(child.id)) {
+          lineage.add(child.id);
+          findDescendants(child.id);
+        }
+      });
+    };
+    findDescendants(rootId);
+
+    // Encontrar ancestrais (quem indicou este cliente, recursivamente)
+    let currentId = rootId;
+    while (true) {
+      const current = allClientes.find(c => c.id === currentId);
+      if (current && current.indicado_por) {
+        if (!lineage.has(current.indicado_por)) {
+          lineage.add(current.indicado_por);
+          currentId = current.indicado_por;
+        } else {
+          break; // Ciclo ou já processado
+        }
+      } else {
+        break;
+      }
+    }
+
+    return lineage;
+  };
+
+  // Função auxiliar para calcular métricas da ramificação
+  const getBranchMetrics = (rootId: string, allClientes: Cliente[]) => {
+    const branchIds = getLineage(rootId, allClientes);
+    let totalLTV = 0;
+    let totalMembers = 0;
+
+    branchIds.forEach(id => {
+      const client = allClientes.find(c => c.id === id);
+      if (client) {
+        totalLTV += client.ltv || 0;
+        totalMembers++;
+      }
+    });
+
+    return { totalLTV, totalMembers };
+  };
+
+  // ... (rest of the file until the return/render part) ...
+
+  // (Jumping to the details panel logic inside the Return)
+  // I will replace the existing details panel content with the new structure.
+  // This requires me to be careful with the target content.
+
+  // Let's target the "Informações" block specifically.
+
   const getThemeColors = () => {
     const themeColorMap = {
       default: { r: 139, g: 92, b: 246 }, // Roxo padrão
@@ -340,7 +422,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
 
   useEffect(() => {
     generateNetworkNodes();
-  }, [clientes, layoutMode, colorTheme]);
+  }, [clientes, layoutMode, colorTheme, focusedNodeId]); // Reagir ao focusedNodeId
 
   useEffect(() => {
     drawNetwork();
@@ -417,9 +499,24 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     const nodeMap = new Map<string, NetworkNode>();
     const connections = new Map<string, string[]>();
 
+    // Determinar quais clientes incluir baseado no foco
+    if (!focusedNodeId) {
+      setNodes([]);
+      return;
+    }
+
+    const lineageIds = getLineage(focusedNodeId, clientes);
+    const clientesToProcess = clientes.filter(c => lineageIds.has(c.id));
+
     // Primeiro, criar todos os nós
-    clientes.forEach(cliente => {
+    clientesToProcess.forEach(cliente => {
       const indicacoes_count = clientes.filter(c => c.indicado_por === cliente.id).length;
+
+      // Se estiver focado, recalcular se é raiz RELATIVA
+      // Um nó é raiz no modo foco se ele não tem pai DENTRO do conjunto focado
+      // OU se ele é o nó originalmente focado e queremos ver ele como centro?
+      // Melhor: Manter a lógica de raiz natural, mas ajustar visualmente.
+      const isRoot = !cliente.indicado_por || (focusedNodeId && !clientesToProcess.find(c => c.id === cliente.indicado_por));
 
       nodeMap.set(cliente.id, {
         id: cliente.id,
@@ -429,7 +526,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
         connections: [],
         level: 0,
         ltv: cliente.ltv || 0,
-        isRoot: !cliente.indicado_por,
+        isRoot: isRoot,
         indicacoes_count
       });
 
@@ -439,7 +536,7 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
     });
 
     // Estabelecer conexões
-    clientes.forEach(cliente => {
+    clientesToProcess.forEach(cliente => {
       if (cliente.indicado_por && nodeMap.has(cliente.indicado_por)) {
         const parentConnections = connections.get(cliente.indicado_por) || [];
         parentConnections.push(cliente.id);
@@ -1135,73 +1232,134 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
   const selectedNodeData = selectedNode ? nodes.find(n => n.id === selectedNode) : null;
   const clienteData = selectedNode ? clientes.find(c => c.id === selectedNode) : null;
 
+  if (!focusedNodeId) {
+    return (
+      <Card className="rounded-3xl border border-border/40 shadow-sm min-h-[500px] flex flex-col items-center justify-center p-8 text-center bg-gradient-to-br from-background to-muted/20">
+        <div className="max-w-md w-full space-y-8">
+          <div className="space-y-4">
+            <div className="p-6 bg-primary/10 rounded-full w-24 h-24 mx-auto flex items-center justify-center mb-6 ring-8 ring-primary/5">
+              <Network className="w-12 h-12 text-primary" />
+            </div>
+            <h2 className="text-2xl font-bold tracking-tight">Mapa de Indicações</h2>
+            <p className="text-muted-foreground">
+              Selecione um cliente para visualizar sua rede de conexões exclusiva.
+              Foque na linhagem que importa.
+            </p>
+          </div>
+
+          <div className="relative">
+            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCombobox}
+                  className="w-full justify-between h-12 text-base px-4 rounded-xl border-2 hover:border-primary/50 transition-all font-normal"
+                >
+                  {focusedNodeId
+                    ? clientes.find((c) => c.id === focusedNodeId)?.nome
+                    : "Buscar cliente..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0 rounded-xl shadow-xl border-border/60" align="center">
+                <Command className="rounded-xl">
+                  <CommandInput placeholder="Digite o nome do cliente..." className="h-11" />
+                  <CommandList>
+                    <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                    <CommandGroup heading="Sugestões">
+                      {clientes.slice(0, 10).map((cliente) => (
+                        <CommandItem
+                          key={cliente.id}
+                          value={cliente.nome}
+                          onSelect={() => {
+                            setFocusedNodeId(cliente.id);
+                            setOpenCombobox(false);
+                            // Auto-reset handled in useEffect
+                          }}
+                          className="cursor-pointer py-3"
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4 text-primary",
+                              focusedNodeId === cliente.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <div className="flex flex-col">
+                            <span>{cliente.nome}</span>
+                            {cliente.email && <span className="text-xs text-muted-foreground">{cliente.email}</span>}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+            <p className="text-xs text-muted-foreground mt-3">
+              Exibindo os 10 primeiros resultados. Digite para buscar mais.
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      {(() => {
-        const { colorTheme } = useTheme();
-        const accentStrongThemes = new Set(["ocean", "sunset", "forest", "purple", "rose"]);
-        const headerGradientClass = accentStrongThemes.has(colorTheme)
-          ? "bg-gradient-to-r from-primary/5 to-accent/5"
-          : "bg-gradient-to-r from-primary/5 to-primary/10";
-        return (
-          <Card className={`rounded-3xl border border-border/40 ${headerGradientClass} shadow-sm`}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-primary/10 rounded-2xl">
-                    <Network className="w-6 h-6 text-primary" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-xl">Rede de Indicações</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Visualização das conexões entre clientes
-                    </p>
-                  </div>
+      {/* Header Simplificado (Focado) */}
+      <Card className="rounded-3xl border border-border/40 bg-gradient-to-r from-primary/5 to-primary/10 shadow-sm">
+        <CardHeader className="py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full hover:bg-background/50"
+                onClick={() => setFocusedNodeId(null)}
+                title="Voltar para busca"
+              >
+                <RotateCcw className="w-5 h-5 text-muted-foreground" />
+              </Button>
+              <div className="h-8 w-px bg-border/50 mx-1" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-lg">Rede de {nodes.find(n => n.id === focusedNodeId)?.name || 'Cliente'}</CardTitle>
+                  <Badge variant="secondary" className="font-normal text-xs bg-background/50">Modo Foco</Badge>
                 </div>
-
-                <div className="flex items-center gap-2 bg-background/60 backdrop-blur-sm border border-border/40 rounded-full px-2 py-1 shadow-sm">
-                  <Input
-                    placeholder="Buscar cliente..."
-                    value={filterTerm}
-                    onChange={(e) => setFilterTerm(e.target.value)}
-                    className="w-56 h-8 rounded-full bg-background/70"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-                    className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
-                    title="Filtros Avançados"
-                  >
-                    <Filter className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setLayoutMode(layoutMode === 'hierarchical' ? 'circular' : 'hierarchical')}
-                    className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
-                    title={`Alternar para layout ${layoutMode === 'hierarchical' ? 'circular' : 'hierárquico'}`}
-                  >
-                    {layoutMode === 'hierarchical' ? '🌐' : '📊'}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowLabels(!showLabels)}
-                    className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
-                    title={showLabels ? 'Ocultar rótulos' : 'Mostrar rótulos'}
-                  >
-                    {showLabels ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </Button>
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  Exibindo linhagem exclusiva deste cliente
+                </p>
               </div>
-            </CardHeader>
-          </Card>
-        );
-      })()}
+            </div>
 
-      {/* Painel de Filtros Avançados */}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="h-9 gap-2 rounded-xl bg-background/50 border-border/40"
+                onClick={() => setFocusedNodeId(null)}
+              >
+                <Search className="w-3.5 h-3.5" />
+                Trocar Cliente
+              </Button>
+
+              <div className="h-6 w-px bg-border/40 mx-2" />
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="rounded-full h-8 w-8 text-muted-foreground hover:text-foreground"
+                title="Filtros"
+              >
+                <Filter className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Painel de Filtros Avançados (condicional) */}
       {showAdvancedFilters && (
         <Card className="rounded-3xl border border-border/40 shadow-sm bg-gradient-to-r from-primary/5 to-accent/5">
           <CardContent className="p-6">
@@ -1493,100 +1651,107 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
             {/* Seleção múltipla removida */}
 
             {selectedNodeData && clienteData ? (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <div>
-                  <h4 className="font-medium text-lg">{selectedNodeData.name}</h4>
+                  <h4 className="font-medium text-lg text-primary">{selectedNodeData.name}</h4>
                   <p className="text-sm text-muted-foreground">{clienteData.email}</p>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-sm">LTV:</span>
-                    <Badge variant="secondary">
-                      R$ {selectedNodeData.ltv.toLocaleString()}
-                    </Badge>
-                  </div>
+                {/* Card de Volume da Ramificação - NOVO */}
+                {(() => {
+                  const metrics = getBranchMetrics(selectedNodeData.id, clientes);
+                  return (
+                    <div className="bg-primary/5 p-4 rounded-xl border border-primary/10 space-y-1">
+                      <div className="flex items-center gap-2 text-primary font-medium">
+                        <DollarSign className="w-4 h-4" />
+                        <span>Volume da Ramificação</span>
+                      </div>
+                      <p className="text-2xl font-bold tracking-tight">
+                        R$ {metrics.totalLTV.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Soma do LTV deste cliente e {metrics.totalMembers - 1} derivados diretos/indiretos.
+                      </p>
+                    </div>
+                  );
+                })()}
 
-                  <div className="flex justify-between">
-                    <span className="text-sm">Indicações:</span>
-                    <Badge variant="outline">
-                      {selectedNodeData.indicacoes_count}
-                    </Badge>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-muted/30 p-2 rounded-lg text-center">
+                    <span className="text-xs text-muted-foreground block">LTV Individual</span>
+                    <span className="font-semibold">R$ {selectedNodeData.ltv.toLocaleString()}</span>
                   </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-sm">Nível:</span>
-                    <Badge
-                      style={{
-                        backgroundColor: levelColors[Math.min(selectedNodeData.level, levelColors.length - 1)] + '20',
-                        color: levelColors[Math.min(selectedNodeData.level, levelColors.length - 1)]
-                      }}
-                    >
-                      {selectedNodeData.level}
-                    </Badge>
+                  <div className="bg-muted/30 p-2 rounded-lg text-center">
+                    <span className="text-xs text-muted-foreground block">Indicações</span>
+                    <span className="font-semibold">{selectedNodeData.indicacoes_count}</span>
                   </div>
                 </div>
 
-                {/* Detalhes adicionais para preencher o card */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2 border-t">
+                {/* Detalhes adicionais compactos */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm pt-2 border-t">
                   <div>
                     <p className="text-xs text-muted-foreground">Cidade</p>
-                    <p className="text-sm">{clienteData.cidade || '—'}</p>
+                    <p>{clienteData.cidade || '—'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Instagram</p>
                     {clienteData.instagram ? (
-                      <a href={clienteData.instagram} target="_blank" rel="noreferrer" className="text-sm text-primary underline break-all">
-                        {clienteData.instagram}
+                      <a href={clienteData.instagram} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate block">
+                        @{clienteData.instagram.replace('https://instagram.com/', '').replace('/', '')}
                       </a>
                     ) : (
-                      <p className="text-sm">—</p>
+                      <p>—</p>
                     )}
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Criado em</p>
-                    <p className="text-sm">{new Date(clienteData.created_at).toLocaleDateString('pt-BR')}</p>
+                    <p className="text-xs text-muted-foreground">Cliente desde</p>
+                    <p>{new Date(clienteData.created_at).toLocaleDateString('pt-BR')}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Geração</p>
-                    <p className="text-sm">{selectedNodeData.level}</p>
+                    <p className="text-xs text-muted-foreground">Nível na Rede</p>
+                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                      Nível {selectedNodeData.level}
+                    </Badge>
                   </div>
                 </div>
 
-                {/* Caminho até a raiz e filhos diretos */}
+                {/* Indicações Diretas (Ex-Filhos) */}
                 <div className="pt-2 border-t space-y-2">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Caminho até a raiz</p>
-                    <p className="text-sm">
-                      {(() => {
-                        const path: string[] = [];
-                        let current: Cliente | undefined = clienteData as Cliente | undefined;
-                        const safeLimit = 50;
-                        let count = 0;
-                        while (current && count < safeLimit) {
-                          path.push(current.nome);
-                          if (!current.indicado_por) break;
-                          current = clientes.find(c => c.id === current!.indicado_por) as Cliente | undefined;
-                          count++;
-                        }
-                        return path.join(' → ');
-                      })()}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Filhos diretos</p>
-                    <p className="text-sm">
-                      {clientes.filter(c => c.indicado_por === clienteData.id).map(c => c.nome).join(', ') || '—'}
-                    </p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Indicações Diretas</p>
+                  <div className="flex flex-wrap gap-2">
+                    {clientes
+                      .filter(c => c.indicado_por === clienteData.id)
+                      .map(c => (
+                        <Badge
+                          key={c.id}
+                          variant="outline"
+                          className="cursor-pointer hover:bg-muted font-normal"
+                          onClick={() => {
+                            setSelectedNode(c.id);
+                            // Optional logic to focus on click
+                          }}
+                        >
+                          {c.nome}
+                        </Badge>
+                      ))}
+                    {clientes.filter(c => c.indicado_por === clienteData.id).length === 0 && (
+                      <span className="text-sm text-muted-foreground italic">Nenhuma indicação ainda.</span>
+                    )}
                   </div>
                 </div>
 
                 {clienteData.indicado_por && (
-                  <div className="pt-2 border-t">
-                    <p className="text-sm text-muted-foreground">Indicado por:</p>
-                    <p className="font-medium">
-                      {clientes.find(c => c.id === clienteData.indicado_por)?.nome || 'Cliente não encontrado'}
-                    </p>
+                  <div className="pt-2 border-t mt-2">
+                    <p className="text-xs text-muted-foreground mb-1">Indicado por:</p>
+                    <div
+                      className="flex items-center gap-2 p-2 bg-muted/40 rounded-lg cursor-pointer hover:bg-muted/60 transition-colors"
+                      onClick={() => setSelectedNode(clienteData.indicado_por || null)}
+                    >
+                      <Users className="w-4 h-4 opacity-50" />
+                      <span className="font-medium text-sm">
+                        {clientes.find(c => c.id === clienteData.indicado_por)?.nome || 'Cliente não encontrado'}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1594,6 +1759,31 @@ export function ReferralNetwork({ clientes }: ReferralNetworkProps) {
               <div className="text-center py-6 text-muted-foreground">
                 <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">Clique em um nó para ver detalhes</p>
+              </div>
+            )}
+
+            {/* Ações do Nó Selecionado */}
+            {selectedNodeData && (
+              <div className="mt-4 pt-4 border-t flex gap-2">
+                <Button
+                  className="w-full rounded-xl"
+                  variant={focusedNodeId === selectedNodeData.id ? "secondary" : "default"}
+                  onClick={() => {
+                    if (focusedNodeId === selectedNodeData.id) {
+                      setFocusedNodeId(null);
+                    } else {
+                      setFocusedNodeId(selectedNodeData.id);
+                      // Resetar view para centralizar
+                      setTimeout(() => {
+                        setZoom(1.2);
+                        setPan({ x: 0, y: 0 });
+                      }, 100);
+                    }
+                  }}
+                >
+                  <Target className="w-4 h-4 mr-2" />
+                  {focusedNodeId === selectedNodeData.id ? "Sair do Foco" : "Focar nesta Rede"}
+                </Button>
               </div>
             )}
 

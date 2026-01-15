@@ -27,6 +27,8 @@ export default function ProdutoFormDialog({ trigger, initial, onSuccess, open, o
             marca: "",
             tipo_material: "",
             unidade: "un",
+            unidade_embalagem: "",
+            fator_conversao: 0,
         },
     });
 
@@ -37,6 +39,8 @@ export default function ProdutoFormDialog({ trigger, initial, onSuccess, open, o
                 marca: initial.marca || "",
                 tipo_material: initial.tipo_material,
                 unidade: initial.unidade,
+                unidade_embalagem: initial.unidade_embalagem || "",
+                fator_conversao: initial.fator_conversao || 0,
             });
         } else {
             form.reset({
@@ -44,6 +48,8 @@ export default function ProdutoFormDialog({ trigger, initial, onSuccess, open, o
                 marca: "",
                 tipo_material: "",
                 unidade: "un",
+                unidade_embalagem: "",
+                fator_conversao: 0,
             });
         }
     }, [initial, form]);
@@ -145,6 +151,55 @@ export default function ProdutoFormDialog({ trigger, initial, onSuccess, open, o
                                                 <SelectItem value="l">l (litro)</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                            </div>
+
+                            {/* Campos de Embalagem */}
+                            <div className="grid grid-cols-2 gap-4 pt-2">
+                                <FormField name="unidade_embalagem" control={form.control} render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Tipo de Embalagem</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Selecione" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="Caixa">Caixa</SelectItem>
+                                                <SelectItem value="Pacote">Pacote</SelectItem>
+                                                <SelectItem value="Rolo">Rolo</SelectItem>
+                                                <SelectItem value="Frasco">Frasco</SelectItem>
+                                                <SelectItem value="Tubo">Tubo</SelectItem>
+                                                <SelectItem value="Galão">Galão</SelectItem>
+                                                <SelectItem value="Pote">Pote</SelectItem>
+                                                <SelectItem value="Sachê">Sachê</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+
+                                <FormField name="fator_conversao" control={form.control} render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>
+                                            {form.watch("unidade") === "ml" ? "Capacidade (mL)" :
+                                                form.watch("unidade") === "g" ? "Peso (g)" :
+                                                    form.watch("unidade") === "l" ? "Capacidade (L)" :
+                                                        "Qtd por Embalagem"}
+                                        </FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                type="number"
+                                                step="1"
+                                                placeholder="100"
+                                                {...field}
+                                                value={field.value || ""}
+                                                onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+                                            />
+                                        </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )} />

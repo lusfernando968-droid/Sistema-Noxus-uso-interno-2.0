@@ -60,6 +60,21 @@ export function AgendamentoFormDialog({
     setFormData(prev => ({ ...prev, valor_estimado: value }));
   };
 
+  const handleValorSinalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "");
+    const cents = parseInt(digitsOnly || "0", 10);
+    const value = cents / 100;
+
+    setFormData(prev => {
+      // Auto-fill date if amount is entered and date is empty
+      const newData = { ...prev, valor_sinal: value };
+      if (value > 0 && !prev.data_pagamento_sinal) {
+        newData.data_pagamento_sinal = format(new Date(), "yyyy-MM-dd");
+      }
+      return newData;
+    });
+  };
+
   const projetosFiltrados = projetos.filter((p) => p.cliente_id === formData.cliente_id);
 
   return (
@@ -262,6 +277,33 @@ export function AgendamentoFormDialog({
                     onChange={handleValorEstimadoChange}
                     placeholder="0,00"
                     className="rounded-xl pl-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>Valor Sinal (Adiantamento)</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-sm text-muted-foreground">R$</span>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrencyBR(formData.valor_sinal || 0)}
+                    onChange={handleValorSinalChange}
+                    placeholder="0,00"
+                    className="rounded-xl pl-10"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label>Data Pagamento Sinal</Label>
+                <div className="relative">
+                  <Input
+                    type="date"
+                    value={formData.data_pagamento_sinal || ''}
+                    onChange={(e) => setFormData(prev => ({ ...prev, data_pagamento_sinal: e.target.value }))}
+                    className="rounded-xl"
                   />
                 </div>
               </div>

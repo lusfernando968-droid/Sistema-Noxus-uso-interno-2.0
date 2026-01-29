@@ -4,12 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, DollarSign, FolderOpen, Eye, Camera, Loader2, Instagram, Trash2 } from "lucide-react";
+import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, DollarSign, FolderOpen, Eye, Camera, Loader2, Instagram, Trash2, Ban, CheckCircle } from "lucide-react";
 import { UserAvatar } from "@/components/profile/UserAvatar";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ClienteDetalhesSkeleton } from "@/components/ui/skeletons";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 // Interfaces
 interface Cliente {
@@ -25,6 +28,8 @@ interface Cliente {
   created_at: string;
   updated_at: string;
   foto_url?: string | null;
+  status: 'ativo' | 'inativo';
+  motivo_inativacao?: string | null;
 }
 
 interface ProjetoCliente {
@@ -51,9 +56,61 @@ export default function ClienteDetalhes() {
     valorPago: 0,
     projetosAtivos: 0
   });
+
+
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [indicados, setIndicados] = useState<Array<{ id: string; nome: string }>>([]);
+
+  // Estados para desativação
+  const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
+  const [motivoInativacao, setMotivoInativacao] = useState("");
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  const handleDeactivate = async () => {
+    if (!cliente || !motivoInativacao.trim()) {
+      toast({ title: "Motivo obrigatório", description: "Por favor, informe o motivo da desativação.", variant: "destructive" });
+      return;
+    }
+    setIsUpdatingStatus(true);
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .update({ status: 'inativo', motivo_inativacao: motivoInativacao })
+        .eq('id', cliente.id);
+
+      if (error) throw error;
+
+      setCliente({ ...cliente, status: 'inativo', motivo_inativacao: motivoInativacao });
+      setIsDeactivateOpen(false);
+      setMotivoInativacao("");
+      toast({ title: "Cliente desativado", description: "O cliente foi desativado com sucesso." });
+    } catch (error: any) {
+      toast({ title: "Erro ao desativar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!cliente) return;
+    setIsUpdatingStatus(true);
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .update({ status: 'ativo', motivo_inativacao: null })
+        .eq('id', cliente.id);
+
+      if (error) throw error;
+
+      setCliente({ ...cliente, status: 'ativo', motivo_inativacao: null });
+      toast({ title: "Cliente reativado", description: "O cliente está ativo novamente." });
+    } catch (error: any) {
+      toast({ title: "Erro ao reativar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   const handleRemovePhoto = async () => {
     if (!cliente) return;
@@ -174,7 +231,7 @@ export default function ClienteDetalhes() {
           return;
         }
 
-        
+
         const { data: projetosCliente, error: projetosError } = await supabase
           .from('projetos')
           .select('*')
@@ -197,7 +254,7 @@ export default function ClienteDetalhes() {
             .select('valor_sessao')
             .eq('projeto_id', projeto.id)
             .eq('status_pagamento', 'pago');
-          
+
           valorPagoTotal += (sessoes || []).reduce((sum, s) => sum + (s.valor_sessao || 0), 0);
         }
 
@@ -259,7 +316,7 @@ export default function ClienteDetalhes() {
               }
             }
           }
-        } catch {}
+        } catch { }
         setProjetos(projetosFormatados);
         setStats({
           totalProjetos,
@@ -325,20 +382,86 @@ export default function ClienteDetalhes() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => navigate('/clientes')}
-          className="rounded-xl"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">{cliente.nome}</h1>
-          <p className="text-muted-foreground">Detalhes do cliente</p>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => navigate('/clientes')}
+            className="rounded-xl"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold">{cliente.nome}</h1>
+              {cliente.status === 'inativo' ? (
+                <Badge variant="destructive" className="gap-1">
+                  <Ban className="h-3 w-3" /> Inativo
+                </Badge>
+              ) : (
+                <Badge variant="default" className="bg-emerald-500 hover:bg-emerald-600 gap-1">
+                  <CheckCircle className="h-3 w-3" /> Ativo
+                </Badge>
+              )}
+            </div>
+            <p className="text-muted-foreground">Detalhes do cliente</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {cliente.status === 'inativo' ? (
+            <Button
+              onClick={handleReactivate}
+              disabled={isUpdatingStatus}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white"
+            >
+              {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+              Reativar Cliente
+            </Button>
+          ) : (
+            <Button
+              variant="destructive"
+              onClick={() => setIsDeactivateOpen(true)}
+              disabled={isUpdatingStatus}
+            >
+              <Ban className="h-4 w-4 mr-2" />
+              Desativar Cliente
+            </Button>
+          )}
         </div>
       </div>
+
+      <Dialog open={isDeactivateOpen} onOpenChange={setIsDeactivateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Desativar Cliente</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja desativar este cliente? Esta ação impedirá novos agendamentos e transações.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-4">
+            <Label htmlFor="motivo">Motivo da desativação (obrigatório)</Label>
+            <Textarea
+              id="motivo"
+              placeholder="Ex: Mudou de cidade, Indimplência, Pediu cancelamento..."
+              value={motivoInativacao}
+              onChange={(e) => setMotivoInativacao(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeactivateOpen(false)}>Cancelar</Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeactivate}
+              disabled={isUpdatingStatus || !motivoInativacao.trim()}
+            >
+              {isUpdatingStatus ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : "Confirmar Desativação"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -521,6 +644,14 @@ export default function ClienteDetalhes() {
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {cliente.status === 'inativo' && cliente.motivo_inativacao && (
+                  <div className="space-y-2 md:col-span-2 bg-destructive/10 p-4 rounded-lg border border-destructive/20">
+                    <label className="text-sm font-medium text-destructive flex items-center gap-2">
+                      <Ban className="h-4 w-4" /> Motivo da Inativação
+                    </label>
+                    <p className="text-gray-900">{cliente.motivo_inativacao}</p>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-muted-foreground">Nome Completo</label>
                   <p className="text-lg">{cliente.nome}</p>

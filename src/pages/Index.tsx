@@ -93,10 +93,14 @@ const Index = () => {
             <SelectValue placeholder="Período" />
           </SelectTrigger>
           <SelectContent className="rounded-2xl">
+            <SelectItem value="today">Hoje</SelectItem>
+            <SelectItem value="week">Esta semana</SelectItem>
             <SelectItem value="7d">Últimos 7 dias</SelectItem>
+            <SelectItem value="month">Este mês</SelectItem>
             <SelectItem value="30d">Últimos 30 dias</SelectItem>
             <SelectItem value="3m">Últimos 3 meses</SelectItem>
             <SelectItem value="6m">Últimos 6 meses</SelectItem>
+            <SelectItem value="year">Este ano</SelectItem>
             <SelectItem value="1y">Último ano</SelectItem>
             <SelectItem value="all">Todo período</SelectItem>
           </SelectContent>
@@ -149,24 +153,24 @@ const Index = () => {
           )}
 
           <TabsContent value="projects" className="space-y-4">
-            <ProjectsTab projetos={allProjetos} />
+            <ProjectsTab projetos={projetos} />
           </TabsContent>
 
           <TabsContent value="orcamentos" className="space-y-4">
-            <OrcamentosTab orcamentos={allOrcamentos} prevOrcamentos={prevOrcamentos} />
+            <OrcamentosTab orcamentos={orcamentos} prevOrcamentos={prevOrcamentos} />
           </TabsContent>
 
           <TabsContent value="finance" className="space-y-4">
-            <FinanceTab transacoes={allTransacoes} />
+            <FinanceTab transacoes={transacoes} />
           </TabsContent>
 
 
           <TabsContent value="clients" className="space-y-4">
-            <ClientsTab clientes={allClientes} />
+            <ClientsTab clientes={clientes} projetos={projetos} />
           </TabsContent>
 
           <TabsContent value="schedules" className="space-y-4">
-            <SchedulesTab agendamentos={allAgendamentos} />
+            <SchedulesTab agendamentos={agendamentos} />
           </TabsContent>
 
           <TabsContent value="estoque" className="space-y-4">

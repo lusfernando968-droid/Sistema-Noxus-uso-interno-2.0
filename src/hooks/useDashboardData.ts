@@ -1,21 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { subDays, subMonths } from "date-fns";
+import { subDays, subMonths, startOfDay, startOfWeek, startOfMonth, startOfYear, subWeeks, subYears } from "date-fns";
 
-export type DateRange = "7d" | "30d" | "3m" | "6m" | "1y" | "all";
+export type DateRange = "today" | "week" | "7d" | "month" | "30d" | "3m" | "6m" | "year" | "1y" | "all";
 
 export function useDashboardData(dateRange: DateRange = "30d") {
   const getDateFilter = () => {
     const now = new Date();
     switch (dateRange) {
+      case "today":
+        return startOfDay(now);
+      case "week":
+        return startOfWeek(now, { weekStartsOn: 0 }); // Sunday start
       case "7d":
         return subDays(now, 7);
+      case "month":
+        return startOfMonth(now);
       case "30d":
         return subDays(now, 30);
       case "3m":
         return subMonths(now, 3);
       case "6m":
         return subMonths(now, 6);
+      case "year":
+        return startOfYear(now);
       case "1y":
         return subMonths(now, 12);
       default:
@@ -27,14 +35,22 @@ export function useDashboardData(dateRange: DateRange = "30d") {
   const getPreviousStart = () => {
     const now = new Date();
     switch (dateRange) {
+      case "today":
+        return subDays(startOfDay(now), 1); // Compare to yesterday
+      case "week":
+        return subWeeks(startOfWeek(now, { weekStartsOn: 0 }), 1); // Compare to prev week
       case "7d":
         return subDays(now, 14);
+      case "month":
+        return subMonths(startOfMonth(now), 1); // Compare to prev month
       case "30d":
         return subDays(now, 60);
       case "3m":
         return subMonths(now, 6);
       case "6m":
         return subMonths(now, 12);
+      case "year":
+        return subYears(startOfYear(now), 1); // Compare to prev year
       case "1y":
         return subMonths(now, 24);
       default:
@@ -56,7 +72,8 @@ export function useDashboardData(dateRange: DateRange = "30d") {
 
   const projetos = allProjetos?.filter(p => {
     if (!dateFilter) return true;
-    return new Date(p.created_at) >= dateFilter;
+    const date = new Date(p.data_inicio || p.created_at);
+    return date >= dateFilter;
   }) || [];
 
   const { data: prevProjetos, isLoading: loadingPrevProjetos } = useQuery({
@@ -112,7 +129,8 @@ export function useDashboardData(dateRange: DateRange = "30d") {
 
   const transacoes = allTransacoes?.filter(t => {
     if (!dateFilter) return true;
-    return new Date(t.created_at) >= dateFilter;
+    const date = new Date(t.data_vencimento || t.data || t.created_at);
+    return date >= dateFilter;
   }) || [];
 
   const { data: prevTransacoes, isLoading: loadingPrevTransacoes } = useQuery({
@@ -140,7 +158,8 @@ export function useDashboardData(dateRange: DateRange = "30d") {
 
   const agendamentos = allAgendamentos?.filter(a => {
     if (!dateFilter) return true;
-    return new Date(a.created_at) >= dateFilter;
+    const date = new Date(a.data || a.created_at);
+    return date >= dateFilter;
   }) || [];
 
   const { data: prevAgendamentos, isLoading: loadingPrevAgendamentos } = useQuery({

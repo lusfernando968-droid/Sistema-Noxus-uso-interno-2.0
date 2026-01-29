@@ -321,7 +321,7 @@ export default function ProjetoDetalhes() {
           data: sessao.data_sessao,
           duracao: 120,
           descricao: sessao.observacoes_tecnicas || `Sessão ${sessao.numero_sessao}`,
-          valor: sessao.valor_sessao || 0,
+          valor: Number(sessao.valor_sessao) ?? 0,
           status: sessao.status_pagamento === 'cancelado' ? 'cancelada' : (isConcluida ? 'concluida' : 'agendada'),
           feedback_cliente: sessao.feedback_cliente,
           observacoes_tecnicas: sessao.observacoes_tecnicas,
@@ -976,6 +976,66 @@ export default function ProjetoDetalhes() {
                       </ContextMenuContent>
                     </ContextMenu>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl mt-6">
+              <CardHeader>
+                <CardTitle>Histórico de Agendamentos (Calendário)</CardTitle>
+                <CardDescription>
+                  Todos os agendamentos vinculados a este projeto, incluindo cancelados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {agendamentos.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">Nenhum agendamento encontrado.</p>
+                  ) : (
+                    agendamentos.map((agendamento) => (
+                      <div key={agendamento.id} className="flex items-start justify-between gap-4 p-4 border rounded-xl">
+                        <div className="flex items-start gap-4 flex-1">
+                          <div className="flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-secondary/30 flex items-center justify-center">
+                              <Calendar className="w-4 h-4 text-secondary-foreground" />
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm text-muted-foreground">
+                                {agendamento.data && format(parseDateOnly(agendamento.data), "dd/MM/yyyy", { locale: ptBR })}
+                                {agendamento.hora && ` às ${agendamento.hora}`}
+                              </span>
+                              <Badge variant="outline" className={`rounded-xl ${agendamento.status === 'cancelado' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                                agendamento.status === 'concluido' ? 'bg-success/10 text-success border-success/20' :
+                                  'bg-primary/10 text-primary border-primary/20'
+                                }`}>
+                                {agendamento.status === 'em_andamento' ? 'Em andamento' :
+                                  agendamento.status === 'agendado' ? 'Agendado' :
+                                    agendamento.status === 'confirmado' ? 'Confirmado' :
+                                      agendamento.status === 'concluido' ? 'Concluído' :
+                                        agendamento.status === 'cancelado' ? 'Cancelado' : agendamento.status}
+                              </Badge>
+                            </div>
+                            <p className="font-medium">{agendamento.titulo}</p>
+                            {agendamento.descricao && (
+                              <p className="text-sm text-muted-foreground text-wrap">{agendamento.descricao}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" className="rounded-xl" onClick={() => abrirEdicao(agendamento)}>
+                            Editar
+                          </Button>
+                          {agendamento.status !== 'cancelado' && (
+                            <Button size="sm" variant="destructive" className="rounded-xl" onClick={() => cancelarAgendamento(agendamento.id)}>
+                              Cancelar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>

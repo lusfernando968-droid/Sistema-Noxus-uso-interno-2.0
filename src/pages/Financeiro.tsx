@@ -268,7 +268,11 @@ const Financeiro = () => {
       // Filtro de Status do Agendamento (conforme solicitado pelo usuário)
       // Se a transação estiver vinculada a um agendamento, só mostrar se estiver 'concluido'
       if (t.agendamentos && t.agendamentos.status !== 'concluido') {
-        return false;
+        // PERMITIR SINAL: Se for adiantamento/sinal, mostrar independente do status do agendamento
+        const isSinal = t.descricao.toLowerCase().startsWith('sinal');
+        if (!isSinal) {
+          return false;
+        }
       }
 
       if (filtroTipo !== "TODOS" && t.tipo !== filtroTipo) return false;

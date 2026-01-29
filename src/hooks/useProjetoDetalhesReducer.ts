@@ -220,7 +220,7 @@ function projetoDetalhesReducer(
         editingSessao: action.payload,
         editSessaoForm: {
           data: action.payload.data || '',
-          valor: action.payload.valor || 0,
+          valor: action.payload.valor ?? 0,
           descricao: action.payload.descricao || '',
           status: action.payload.status || 'agendada',
         },
@@ -291,53 +291,53 @@ export function useProjetoDetalhesReducer() {
 
   const actions = {
     // Dialog de agendamentos
-    openAgendamentosDialog: useCallback(() => 
+    openAgendamentosDialog: useCallback(() =>
       dispatch({ type: 'OPEN_AGENDAMENTOS_DIALOG' }), []),
-    closeAgendamentosDialog: useCallback(() => 
+    closeAgendamentosDialog: useCallback(() =>
       dispatch({ type: 'CLOSE_AGENDAMENTOS_DIALOG' }), []),
     setAgendamentosDialogOpen: useCallback((open: boolean) => {
       dispatch({ type: open ? 'OPEN_AGENDAMENTOS_DIALOG' : 'CLOSE_AGENDAMENTOS_DIALOG' });
     }, []),
 
     // Cancelamento de agendamento
-    openCancelDialog: useCallback((agendamento: Agendamento) => 
+    openCancelDialog: useCallback((agendamento: Agendamento) =>
       dispatch({ type: 'OPEN_CANCEL_DIALOG', payload: agendamento }), []),
-    closeCancelDialog: useCallback(() => 
+    closeCancelDialog: useCallback(() =>
       dispatch({ type: 'CLOSE_CANCEL_DIALOG' }), []),
     setCancelDialogOpen: useCallback((open: boolean) => {
       if (!open) dispatch({ type: 'CLOSE_CANCEL_DIALOG' });
     }, []),
 
     // Edição de agendamento
-    openEditAgendamentoDialog: useCallback((agendamento: Agendamento) => 
+    openEditAgendamentoDialog: useCallback((agendamento: Agendamento) =>
       dispatch({ type: 'OPEN_EDIT_AGENDAMENTO_DIALOG', payload: agendamento }), []),
-    closeEditAgendamentoDialog: useCallback(() => 
+    closeEditAgendamentoDialog: useCallback(() =>
       dispatch({ type: 'CLOSE_EDIT_AGENDAMENTO_DIALOG' }), []),
-    setEditForm: useCallback((form: Partial<EditAgendamentoForm>) => 
+    setEditForm: useCallback((form: Partial<EditAgendamentoForm>) =>
       dispatch({ type: 'SET_EDIT_FORM', payload: form }), []),
     setEditDialogOpen: useCallback((open: boolean) => {
       if (!open) dispatch({ type: 'CLOSE_EDIT_AGENDAMENTO_DIALOG' });
     }, []),
 
     // Edição de sessão
-    openEditSessaoDialog: useCallback((sessao: Sessao) => 
+    openEditSessaoDialog: useCallback((sessao: Sessao) =>
       dispatch({ type: 'OPEN_EDIT_SESSAO_DIALOG', payload: sessao }), []),
-    closeEditSessaoDialog: useCallback(() => 
+    closeEditSessaoDialog: useCallback(() =>
       dispatch({ type: 'CLOSE_EDIT_SESSAO_DIALOG' }), []),
-    setEditSessaoForm: useCallback((form: Partial<EditSessaoForm>) => 
+    setEditSessaoForm: useCallback((form: Partial<EditSessaoForm>) =>
       dispatch({ type: 'SET_EDIT_SESSAO_FORM', payload: form }), []),
     setEditSessaoDialogOpen: useCallback((open: boolean) => {
       if (!open) dispatch({ type: 'CLOSE_EDIT_SESSAO_DIALOG' });
     }, []),
 
     // Sessão manual
-    openManualSessaoDialog: useCallback(() => 
+    openManualSessaoDialog: useCallback(() =>
       dispatch({ type: 'OPEN_MANUAL_SESSAO_DIALOG' }), []),
-    closeManualSessaoDialog: useCallback(() => 
+    closeManualSessaoDialog: useCallback(() =>
       dispatch({ type: 'CLOSE_MANUAL_SESSAO_DIALOG' }), []),
-    setManualSessaoForm: useCallback((form: Partial<ManualSessaoForm>) => 
+    setManualSessaoForm: useCallback((form: Partial<ManualSessaoForm>) =>
       dispatch({ type: 'SET_MANUAL_SESSAO_FORM', payload: form }), []),
-    resetManualSessaoForm: useCallback(() => 
+    resetManualSessaoForm: useCallback(() =>
       dispatch({ type: 'RESET_MANUAL_SESSAO_FORM' }), []),
     setManualSessaoDialogOpen: useCallback((open: boolean) => {
       dispatch({ type: open ? 'OPEN_MANUAL_SESSAO_DIALOG' : 'CLOSE_MANUAL_SESSAO_DIALOG' });

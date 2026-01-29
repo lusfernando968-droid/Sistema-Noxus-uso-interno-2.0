@@ -97,7 +97,7 @@ export function useAgendamentosCrud({
           try {
             const { data: updated, error } = await supabaseClient
               .from('agendamentos')
-              .update({ ...basePayload, valor_estimado: formData.valor_estimado })
+              .update({ ...basePayload, valor_estimado: formData.valor_estimado, valor_sinal: formData.valor_sinal || 0, data_pagamento_sinal: formData.data_pagamento_sinal || null })
               .eq('id', editingAgendamento.id)
               .eq('user_id', masterId)
               .select('id')
@@ -123,9 +123,47 @@ export function useAgendamentosCrud({
           if (!updatedOk) {
             toast({ title: "Atualização não aplicada", description: "Nenhuma linha foi atualizada.", variant: "destructive" });
           } else {
-            // Sincronizar transação se concluído
+            // Sincronizar transação de sinal
+            const sinalDescricao = `Sinal: ${formData.servico} - ${formData.cliente_nome || clientes.find(c => c.id === formData.cliente_id)?.nome || "Cliente"}`;
+
+            // Buscar transação de sinal existente
+            const { data: existingSinalTr } = await supabaseClient
+              .from('transacoes')
+              .select('id')
+              .eq('agendamento_id', editingAgendamento.id)
+              .ilike('descricao', 'Sinal:%')
+              .maybeSingle();
+
+            if (formData.valor_sinal && formData.valor_sinal > 0) {
+              const sinalPayload = {
+                user_id: masterId,
+                tipo: 'RECEITA',
+                categoria: 'Serviços',
+                valor: formData.valor_sinal,
+                data_vencimento: formData.data_pagamento_sinal || formData.data_agendamento,
+                descricao: sinalDescricao,
+                agendamento_id: editingAgendamento.id,
+              };
+
+              if (existingSinalTr) {
+                await supabaseClient
+                  .from('transacoes')
+                  .update(sinalPayload)
+                  .eq('id', existingSinalTr.id);
+              } else {
+                await supabaseClient
+                  .from('transacoes')
+                  .insert(sinalPayload);
+              }
+            } else if (existingSinalTr) {
+              // Se valor_sinal for 0 ou removido, deletar transação de sinal
+              await supabaseClient.from('transacoes').delete().eq('id', existingSinalTr.id);
+            }
+
+            // Sincronizar transação de conclusão (existente)
             if (formData.status === 'concluido') {
               const clienteNome = formData.cliente_nome || clientes.find(c => c.id === formData.cliente_id)?.nome || "Cliente";
+              // ... existing logic for completion transaction ...
               const transacaoPayload = {
                 user_id: masterId,
                 tipo: 'RECEITA',
@@ -136,11 +174,12 @@ export function useAgendamentosCrud({
                 agendamento_id: editingAgendamento.id,
               };
 
-              // Verificar se já existe
+              // Verificar se já existe (NOT Sinal)
               const { data: existingTr } = await supabaseClient
                 .from('transacoes')
                 .select('id')
                 .eq('agendamento_id', editingAgendamento.id)
+                .not('descricao', 'ilike', 'Sinal:%')
                 .maybeSingle();
 
               if (existingTr) {
@@ -153,6 +192,9 @@ export function useAgendamentosCrud({
                   .from('transacoes')
                   .insert(transacaoPayload);
               }
+            } else {
+              // Se não for concluído, mas existir transação de 'Sessão', talvez devêssemos removê-la? 
+              // (Mantendo lógica original que não remove, mas editando para garantir que não pegue a do sinal)
             }
 
             toast({ title: "Agendamento atualizado com sucesso!" });
@@ -160,9 +202,13 @@ export function useAgendamentosCrud({
         } else {
           toast({ title: "Agendamento atualizado localmente" });
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Erro ao atualizar agendamento no banco:', err);
-        toast({ title: "Erro ao atualizar no banco", description: "Tente novamente mais tarde.", variant: "destructive" });
+        toast({
+          title: "Erro ao atualizar no banco",
+          description: err.message || "Tente novamente mais tarde.",
+          variant: "destructive"
+        });
       }
     } else {
       if (masterId) {
@@ -185,6 +231,8 @@ export function useAgendamentosCrud({
               hora: formData.hora_inicio,
               status: formData.status,
               valor_estimado: formData.valor_estimado || 0,
+              valor_sinal: formData.valor_sinal || 0,
+              data_pagamento_sinal: formData.data_pagamento_sinal || null,
             })
             .select()
             .single();
@@ -207,6 +255,20 @@ export function useAgendamentosCrud({
               });
           }
 
+          if (formData.valor_sinal && formData.valor_sinal > 0) {
+            await supabase
+              .from('transacoes')
+              .insert({
+                user_id: masterId,
+                tipo: 'RECEITA',
+                categoria: 'Serviços',
+                valor: formData.valor_sinal,
+                data_vencimento: formData.data_pagamento_sinal || formData.data_agendamento,
+                descricao: `Sinal: ${formData.servico} - ${clienteNomeNovo}`,
+                agendamento_id: inserted.id,
+              });
+          }
+
           const novoAgendamento: Agendamento = {
             id: inserted.id,
             cliente_nome: formData.cliente_nome,
@@ -218,6 +280,8 @@ export function useAgendamentosCrud({
             status: formData.status,
             observacoes: formData.observacoes,
             valor_estimado: formData.valor_estimado,
+            valor_sinal: formData.valor_sinal,
+            data_pagamento_sinal: formData.data_pagamento_sinal,
             tatuador: formData.tatuador,
             local: ''
           };
@@ -228,9 +292,13 @@ export function useAgendamentosCrud({
             return novosAgendamentos;
           });
           toast({ title: "Agendamento criado e salvo com sucesso!" });
-        } catch (err) {
+        } catch (err: any) {
           console.error('Erro ao salvar agendamento:', err);
-          toast({ title: 'Erro ao salvar agendamento', description: 'Verifique o login e tente novamente.' });
+          toast({
+            title: 'Erro ao salvar agendamento',
+            description: err.message || 'Verifique o login e tente novamente.',
+            variant: "destructive"
+          });
           const novoAgendamento: Agendamento = {
             id: Date.now().toString(),
             ...formData
@@ -281,6 +349,8 @@ export function useAgendamentosCrud({
       status: agendamento.status,
       observacoes: agendamento.observacoes,
       valor_estimado: agendamento.valor_estimado,
+      valor_sinal: agendamento.valor_sinal || 0,
+      data_pagamento_sinal: agendamento.data_pagamento_sinal || '',
       tatuador: agendamento.tatuador,
       local: agendamento.local
     });
@@ -313,6 +383,8 @@ export function useAgendamentosCrud({
             hora: agendamento.hora_inicio,
             status: 'agendado', // Sempre reseta para 'agendado' ao duplicar
             valor_estimado: agendamento.valor_estimado || 0,
+            valor_sinal: 0, // Reset signal for duplicate
+            data_pagamento_sinal: null, // Reset signal date for duplicate
           })
           .select()
           .single();
@@ -331,6 +403,8 @@ export function useAgendamentosCrud({
           status: 'agendado', // Sempre reseta para 'agendado' ao duplicar
           observacoes: agendamento.observacoes,
           valor_estimado: agendamento.valor_estimado,
+          valor_sinal: 0,
+          data_pagamento_sinal: '',
           tatuador: agendamento.tatuador,
           local: agendamento.local
         };
@@ -416,7 +490,75 @@ export function useAgendamentosCrud({
         if (error) throw error;
         if (!updated) throw new Error('no_rows_updated');
       }
-      toast({ title: `Status alterado para ${getStatusLabel(novoStatus)}` });
+      if (novoStatus === 'concluido') {
+        const agendamento = agendamentos.find(a => a.id === id);
+
+        if (agendamento) {
+          // Lógica automática de criação de sessão e transação
+          const projeto = projetos.find(p => p.titulo === agendamento.tatuador);
+          if (projeto?.id) {
+            // 1. Verificar/Criar Sessão
+            const { data: sessaoExistente } = await supabaseClient
+              .from('projeto_sessoes')
+              .select('id')
+              .eq('projeto_id', projeto.id)
+              .eq('agendamento_id', id)
+              .maybeSingle();
+
+            if (!sessaoExistente) {
+              const { data: sessoesCount } = await supabaseClient
+                .from('projeto_sessoes')
+                .select('id')
+                .eq('projeto_id', projeto.id);
+
+              const numeroSessao = (sessoesCount?.length || 0) + 1;
+
+              await supabaseClient
+                .from('projeto_sessoes')
+                .insert({
+                  projeto_id: projeto.id,
+                  agendamento_id: id,
+                  numero_sessao: numeroSessao,
+                  data_sessao: agendamento.data_agendamento,
+                  valor_sessao: agendamento.valor_estimado || null,
+                  status_pagamento: 'pendente',
+                  metodo_pagamento: null
+                });
+            }
+
+            // 2. Verificar/Criar Transação
+            if (agendamento.valor_estimado && agendamento.valor_estimado > 0) {
+              const { data: transacaoExistente } = await supabaseClient
+                .from('transacoes')
+                .select('id')
+                .eq('agendamento_id', id)
+                .maybeSingle();
+
+              if (!transacaoExistente) {
+                const clienteNome = agendamento.cliente_nome || clientes.find(c => c.id === agendamento.cliente_id)?.nome || "Cliente";
+                await supabaseClient
+                  .from('transacoes')
+                  .insert({
+                    user_id: masterId,
+                    tipo: 'RECEITA',
+                    categoria: 'Serviços',
+                    valor: agendamento.valor_estimado,
+                    data_vencimento: agendamento.data_agendamento,
+                    descricao: `Sessão realizada: ${agendamento.servico} - ${clienteNome}`,
+                    agendamento_id: id,
+                  });
+              }
+            }
+            toast({ title: `Status atualizado e sessão gerada com sucesso!` });
+          } else {
+            toast({ title: `Status alterado para ${getStatusLabel(novoStatus)}` });
+          }
+        } else {
+          toast({ title: `Status alterado para ${getStatusLabel(novoStatus)}` });
+        }
+      } else {
+        toast({ title: `Status alterado para ${getStatusLabel(novoStatus)}` });
+      }
     } catch (err) {
       console.error('Erro ao atualizar status no banco:', err);
       if (prevStatus) {

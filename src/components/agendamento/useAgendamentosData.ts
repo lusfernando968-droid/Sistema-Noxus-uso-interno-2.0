@@ -135,6 +135,8 @@ export function useAgendamentosData() {
             status: row.status || 'agendado',
             observacoes: row.descricao || '',
             valor_estimado: Number(row.valor_estimado || 0),
+            valor_sinal: Number(row.valor_sinal || 0),
+            data_pagamento_sinal: row.data_pagamento_sinal,
             tatuador: proj?.titulo || '',
             local: ''
           } as Agendamento;

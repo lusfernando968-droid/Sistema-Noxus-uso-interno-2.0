@@ -442,7 +442,7 @@ function MateriaisList({
               items.map((m: any) => (
                 <TableRow key={m.id} className="hover:bg-muted/50">
                   <TableCell className="font-medium">
-                    {new Date(m.data_aquisicao).toLocaleDateString("pt-BR")}
+                    {new Date(m.data_aquisicao + 'T12:00:00').toLocaleDateString("pt-BR")}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="capitalize font-normal">

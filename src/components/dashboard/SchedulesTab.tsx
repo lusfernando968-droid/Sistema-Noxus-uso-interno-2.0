@@ -3,13 +3,18 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { useMemo } from "react";
 import { format, startOfMonth, endOfMonth, eachMonthOfInterval, subMonths, isWithinInterval, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Calendar, CheckCircle2, CalendarDays, TrendingUp, DollarSign } from "lucide-react";
+import { Calendar, CheckCircle2, CalendarDays, TrendingUp, DollarSign, XCircle } from "lucide-react";
 import { motion } from "framer-motion";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 interface Agendamento {
   id: string;
   data: string;
   status: string;
+  titulo?: string;
+  cliente_nome?: string;
+  hora?: string;
   [key: string]: any;
 }
 
@@ -121,8 +126,28 @@ export function SchedulesTab({ agendamentos }: SchedulesTabProps) {
       nextWeekCount,
       busiestDayName,
       busiestDayValue,
-      totalReceivable: currencyFormatter.format(totalReceivable)
+      totalReceivable: currencyFormatter.format(totalReceivable),
+      totalSignalReceived: currencyFormatter.format(
+        agendamentos.reduce((sum, a) => {
+          // Considerar sinal se a data de pagamento (ou do agendamento) for neste mês
+          const dateStr = a.data_pagamento_sinal || a.data;
+          if (!dateStr) return sum;
+          const date = new Date(dateStr);
+          if (isWithinInterval(date, { start: currentMonthStart, end: currentMonthEnd })) {
+            return sum + (Number(a.valor_sinal) || 0);
+          }
+          return sum;
+        }, 0)
+      )
     };
+  }, [agendamentos]);
+
+  // Lista de Cancelados (ordenada por data decrescente)
+  const canceladosList = useMemo(() => {
+    return agendamentos
+      .filter(a => a.status === 'cancelado')
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+      .slice(0, 10); // Top 10 recentes
   }, [agendamentos]);
 
   // Status chart data
@@ -216,6 +241,21 @@ export function SchedulesTab({ agendamentos }: SchedulesTabProps) {
         </motion.div>
 
         <motion.div variants={item}>
+          <Card className="hover:shadow-md transition-shadow bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-400">Recebido (Sinal)</CardTitle>
+              <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{metrics.totalSignalReceived}</div>
+              <p className="text-xs text-emerald-600/80 dark:text-emerald-400/80 mt-1">
+                Sinais este mês
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={item}>
           <Card className="hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Comparecimento</CardTitle>
@@ -231,6 +271,23 @@ export function SchedulesTab({ agendamentos }: SchedulesTabProps) {
         </motion.div>
 
         <motion.div variants={item}>
+          <Card className="hover:shadow-md transition-shadow bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-900/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-red-700 dark:text-red-400">Cancelados</CardTitle>
+              <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-700 dark:text-red-400">{metrics.cancelados}</div>
+              <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-1">
+                Total cancelados
+              </p>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <motion.div variants={item}>
           <Card className="hover:shadow-md transition-shadow bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-900/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-400">Próximos 7 Dias</CardTitle>
@@ -245,21 +302,9 @@ export function SchedulesTab({ agendamentos }: SchedulesTabProps) {
           </Card>
         </motion.div>
 
-        <motion.div variants={item}>
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Dia + Movimentado</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold truncate" title={metrics.busiestDayName}>
-                {metrics.busiestDayName}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {metrics.busiestDayValue} agendamentos
-              </p>
-            </CardContent>
-          </Card>
+        <motion.div variants={item} className="md:col-span-3">
+          {/* Spacing or additional quick stats if needed */}
+          <div className="hidden md:block"></div>
         </motion.div>
       </div>
 
@@ -340,6 +385,45 @@ export function SchedulesTab({ agendamentos }: SchedulesTabProps) {
           </Card>
         </motion.div>
       </div>
+
+      {/* Cancelados List */}
+      {canceladosList.length > 0 && (
+        <motion.div variants={item}>
+          <Card className="rounded-3xl border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold text-destructive">Agendamentos Cancelados</CardTitle>
+              <CardDescription>Últimos cancelamentos registrados no sistema</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-xl border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Data</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>Serviço</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {canceladosList.map((ag) => (
+                      <TableRow key={ag.id}>
+                        <TableCell>{ag.data ? format(new Date(ag.data), "dd/MM/yyyy", { locale: ptBR }) : "-"}</TableCell>
+                        <TableCell className="font-medium">{ag.cliente_nome || "Cliente não informado"}</TableCell>
+                        <TableCell>{ag.titulo || ag.servico || "-"}</TableCell>
+                        <TableCell>
+                          <Badge variant="destructive" className="rounded-lg">Cancelado</Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
     </motion.div>
   );
 }

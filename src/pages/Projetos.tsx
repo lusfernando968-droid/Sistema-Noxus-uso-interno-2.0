@@ -47,6 +47,7 @@ type Projeto = {
   feedback_count?: number;
   progresso?: number;
   capa_url?: string;
+  ultimo_agendamento?: string;
 };
 
 type Cliente = {
@@ -113,7 +114,7 @@ export default function Projetos() {
     try {
       // 1. Tenta buscar projetos via RPC otimizado (v4)
       const { data: rpcData, error: rpcError } = await supabase
-        .rpc('get_projects_v4', { p_user_id: masterId });
+        .rpc('get_projects_v5', { p_user_id: masterId });
 
       if (rpcError) throw rpcError;
 
@@ -140,6 +141,7 @@ export default function Projetos() {
           sessoes_realizadas: sessoesRealizadas,
           fotos_count: item.fotos_count || 0,
           feedback_count: item.feedback_count || 0,
+          ultimo_agendamento: item.ultimo_agendamento,
           progresso: progressoCalc,
         } as Projeto;
       });
@@ -289,9 +291,27 @@ export default function Projetos() {
               <StatusIcon className="w-4 h-4 text-muted-foreground shrink-0" />
               <CardTitle className="text-sm font-semibold truncate">{projeto.titulo}</CardTitle>
             </div>
-            <Badge variant="outline" className={statusColor}>
-              {statusLabel}
-            </Badge>
+            <div className="flex flex-col gap-1 items-end">
+              <Badge variant="outline" className={statusColor}>
+                {statusLabel}
+              </Badge>
+              {projeto.status === 'andamento' && projeto.ultimo_agendamento && (
+                (() => {
+                  const lastDate = new Date(projeto.ultimo_agendamento);
+                  const diffTime = Math.abs(new Date().getTime() - lastDate.getTime());
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                  if (diffDays > 30) {
+                    return (
+                      <Badge variant="destructive" className="rounded-full px-2 py-0.5 text-[10px] font-semibold animate-pulse">
+                        {diffDays}d
+                      </Badge>
+                    );
+                  }
+                  return null;
+                })()
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -408,6 +428,22 @@ export default function Projetos() {
                   <Badge variant="outline" className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusColor}`}>
                     {statusLabel}
                   </Badge>
+                  {projeto.status === 'andamento' && projeto.ultimo_agendamento && (
+                    (() => {
+                      const lastDate = new Date(projeto.ultimo_agendamento);
+                      const diffTime = Math.abs(new Date().getTime() - lastDate.getTime());
+                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                      if (diffDays > 30) {
+                        return (
+                          <Badge variant="destructive" className="rounded-full px-2 py-0.5 text-[10px] font-semibold animate-pulse">
+                            {diffDays}d sem agendamento
+                          </Badge>
+                        );
+                      }
+                      return null;
+                    })()
+                  )}
                 </div>
                 <CardTitle className="text-lg font-bold line-clamp-1 group-hover:text-primary transition-colors">
                   {projeto.titulo}
@@ -807,9 +843,27 @@ export default function Projetos() {
                             </TableCell>
                             <TableCell>{projeto.clientes?.nome}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={statusColor}>
-                                {statusLabel}
-                              </Badge>
+                              <div className="flex flex-col gap-1">
+                                <Badge variant="outline" className={`w-fit ${statusColor}`}>
+                                  {statusLabel}
+                                </Badge>
+                                {projeto.status === 'andamento' && projeto.ultimo_agendamento && (
+                                  (() => {
+                                    const lastDate = new Date(projeto.ultimo_agendamento);
+                                    const diffTime = Math.abs(new Date().getTime() - lastDate.getTime());
+                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                                    if (diffDays > 30) {
+                                      return (
+                                        <Badge variant="destructive" className="w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold animate-pulse">
+                                          {diffDays}d sem agendamento
+                                        </Badge>
+                                      );
+                                    }
+                                    return null;
+                                  })()
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">

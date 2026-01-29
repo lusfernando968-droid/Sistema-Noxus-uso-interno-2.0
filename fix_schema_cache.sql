@@ -1,0 +1,12 @@
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'clientes' AND column_name = 'status') THEN
+        ALTER TABLE "public"."clientes" ADD COLUMN "status" text NOT NULL DEFAULT 'ativo';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'clientes' AND column_name = 'motivo_inativacao') THEN
+        ALTER TABLE "public"."clientes" ADD COLUMN "motivo_inativacao" text;
+    END IF;
+END $$;
+
+NOTIFY pgrst, 'reload schema';

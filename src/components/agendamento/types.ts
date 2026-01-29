@@ -13,6 +13,8 @@ export interface Agendamento {
   status: AgendamentoStatus;
   observacoes: string;
   valor_estimado: number;
+  valor_sinal?: number;
+  data_pagamento_sinal?: string;
   tatuador: string;
   local: string;
 }
@@ -27,6 +29,8 @@ export interface AgendamentoFormData {
   status: AgendamentoStatus;
   observacoes: string;
   valor_estimado: number;
+  valor_sinal?: number;
+  data_pagamento_sinal?: string;
   tatuador: string;
   local: string;
 }
@@ -53,6 +57,8 @@ export const INITIAL_FORM_DATA: AgendamentoFormData = {
   status: "agendado",
   observacoes: "",
   valor_estimado: 0,
+  valor_sinal: 0,
+  data_pagamento_sinal: "",
   tatuador: "",
   local: "Estúdio Principal"
 };
